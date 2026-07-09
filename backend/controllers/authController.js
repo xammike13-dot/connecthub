@@ -1,0 +1,481 @@
+import jwt from 'jsonwebtoken';
+import User from '../models/User.js';
+import Wallet from '../models/Wallet.js';
+import VerificationToken from '../models/VerificationToken.js';
+import { generateVerificationCode, sendWhatsAppVerification } from '../utils/phoneService.js';
+
+// Generate JWT Token
+const generateToken = (id) => {
+  return jwt.sign({ id }, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRE || '30d',
+  });
+};
+
+// Helper function to handle successful login
+const handleLoginSuccess = async (user, password, req, res) => {
+  console.log('[PASSWORD FIELD EXISTS]', !!user?.password);
+  console.log('[USER ACTIVE]', user?.isActive);
+  console.log('[USER DELETED]', user?.isDeleted);
+  console.log('[PASSWORD HASH]', user?.password);
+  console.log('[PASSWORD PROVIDED]', password);
+
+  // Check password
+  const isMatch = await user.matchPassword(password);
+  console.log('[PASSWORD MATCH]', isMatch);
+  console.log('[BCRYPT COMPARE DETAILS]', {
+    plainPassword: password,
+    storedHash: user.password,
+    match: isMatch
+  });
+  
+  if (!isMatch) {
+    console.log('[LOGIN FAILED] Password mismatch for email:', user.email);
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid credentials',
+    });
+  }
+
+  // Check phone verification status for new accounts only
+  if (user.phoneVerified === false && user.accountActive === false) {
+    console.log('[LOGIN FAILED] User phone not verified and account inactive');
+    return res.status(403).json({
+      success: false,
+      message: 'Please verify your phone number before logging in.',
+      requiresVerification: true,
+      phoneVerified: user.phoneVerified,
+      user: {
+        id: user._id,
+        phone: user.phone,
+        role: user.role,
+      },
+    });
+  }
+
+  // Update last login (use findByIdAndUpdate to avoid password re-hashing)
+  await User.findByIdAndUpdate(user._id, { lastLogin: new Date() });
+
+  // Create token
+  const token = generateToken(user._id);
+
+  // Track session
+  const userAgent = req.headers['user-agent'] || '';
+  const ip = req.ip || req.connection.remoteAddress;
+  
+  // Simple device/browser detection
+  let device = 'Unknown';
+  let browser = 'Unknown';
+  if (userAgent.includes('Mobile')) device = 'Mobile';
+  else if (userAgent.includes('Tablet')) device = 'Tablet';
+  else device = 'Desktop';
+  
+  if (userAgent.includes('Chrome')) browser = 'Chrome';
+  else if (userAgent.includes('Firefox')) browser = 'Firefox';
+  else if (userAgent.includes('Safari')) browser = 'Safari';
+  else if (userAgent.includes('Edge')) browser = 'Edge';
+
+  await User.findByIdAndUpdate(user._id, {
+    $push: {
+      sessions: {
+        token,
+        device,
+        browser,
+        ip,
+        loginTime: new Date(),
+        lastActive: new Date(),
+      }
+    }
+  });
+
+  res.status(200).json({
+    success: true,
+    token,
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      avatar: user.avatar,
+      lastLogin: user.lastLogin,
+      withdrawalNumber: user.withdrawalNumber,
+      phoneVerified: user.phoneVerified,
+      setupCompleted: user.setupCompleted,
+      onboardingCompleted: user.onboardingCompleted,
+    },
+  });
+};
+
+// @desc    Register user
+// @route   POST /api/auth/register
+// @access  Public
+export const register = async (req, res, next) => {
+  try {
+    const { name, email, phone, password, role } = req.body;
+
+    // Check if user exists
+    const userExists = await User.findOne({ email });
+    if (userExists) {
+      return res.status(400).json({
+        success: false,
+        message: 'User already exists with this email',
+      });
+    }
+
+    // Create user with verification fields
+    const user = await User.create({
+      name,
+      email,
+      phone,
+      password,
+      role: role || 'customer',
+      phoneVerified: false,
+      accountActive: false,
+      setupCompleted: false,
+      onboardingCompleted: false,
+    });
+
+    // Create wallet for the user (for all roles)
+    await Wallet.create({
+      user: user._id,
+    });
+
+    // Generate and send phone verification code
+    const code = generateVerificationCode();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+
+    // Create verification token
+    await VerificationToken.create({
+      userId: user._id,
+      type: 'phone',
+      token: code,
+      expiresAt,
+    });
+
+    // Update user with verification token
+    user.phoneVerificationToken = code;
+    user.phoneVerificationExpire = expiresAt;
+    await user.save();
+
+    // Send WhatsApp verification
+    const phoneResult = await sendWhatsAppVerification(phone, code);
+
+    // Do NOT create token or auto-login
+    // User must verify phone first
+    res.status(201).json({
+      success: true,
+      message: 'Registration successful. Please verify your phone number.',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+      },
+      devMode: phoneResult.devMode,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// @desc    Login user
+// @route   POST /api/auth/login
+// @access  Public
+export const login = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+
+    console.log('[LOGIN REQUEST]', req.body);
+
+    // Validate email & password
+    if (!email || !password) {
+      console.log('[LOGIN VALIDATION FAILED] Missing email or password');
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide email and password',
+      });
+    }
+
+    // Check for user (case-insensitive due to schema lowercase: true)
+    const user = await User.findOne({ email }).select('+password');
+    console.log('[USER FOUND]', !!user);
+    console.log('[USER EMAIL]', user?.email);
+    console.log('[SEARCH EMAIL]', email);
+    
+    // Fallback to case-insensitive search if exact match fails
+    if (!user) {
+      console.log('[EXACT MATCH FAILED, TRYING CASE-INSENSITIVE]');
+      const caseInsensitiveUser = await User.findOne({ 
+        email: { $regex: new RegExp(`^${email}$`, 'i') } 
+      }).select('+password');
+      console.log('[CASE-INSENSITIVE USER FOUND]', !!caseInsensitiveUser);
+      if (caseInsensitiveUser) {
+        console.log('[FOUND EMAIL]', caseInsensitiveUser.email);
+        return handleLoginSuccess(caseInsensitiveUser, password, req, res);
+      }
+    }
+    
+    if (!user) {
+      console.log('[LOGIN FAILED] User not found for email:', email);
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials',
+      });
+    }
+
+    return handleLoginSuccess(user, password, req, res);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// @desc    Get user profile
+// @route   GET /api/auth/profile
+// @access  Private
+export const getProfile = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id);
+
+    res.status(200).json({
+      success: true,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        avatar: user.avatar,
+        isVerified: user.isVerified,
+        lastLogin: user.lastLogin,
+        withdrawalNumber: user.withdrawalNumber,
+        sessions: user.sessions,
+        riderProfile: user.riderProfile,
+        businessProfile: user.businessProfile,
+        landlordProfile: user.landlordProfile,
+        customerProfile: user.customerProfile,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// @desc    Update user profile
+// @route   PUT /api/auth/profile
+// @access  Private
+export const updateProfile = async (req, res, next) => {
+  try {
+    const { name, email, phone, avatar, withdrawalNumber } = req.body;
+
+    // Check if email is being changed and if it already exists
+    if (email && email !== req.user.email) {
+      const existingUser = await User.findOne({ email });
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email already in use',
+        });
+      }
+    }
+
+    const updateData = {};
+    if (name !== undefined) updateData.name = name;
+    if (email !== undefined) updateData.email = email;
+    if (phone !== undefined) updateData.phone = phone;
+    if (avatar !== undefined) updateData.avatar = avatar;
+    if (withdrawalNumber !== undefined) updateData.withdrawalNumber = withdrawalNumber;
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        avatar: user.avatar,
+        withdrawalNumber: user.withdrawalNumber,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// @desc    Update password
+// @route   PUT /api/auth/updatepassword
+// @access  Private
+export const updatePassword = async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    const user = await User.findById(req.user.id).select('+password');
+
+    // Check current password
+    const isMatch = await user.matchPassword(currentPassword);
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: 'Current password is incorrect',
+      });
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    // Create token
+    const token = generateToken(user._id);
+
+    res.status(200).json({
+      success: true,
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        avatar: user.avatar,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// @desc    Logout from all devices
+// @route   POST /api/auth/logout-all
+// @access  Private
+export const logoutAllDevices = async (req, res, next) => {
+  try {
+    // Clear all sessions using findByIdAndUpdate to avoid password re-hashing
+    await User.findByIdAndUpdate(req.user.id, { sessions: [] });
+
+    res.status(200).json({
+      success: true,
+      message: 'Logged out from all devices successfully',
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// @desc    Deactivate account
+// @route   POST /api/auth/deactivate
+// @access  Private
+export const deactivateAccount = async (req, res, next) => {
+  try {
+    // Deactivate account using findByIdAndUpdate to avoid password re-hashing
+    await User.findByIdAndUpdate(req.user.id, { isActive: false });
+
+    res.status(200).json({
+      success: true,
+      message: 'Account deactivated successfully',
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// @desc    Delete account
+// @route   DELETE /api/auth/account
+// @access  Private
+export const deleteAccount = async (req, res, next) => {
+  try {
+    const { password } = req.body;
+
+    const user = await User.findById(req.user.id).select('+password');
+
+    // Verify password
+    const isMatch = await user.matchPassword(password);
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: 'Incorrect password',
+      });
+    }
+
+    // Soft delete using findByIdAndUpdate to avoid password re-hashing
+    await User.findByIdAndUpdate(req.user.id, {
+      isDeleted: true,
+      isActive: false,
+      email: `${user.email}_deleted_${Date.now()}`,
+      phone: `${user.phone}_deleted_${Date.now()}`,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Account deleted successfully',
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// @desc    Debug login endpoint
+// @route   GET /api/auth/debug/test-login/:email
+// @access  Public (debug only)
+export const debugLogin = async (req, res, next) => {
+  try {
+    const { email } = req.params;
+    
+    console.log('[DEBUG LOGIN REQUEST]', { email });
+    
+    const user = await User.findOne({ email }).select('+password');
+    
+    const response = {
+      email,
+      userFound: !!user,
+      hasPassword: !!user?.password,
+      passwordLength: user?.password?.length,
+      passwordHash: user?.password,
+      isActive: user?.isActive,
+      isDeleted: user?.isDeleted,
+      userEmail: user?.email,
+      userName: user?.name,
+      userRole: user?.role
+    };
+    
+    console.log('[DEBUG LOGIN RESPONSE]', response);
+    
+    res.status(200).json(response);
+  } catch (error) {
+    console.error('[DEBUG LOGIN ERROR]', error.message);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};

@@ -1,0 +1,345 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import ImageUpload from '../components/ImageUpload';
+import GuidedWalkthrough from '../components/GuidedWalkthrough';
+import api from '../services/apiClient';
+
+const RiderSetupPage = () => {
+  const [step, setStep] = useState(1);
+  const [profilePhoto, setProfilePhoto] = useState('');
+  const [motorcyclePhoto, setMotorcyclePhoto] = useState('');
+  const [workingArea, setWorkingArea] = useState({
+    county: '',
+    town: '',
+    serviceRadius: '',
+  });
+  const [workingHours, setWorkingHours] = useState({
+    start: '06:00',
+    end: '22:00',
+  });
+  const [ratePerKm, setRatePerKm] = useState('25');
+  const [loading, setLoading] = useState(false);
+  const [showWalkthrough, setShowWalkthrough] = useState(false);
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const handleNext = () => {
+    if (step < 5) {
+      setStep(step + 1);
+    }
+  };
+
+  const handleBack = () => {
+    if (step > 1) {
+      setStep(step - 1);
+    }
+  };
+
+  const handleSubmit = async () => {
+    setLoading(true);
+    try {
+      await api.post('/setup/rider', {
+        profilePhoto,
+        motorcyclePhoto,
+        workingArea: {
+          county: workingArea.county,
+          town: workingArea.town,
+          serviceRadius: workingArea.serviceRadius,
+        },
+        workingHours,
+        ratePerKm: parseFloat(ratePerKm),
+      });
+      
+      // Show guided walkthrough after setup
+      setShowWalkthrough(true);
+    } catch (error) {
+      console.error('Setup failed:', error);
+      alert('Failed to complete setup. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleWalkthroughComplete = () => {
+    navigate('/rider/dashboard');
+  };
+
+  const walkthroughSteps = [
+    {
+      title: 'Welcome',
+      heading: 'Go Online to Start Receiving Rides',
+      description: 'When you\'re ready to work, go online in your dashboard. You\'ll start receiving ride requests from customers in your area.',
+      actionItems: [
+        'Click "Go Online" in your dashboard',
+        'Wait for ride requests',
+        'Accept rides you want to take',
+        'Navigate to customer location'
+      ]
+    },
+    {
+      title: 'Rides',
+      heading: 'Complete Rides',
+      description: 'Follow the GPS navigation to pick up customers and deliver them to their destinations safely and efficiently.',
+      actionItems: [
+        'Navigate to customer pickup location',
+        'Confirm customer identity',
+        'Navigate to destination',
+        'Collect payment or confirm cash payment'
+      ]
+    },
+    {
+      title: 'Earnings',
+      heading: 'Track Your Earnings',
+      description: 'Monitor your daily earnings and analyze your performance through the rider dashboard.',
+      actionItems: [
+        'View daily and weekly earnings',
+        'Track completed rides',
+        'Analyze peak earning hours',
+        'Withdraw earnings to your wallet'
+      ]
+    }
+  ];
+
+  const steps = [
+    {
+      title: 'Upload Rider Profile Photo',
+      description: 'Add a photo of yourself for customers to recognize you',
+      content: (
+        <div className="space-y-4">
+          <ImageUpload
+            onUpload={(url) => setProfilePhoto(url)}
+            currentImage={profilePhoto}
+            aspectRatio="square"
+            label="Profile Photo"
+          />
+        </div>
+      ),
+    },
+    {
+      title: 'Upload Motorcycle Photo',
+      description: 'Add a photo of your motorcycle',
+      content: (
+        <div className="space-y-4">
+          <ImageUpload
+            onUpload={(url) => setMotorcyclePhoto(url)}
+            currentImage={motorcyclePhoto}
+            aspectRatio="landscape"
+            label="Motorcycle Photo"
+          />
+        </div>
+      ),
+    },
+    {
+      title: 'Working Area',
+      description: 'Define the area where you provide services',
+      content: (
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-2">
+              County
+            </label>
+            <input
+              type="text"
+              value={workingArea.county}
+              onChange={(e) => setWorkingArea({ ...workingArea, county: e.target.value })}
+              className="input-field"
+              placeholder="e.g., Nairobi"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-2">
+              Town/Area
+            </label>
+            <input
+              type="text"
+              value={workingArea.town}
+              onChange={(e) => setWorkingArea({ ...workingArea, town: e.target.value })}
+              className="input-field"
+              placeholder="e.g., Westlands"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-2">
+              Service Radius (km)
+            </label>
+            <input
+              type="number"
+              value={workingArea.serviceRadius}
+              onChange={(e) => setWorkingArea({ ...workingArea, serviceRadius: e.target.value })}
+              className="input-field"
+              placeholder="e.g., 10"
+              required
+            />
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: 'Working Hours',
+      description: 'Set your availability hours',
+      content: (
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-2">
+              Start Time
+            </label>
+            <input
+              type="time"
+              value={workingHours.start}
+              onChange={(e) => setWorkingHours({ ...workingHours, start: e.target.value })}
+              className="input-field"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-2">
+              End Time
+            </label>
+            <input
+              type="time"
+              value={workingHours.end}
+              onChange={(e) => setWorkingHours({ ...workingHours, end: e.target.value })}
+              className="input-field"
+              required
+            />
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: 'Rate Per KM',
+      description: 'Set your rate per kilometer',
+      content: (
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-2">
+              Rate (KSh)
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                value={ratePerKm}
+                onChange={(e) => setRatePerKm(e.target.value)}
+                className="input-field pl-16"
+                placeholder="25"
+                required
+              />
+              <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-neutral-500 font-medium">
+                KSh
+              </span>
+            </div>
+            <p className="text-sm text-neutral-500 mt-2">Example: KSh 25/km</p>
+          </div>
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-neutral-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-2xl w-full">
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 bg-blue-600 rounded-xl flex items-center justify-center shadow-blue mx-auto">
+            <span className="text-white font-bold text-3xl">C</span>
+          </div>
+          <h1 className="mt-4 text-2xl font-bold text-neutral-900">Rider Setup</h1>
+          <p className="mt-2 text-neutral-500">Complete your profile to start accepting rides</p>
+        </div>
+
+        {/* Progress Steps */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between">
+            {[1, 2, 3, 4, 5].map((stepNum) => (
+              <div key={stepNum} className="flex items-center">
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm ${
+                    step >= stepNum
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-neutral-200 text-neutral-500'
+                  }`}
+                >
+                  {step > stepNum ? '✓' : stepNum}
+                </div>
+                {stepNum < 5 && (
+                  <div
+                    className={`w-full h-1 mx-2 ${
+                      step > stepNum ? 'bg-blue-600' : 'bg-neutral-200'
+                    }`}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Form Card */}
+        <div className="bg-white rounded-2xl shadow-xl p-8 border border-neutral-200">
+          <h2 className="text-2xl font-bold text-neutral-900 mb-2">
+            Step {step}: {steps[step - 1].title}
+          </h2>
+          <p className="text-neutral-500 mb-6">{steps[step - 1].description}</p>
+
+          {steps[step - 1].content}
+
+          <div className="mt-8 flex justify-between">
+            {step > 1 ? (
+              <button
+                type="button"
+                onClick={handleBack}
+                className="px-6 py-3 border border-neutral-300 rounded-lg bg-white hover:bg-neutral-50 transition-colors text-neutral-700 font-medium"
+              >
+                Back
+              </button>
+            ) : (
+              <div />
+            )}
+
+            {step < 5 ? (
+              <button
+                type="button"
+                onClick={handleNext}
+                className="btn-primary px-6 py-3"
+              >
+                Next
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={loading}
+                className="btn-primary px-6 py-3 flex items-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Completing...
+                  </>
+                ) : (
+                  'Finish'
+                )}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Guided Walkthrough */}
+      <GuidedWalkthrough
+        steps={walkthroughSteps}
+        isOpen={showWalkthrough}
+        onClose={() => navigate('/rider/dashboard')}
+        onComplete={handleWalkthroughComplete}
+        storageKey="rider_walkthrough"
+      />
+    </div>
+  );
+};
+
+export default RiderSetupPage;

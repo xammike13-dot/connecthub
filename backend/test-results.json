@@ -1,0 +1,199 @@
+{
+  "timestamp": "2026-06-16T21:14:14.390Z",
+  "modules": {
+    "riderProfilePhoto": {
+      "status": "PASS",
+      "details": {
+        "userId": "6a31bcac5699873e2d22f308",
+        "uploadResponse": {
+          "success": true,
+          "data": {
+            "url": "https://res.cloudinary.com/dacj1krzs/image/upload/v1781644488/connecthub/m5ju8b7hnumquwodju0m.png",
+            "publicId": "connecthub/m5ju8b7hnumquwodju0m",
+            "width": 1366,
+            "height": 768,
+            "format": "png"
+          }
+        },
+        "imageUrl": "https://res.cloudinary.com/dacj1krzs/image/upload/v1781644488/connecthub/m5ju8b7hnumquwodju0m.png",
+        "publicId": "connecthub/m5ju8b7hnumquwodju0m",
+        "profileUpdate": {
+          "success": true,
+          "message": "Profile saved successfully.",
+          "data": {
+            "riderProfile": {
+              "rating": 0,
+              "totalRides": 0,
+              "isOnline": false,
+              "status": "offline",
+              "dayRatePerKm": 50,
+              "nightRatePerKm": 75,
+              "vehicleType": "Motorcycle",
+              "vehicleNumber": "KBA 123A",
+              "workingArea": "Nairobi",
+              "profilePhoto": "https://res.cloudinary.com/dacj1krzs/image/upload/v1781644488/connecthub/m5ju8b7hnumquwodju0m.png"
+            },
+            "businessProfile": {
+              "totalProducts": 0,
+              "totalOrders": 0,
+              "rating": 0
+            },
+            "landlordProfile": {
+              "totalProperties": 0,
+              "totalBookings": 0,
+              "rating": 0
+            },
+            "customerProfile": {
+              "totalOrders": 0,
+              "totalRides": 0,
+              "savedAddresses": []
+            },
+            "_id": "6a31bcac5699873e2d22f308",
+            "name": "Test rider",
+            "email": "test_rider_1781644454484@test.com",
+            "phone": "0744454484",
+            "role": "rider",
+            "avatar": "",
+            "isVerified": false,
+            "createdAt": "2026-06-16T21:14:20.533Z",
+            "updatedAt": "2026-06-16T21:14:30.326Z",
+            "__v": 0
+          }
+        },
+        "storedProfilePhoto": "https://res.cloudinary.com/dacj1krzs/image/upload/v1781644488/connecthub/m5ju8b7hnumquwodju0m.png",
+        "verified": true
+      }
+    },
+    "businessLogo": {
+      "status": "FAIL",
+      "details": {
+        "userId": "6a31bcb75699873e2d22f331",
+        "uploadResponse": {
+          "success": true,
+          "data": {
+            "url": "https://res.cloudinary.com/dacj1krzs/image/upload/v1781644493/connecthub/uljcsr6ce8mcmxog857y.png",
+            "publicId": "connecthub/uljcsr6ce8mcmxog857y",
+            "width": 1366,
+            "height": 768,
+            "format": "png"
+          }
+        },
+        "imageUrl": "https://res.cloudinary.com/dacj1krzs/image/upload/v1781644493/connecthub/uljcsr6ce8mcmxog857y.png",
+        "profileUpdate": {
+          "success": true,
+          "message": "Profile updated successfully",
+          "data": {
+            "riderProfile": {
+              "rating": 0,
+              "totalRides": 0,
+              "isOnline": false,
+              "status": "offline",
+              "workingArea": "",
+              "dayRatePerKm": 50,
+              "nightRatePerKm": 75
+            },
+            "businessProfile": {
+              "totalProducts": 0,
+              "totalOrders": 0,
+              "rating": 0,
+              "businessName": "Test Business",
+              "businessDescription": "A test business"
+            },
+            "landlordProfile": {
+              "totalProperties": 0,
+              "totalBookings": 0,
+              "rating": 0
+            },
+            "customerProfile": {
+              "totalOrders": 0,
+              "totalRides": 0,
+              "savedAddresses": []
+            },
+            "_id": "6a31bcb75699873e2d22f331",
+            "name": "Test business",
+            "email": "test_business_1781644471244@test.com",
+            "phone": "0744471244",
+            "role": "business",
+            "avatar": "",
+            "isVerified": false,
+            "createdAt": "2026-06-16T21:14:31.486Z",
+            "updatedAt": "2026-06-16T21:14:35.137Z",
+            "__v": 0
+          }
+        },
+        "error": "Business logo URL not stored correctly in MongoDB"
+      }
+    },
+    "productImages": {
+      "status": "FAIL",
+      "details": {
+        "userId": "6a31bcbc5699873e2d22f346",
+        "uploadResponse": {
+          "success": true,
+          "count": 2,
+          "data": [
+            {
+              "url": "https://res.cloudinary.com/dacj1krzs/image/upload/v1781644502/connecthub/gvga4unb5vkvd2gyvux3.png",
+              "publicId": "connecthub/gvga4unb5vkvd2gyvux3",
+              "width": 1366,
+              "height": 768,
+              "format": "png"
+            },
+            {
+              "url": "https://res.cloudinary.com/dacj1krzs/image/upload/v1781644502/connecthub/azqqdti4bmknpk5gcsln.png",
+              "publicId": "connecthub/azqqdti4bmknpk5gcsln",
+              "width": 1366,
+              "height": 768,
+              "format": "png"
+            }
+          ]
+        },
+        "error": "Request failed with status code 400"
+      }
+    },
+    "rentalImages": {
+      "status": "FAIL",
+      "details": {
+        "userId": "6a31bcc45699873e2d22f359",
+        "uploadResponse": {
+          "success": true,
+          "count": 1,
+          "data": [
+            {
+              "url": "https://res.cloudinary.com/dacj1krzs/image/upload/v1781644506/connecthub/mtiqpzr8v70vfbevulvt.png",
+              "publicId": "connecthub/mtiqpzr8v70vfbevulvt",
+              "width": 1366,
+              "height": 768,
+              "format": "png"
+            }
+          ]
+        },
+        "rentalCreate": {
+          "success": true,
+          "message": "Rental created successfully",
+          "data": {
+            "landlord": "6a31bcc45699873e2d22f359",
+            "rentalName": "Test Apartment",
+            "rentalType": "bedsitter",
+            "monthlyPrice": 15000,
+            "location": "stage",
+            "amenities": [
+              "wifi",
+              "security"
+            ],
+            "description": "A test rental property",
+            "images": [],
+            "isAvailable": true,
+            "views": 0,
+            "_id": "6a31bcc85699873e2d22f35f",
+            "bookings": [],
+            "createdAt": "2026-06-16T21:14:48.446Z",
+            "updatedAt": "2026-06-16T21:14:48.446Z",
+            "__v": 0
+          }
+        },
+        "error": "Not authorized to access this route"
+      }
+    }
+  }
+}

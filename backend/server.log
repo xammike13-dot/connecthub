@@ -1,0 +1,321 @@
+Loading middleware/error.js
+Loading middleware/auth.js
+Loading models/Rental.js
+Loading controllers/landlordController.js
+Loading routes/landlordRoutes.js
+(node:14628) [MONGOOSE] Warning: Duplicate schema index on {"user":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Server running in development mode on port 5000
+MongoDB Connected: ac-smrivb8-shard-00-00.u5chw3g.mongodb.net
+[0mGET /api/rider/dashboard/stats [32m200[0m 830.956 ms - 457[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 753.956 ms - 206[0m
+[0mGET /api/rider/active-ride [32m200[0m 762.460 ms - 884[0m
+[0mGET /api/rider/active-ride [32m200[0m 554.937 ms - 28[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1410.224 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 611.922 ms - 35[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1016.722 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 532.133 ms - 35[0m
+[0mGET /api/health [32m200[0m 0.638 ms - 93[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 4456.978 ms - 457[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 848.975 ms - 206[0m
+[0mGET /api/rider/active-ride [32m200[0m 2029.066 ms - 884[0m
+[0mGET /api/rider/active-ride [32m200[0m 489.382 ms - 28[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1517.888 ms - -[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1061.649 ms - -[0m
+[0mGET /api/notifications/unread-count [36m304[0m 607.433 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 584.034 ms - 35[0m
+[0mGET /api/rider/nearby [33m401[0m 0.447 ms - 65[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 1193.614 ms - 457[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 806.487 ms - 206[0m
+[0mGET /api/rider/active-ride [32m200[0m 1558.368 ms - 884[0m
+[0mGET /api/rider/active-ride [32m200[0m 944.674 ms - 28[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1559.077 ms - -[0m
+[0mGET /api/notifications/unread-count [36m304[0m 626.851 ms - -[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 922.236 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 500.001 ms - 35[0m
+[0mPOST /api/auth/login [33m401[0m 391.414 ms - 49[0m
+[0mGET /api/rider/dashboard/stats [36m304[0m 1649.229 ms - -[0m
+[0mGET /api/rider/active-ride [36m304[0m 744.885 ms - -[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 1066.986 ms - 457[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1210.402 ms - -[0m
+[0mGET /api/rider/active-ride [32m200[0m 1320.773 ms - 884[0m
+[0mGET /api/notifications/unread-count [36m304[0m 1313.452 ms - -[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 2014.267 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 880.179 ms - 35[0m
+[0mGET /api/rider/dashboard/stats [36m304[0m 1098.477 ms - -[0m
+[0mGET /api/rider/active-ride [36m304[0m 1321.220 ms - -[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 1351.905 ms - 206[0m
+[0mGET /api/rider/active-ride [32m200[0m 612.961 ms - 28[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1620.285 ms - -[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1348.055 ms - -[0m
+[0mGET /api/notifications/unread-count [36m304[0m 536.499 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 506.221 ms - 35[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 748.005 ms - 457[0m
+[0mGET /api/rider/active-ride [32m200[0m 687.742 ms - 884[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 744.426 ms - 206[0m
+[0mGET /api/rider/active-ride [32m200[0m 494.503 ms - 28[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 954.375 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 510.566 ms - 35[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 732.110 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 460.800 ms - 35[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 1482.955 ms - 457[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 1082.935 ms - 206[0m
+[0mGET /api/rider/active-ride [32m200[0m 1346.757 ms - 884[0m
+[0mGET /api/rider/active-ride [32m200[0m 584.135 ms - 28[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1187.590 ms - -[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 833.062 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 1068.381 ms - 35[0m
+[0mGET /api/notifications/unread-count [32m200[0m 526.517 ms - 35[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 1193.688 ms - 457[0m
+[0mGET /api/rider/active-ride [32m200[0m 1168.668 ms - 884[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 1680.303 ms - 206[0m
+[0mGET /api/rider/active-ride [32m200[0m 1035.949 ms - 28[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1602.893 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 776.228 ms - 35[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1773.357 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 901.435 ms - 35[0m
+[0mGET /api/auth/profile [36m304[0m 610.461 ms - -[0m
+[0mGET /api/auth/profile [36m304[0m 501.039 ms - -[0m
+[0mGET /api/wishlist [36m304[0m 865.012 ms - -[0m
+Error: Rider has not configured day/night rates.
+    at calculateFare (file:///c:/projects/connecthub/backend/utils/rideFareCalculator.js:96:11)
+    at file:///c:/projects/connecthub/backend/controllers/rideController.js:631:25
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+[0mPOST /api/rides/calculate-fare [31m500[0m 252.684 ms - 69[0m
+getNearbyRiders endpoint reached
+[getNearbyRiders] Backend received request: {
+  latitude: '0.292415',
+  longitude: '35.314167',
+  maxDistance: '10000',
+  userId: new ObjectId('6a0c9747f8b55076375d6b6d'),
+  userRole: 'customer'
+}
+[getNearbyRiders] Querying MongoDB for riders near: [35.314167, 0.292415] within 10000m
+[getNearbyRiders] MongoDB returned 2 riders
+[getNearbyRiders] Sample rider locations: [
+  {
+    name: 'mike',
+    isOnline: true,
+    location: { type: 'Point', coordinates: [Array] }
+  },
+  {
+    name: 'kingi',
+    isOnline: true,
+    location: { type: 'Point', coordinates: [Array] }
+  }
+]
+[0mGET /api/rider/nearby?latitude=0.292415&longitude=35.314167&maxDistance=10000 [32m200[0m 622.528 ms - 294[0m
+[0mGET /api/rider/dashboard/stats [36m304[0m 1281.191 ms - -[0m
+[0mGET /api/rider/active-ride [36m304[0m 1170.661 ms - -[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 2027.917 ms - 457[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1532.753 ms - -[0m
+[0mGET /api/rider/active-ride [32m200[0m 1039.992 ms - 884[0m
+[0mGET /api/notifications/unread-count [36m304[0m 994.005 ms - -[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1959.952 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 744.227 ms - 35[0m
+[0mPOST /api/payments/initiate [33m404[0m 618.766 ms - 68[0m
+[0mGET /api/rider/dashboard/stats [36m304[0m 1488.924 ms - -[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 1922.542 ms - 206[0m
+[0mGET /api/rider/active-ride [36m304[0m 4318.253 ms - -[0m
+[0mGET /api/rider/active-ride [32m200[0m 608.853 ms - 28[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1217.842 ms - -[0m
+[0mGET /api/notifications/unread-count [36m304[0m 480.281 ms - -[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1923.991 ms - -[0m
+Error: Rider has not configured day/night rates.
+    at calculateFare (file:///c:/projects/connecthub/backend/utils/rideFareCalculator.js:96:11)
+    at file:///c:/projects/connecthub/backend/controllers/rideController.js:631:25
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+[0mPOST /api/rides/calculate-fare [31m500[0m 945.037 ms - 69[0m
+[0mGET /api/notifications/unread-count [32m200[0m 1210.556 ms - 35[0m
+getNearbyRiders endpoint reached
+[getNearbyRiders] Backend received request: {
+  latitude: '0.292415',
+  longitude: '35.314167',
+  maxDistance: '10000',
+  userId: new ObjectId('6a0c9747f8b55076375d6b6d'),
+  userRole: 'customer'
+}
+[getNearbyRiders] Querying MongoDB for riders near: [35.314167, 0.292415] within 10000m
+[getNearbyRiders] MongoDB returned 2 riders
+[getNearbyRiders] Sample rider locations: [
+  {
+    name: 'mike',
+    isOnline: true,
+    location: { type: 'Point', coordinates: [Array] }
+  },
+  {
+    name: 'kingi',
+    isOnline: true,
+    location: { type: 'Point', coordinates: [Array] }
+  }
+]
+[0mGET /api/rider/nearby?latitude=0.292415&longitude=35.314167&maxDistance=10000 [36m304[0m 485.957 ms - -[0m
+[0mGET /api/auth/profile [36m304[0m 823.896 ms - -[0m
+[0mGET /api/auth/profile [36m304[0m 808.535 ms - -[0m
+[0mGET /api/wishlist [36m304[0m 716.074 ms - -[0m
+[0mGET /api/rider/dashboard/stats [36m304[0m 1339.633 ms - -[0m
+[0mGET /api/rider/active-ride [36m304[0m 467.961 ms - -[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 744.412 ms - 457[0m
+[0mGET /api/rider/active-ride [32m200[0m 705.172 ms - 884[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1274.574 ms - -[0m
+[0mGET /api/notifications/unread-count [36m304[0m 460.001 ms - -[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1307.157 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 719.613 ms - 35[0m
+[0mGET /api/rider/dashboard/stats [36m304[0m 775.975 ms - -[0m
+[0mGET /api/rider/active-ride [36m304[0m 967.553 ms - -[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 989.770 ms - 206[0m
+[0mGET /api/rider/active-ride [32m200[0m 538.646 ms - 28[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1274.882 ms - -[0m
+[0mGET /api/notifications/unread-count [36m304[0m 580.643 ms - -[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 908.962 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 759.573 ms - 35[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 1083.279 ms - 457[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 795.593 ms - 206[0m
+[0mGET /api/rider/active-ride [32m200[0m 1068.455 ms - 884[0m
+[0mGET /api/rider/active-ride [32m200[0m 533.536 ms - 28[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1366.709 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 540.457 ms - 35[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 998.128 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 638.507 ms - 35[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 1157.799 ms - 457[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 3770.758 ms - 206[0m
+[0mGET /api/rider/active-ride [32m200[0m 4690.020 ms - 884[0m
+[0mGET /api/rider/active-ride [32m200[0m 715.521 ms - 28[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1386.865 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 531.859 ms - 35[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 859.007 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 909.870 ms - 35[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 749.515 ms - 457[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 1067.693 ms - 206[0m
+[0mGET /api/rider/active-ride [32m200[0m 1061.411 ms - 884[0m
+[0mGET /api/rider/active-ride [32m200[0m 607.090 ms - 28[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1213.978 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 879.525 ms - 35[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1476.617 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 747.426 ms - 35[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 1122.365 ms - 457[0m
+[0mGET /api/rider/active-ride [32m200[0m 851.480 ms - 884[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 862.207 ms - 206[0m
+[0mGET /api/rider/active-ride [32m200[0m 959.455 ms - 28[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1607.155 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 481.042 ms - 35[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 859.680 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 517.755 ms - 35[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 4062.566 ms - 457[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 747.611 ms - 206[0m
+[0mGET /api/rider/active-ride [32m200[0m 1921.835 ms - 884[0m
+[0mGET /api/rider/active-ride [32m200[0m 480.254 ms - 28[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1158.143 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 644.174 ms - 35[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 984.881 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 513.133 ms - 35[0m
+[0mGET /api/rider/dashboard/stats [36m304[0m 3420.384 ms - -[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 812.763 ms - 457[0m
+[0mGET /api/rider/active-ride [36m304[0m 2813.985 ms - -[0m
+[0mGET /api/rider/active-ride [32m200[0m 925.954 ms - 884[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1176.822 ms - -[0m
+[0mGET /api/notifications/unread-count [36m304[0m 711.064 ms - -[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 970.499 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 499.318 ms - 35[0m
+[0mGET /api/rider/dashboard/stats [36m304[0m 975.683 ms - -[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 1022.853 ms - 206[0m
+[0mGET /api/rider/active-ride [36m304[0m 1013.859 ms - -[0m
+[0mGET /api/rider/active-ride [32m200[0m 691.940 ms - 28[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1219.162 ms - -[0m
+[0mGET /api/notifications/unread-count [36m304[0m 514.429 ms - -[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 836.242 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 586.459 ms - 35[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 815.401 ms - 457[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 1051.142 ms - 206[0m
+[0mGET /api/rider/active-ride [32m200[0m 4816.083 ms - 884[0m
+[0mGET /api/rider/active-ride [32m200[0m 520.540 ms - 28[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1290.689 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 516.235 ms - 35[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1042.596 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 526.712 ms - 35[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 4702.974 ms - 457[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 803.975 ms - 206[0m
+[0mGET /api/rider/active-ride [32m200[0m 2011.060 ms - 884[0m
+[0mGET /api/rider/active-ride [32m200[0m 586.300 ms - 28[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1164.930 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 476.710 ms - 35[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 799.988 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 524.566 ms - 35[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 4241.523 ms - 457[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 1207.031 ms - 206[0m
+[0mGET /api/rider/active-ride [32m200[0m 2112.253 ms - 884[0m
+[0mGET /api/rider/active-ride [32m200[0m 521.230 ms - 28[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1083.634 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 622.122 ms - 35[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1316.844 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 460.612 ms - 35[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 1092.350 ms - 457[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 750.290 ms - 206[0m
+[0mGET /api/rider/active-ride [32m200[0m 1327.008 ms - 884[0m
+[0mGET /api/rider/active-ride [32m200[0m 509.701 ms - 28[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 970.166 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 481.456 ms - 35[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1052.869 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 513.532 ms - 35[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 5079.546 ms - 457[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 969.309 ms - 206[0m
+[0mGET /api/rider/active-ride [32m200[0m 860.135 ms - 884[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1067.773 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 771.097 ms - 35[0m
+[0mGET /api/rider/active-ride [32m200[0m 2671.509 ms - 28[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1086.975 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 557.847 ms - 35[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 1362.177 ms - 457[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 1108.916 ms - 206[0m
+[0mGET /api/rider/active-ride [32m200[0m 1284.421 ms - 884[0m
+[0mGET /api/rider/active-ride [32m200[0m 712.020 ms - 28[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1750.625 ms - -[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 1305.658 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 526.571 ms - 35[0m
+[0mGET /api/notifications/unread-count [32m200[0m 1479.056 ms - 35[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 5131.339 ms - 457[0m
+[0mGET /api/rider/active-ride [32m200[0m 2941.470 ms - 884[0m
+[0mGET /api/rider/dashboard/stats [32m200[0m 2963.291 ms - 206[0m
+[0mGET /api/rider/active-ride [32m200[0m 735.076 ms - 28[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 3482.507 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 8450.787 ms - 35[0m
+[0mGET /api/rides/rider/available?limit=10 [36m304[0m 9321.489 ms - -[0m
+[0mGET /api/notifications/unread-count [32m200[0m 500.290 ms - 35[0m
+[0mGET /api/rider/dashboard/stats [33m401[0m 30867.164 ms - 65[0m
+[0mGET /api/rider/dashboard/stats [33m401[0m 30064.486 ms - 65[0m
+[0mGET /api/rider/dashboard/stats [33m401[0m 30026.459 ms - 65[0m
+[0mGET /api/rider/dashboard/stats [33m401[0m 30023.727 ms - 65[0m
+[0mGET /api/rider/dashboard/stats [33m401[0m 30019.270 ms - 65[0m
+[0mGET /api/rider/dashboard/stats [33m401[0m 30002.463 ms - 65[0m
+[0mGET /api/rider/dashboard/stats [33m401[0m 30013.564 ms - 65[0m
+[0mGET /api/rider/dashboard/stats [33m401[0m 30017.264 ms - 65[0m
+[0mGET /api/rider/dashboard/stats [33m401[0m 30011.552 ms - 65[0m
+[0mGET /api/rider/dashboard/stats [33m401[0m 30005.109 ms - 65[0m
+[0mGET /api/rider/dashboard/stats [33m401[0m 30013.903 ms - 65[0m
+[0mGET /api/rider/dashboard/stats [33m401[0m 30003.770 ms - 65[0m
+[0mGET /api/rider/dashboard/stats [0m-[0m - ms - -[0m
+[0mGET /api/rider/dashboard/stats [33m401[0m 30003.006 ms - 65[0m
+[0mGET /api/rider/dashboard/stats [0m-[0m - ms - -[0m
+[0mGET /api/rider/dashboard/stats [0m-[0m - ms - -[0m
+[0mGET /api/rider/dashboard/stats [0m-[0m - ms - -[0m
+[0mGET /api/rider/dashboard/stats [33m401[0m 30011.311 ms - 65[0m
+[0mGET /api/rider/dashboard/stats [33m401[0m 30006.318 ms - 65[0m
+[0mGET /api/rider/dashboard/stats [33m401[0m 30010.683 ms - 65[0m
+[0mGET /api/rider/dashboard/stats [33m401[0m 30002.922 ms - 65[0m
+[0mGET /api/rider/dashboard/stats [33m401[0m 30400.510 ms - 65[0m
+[0mGET /api/rider/dashboard/stats [33m401[0m 30013.565 ms - 65[0m
+[0mGET /api/rider/dashboard/stats [33m401[0m 30014.393 ms - 65[0m
+[0mGET /api/rider/dashboard/stats [33m401[0m 30019.098 ms - 65[0m
+[0mGET /api/rider/dashboard/stats [0m-[0m - ms - -[0m
+[0mGET /api/rider/dashboard/stats [0m-[0m - ms - -[0m
+[0mGET /api/rider/dashboard/stats [33m401[0m 30005.294 ms - 65[0m
+[0mGET /api/rider/dashboard/stats [33m401[0m 30011.986 ms - 65[0m
+[0mGET /api/rider/dashboard/stats [0m-[0m - ms - -[0m
+[0mGET /api/rider/dashboard/stats [33m401[0m 30015.977 ms - 65[0m
+[0mGET /api/rider/dashboard/stats [33m401[0m 30013.507 ms - 65[0m
+[0mGET /api/rider/dashboard/stats [0m-[0m - ms - -[0m
+[0mGET /api/rider/dashboard/stats [0m-[0m - ms - -[0m
+[0mGET /api/rider/dashboard/stats [33m401[0m 30013.647 ms - 65[0m
+[0mGET /api/rider/dashboard/stats [33m401[0m 30009.156 ms - 65[0m
+[0mGET /api/rider/dashboard/stats [0m-[0m - ms - -[0m
+[0mGET /api/rider/dashboard/stats [33m401[0m 30015.066 ms - 65[0m
