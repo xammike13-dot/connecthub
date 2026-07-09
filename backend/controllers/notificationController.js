@@ -278,12 +278,146 @@ export const createNotification = async (userId, type, title, message, data = {}
       userId,
       type,
       title,
-      message: message.substring(0, 100),
+      message: typeof message === 'string' ? message.substring(0, 100) : '',
       error: error.message
     });
     // Return null instead of throwing to prevent breaking business logic
     return null;
   }
+};
+
+/**
+ * Create payment-related notification
+ */
+export const createPaymentNotification = async (userId, transaction, navigationTarget = null, req = null, userRole = 'customer') => {
+  const transactionId = transaction?._id || transaction?.transactionRef || 'unknown';
+  const amount = transaction?.amount || transaction?.providerReceives || transaction?.customerPays || 0;
+  const title = 'Payment Update';
+  const message = `Your payment for transaction ${String(transactionId).slice(-6).toUpperCase()} has been updated.`;
+
+  return createNotification(
+    userId,
+    'payment',
+    title,
+    message,
+    { transactionId, amount, status: transaction?.status },
+    `/payments/${transactionId}`,
+    navigationTarget,
+    req,
+    userRole
+  );
+};
+
+/**
+ * Create ride-related notification
+ */
+export const createRideNotification = async (userId, ride, status, userRole = 'customer', req = null, customMessage = null) => {
+  const rideId = ride?._id || 'unknown';
+  const rideIdSuffix = String(rideId).slice(-6).toUpperCase();
+
+  let title = 'Ride Update';
+  let message = customMessage || `Your ride ${rideIdSuffix} has been updated.`;
+  let notificationType = 'ride';
+  let navigationTarget = userRole === 'rider' ? '/rider/rides' : '/customer/rides';
+
+  switch (status) {
+    case 'waiting_rider':
+      title = 'Ride Requested';
+      message = customMessage || 'Your ride request has been received and is waiting for a rider.';
+      break;
+    case 'accepted':
+      title = 'Ride Accepted';
+      message = customMessage || 'A rider has accepted your ride request.';
+      break;
+    case 'completed':
+    case 'ride_completed':
+      title = 'Ride Completed';
+      message = customMessage || 'Your ride has been completed.';
+      break;
+    case 'cancelled':
+    case 'declined':
+      title = 'Ride Cancelled';
+      message = customMessage || 'Your ride has been cancelled.';
+      break;
+    case 'awaiting_customer_confirmation':
+      title = 'Ride Arrived';
+      message = customMessage || 'Your rider has marked you as arrived. Please confirm your arrival.';
+      break;
+    default:
+      title = 'Ride Update';
+      message = customMessage || `Your ride ${rideIdSuffix} status has been updated to ${status}.`;
+      break;
+  }
+
+  return createNotification(
+    userId,
+    notificationType,
+    title,
+    message,
+    { rideId, status },
+    `/rides/${rideId}`,
+    navigationTarget,
+    req,
+    userRole
+  );
+};
+
+/**
+ * Create rental-related notification
+ */
+export const createRentalNotification = async (userId, rental, booking, status, userRole = 'customer', req = null, customMessage = null) => {
+  const rentalId = rental?._id || 'unknown';
+  const bookingId = booking?._id || 'unknown';
+  const rentalIdSuffix = String(rentalId).slice(-6).toUpperCase();
+
+  let title = 'Rental Update';
+  let message = customMessage || `Your rental ${rentalIdSuffix} has been updated.`;
+  let notificationType = 'rental';
+  let navigationTarget = userRole === 'landlord' ? '/landlord/rentals' : '/customer/bookings';
+
+  switch (status) {
+    case 'booking_pending':
+      title = 'Booking Pending';
+      message = customMessage || 'Your rental booking is pending confirmation.';
+      break;
+    case 'new_booking':
+      title = 'New Booking';
+      message = customMessage || 'You have received a new rental booking request.';
+      break;
+    case 'booking_confirmed':
+      title = 'Booking Confirmed';
+      message = customMessage || 'Your rental booking has been confirmed.';
+      break;
+    case 'booking_cancelled':
+      title = 'Booking Cancelled';
+      message = customMessage || 'Your rental booking has been cancelled.';
+      break;
+    case 'move_in_date_set':
+      title = 'Move-in Date Set';
+      message = customMessage || 'Your move-in date has been set.';
+      break;
+    case 'move_in_confirmed':
+    case 'move_in_confirmed_success':
+      title = 'Move-in Confirmed';
+      message = customMessage || 'Your move-in has been confirmed.';
+      break;
+    default:
+      title = 'Rental Update';
+      message = customMessage || `Your rental booking ${bookingId} status has been updated to ${status}.`;
+      break;
+  }
+
+  return createNotification(
+    userId,
+    notificationType,
+    title,
+    message,
+    { rentalId, bookingId, status },
+    `/rentals/${rentalId}`,
+    navigationTarget,
+    req,
+    userRole
+  );
 };
 
 /**
