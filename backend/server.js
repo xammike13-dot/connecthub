@@ -124,11 +124,26 @@ const app = express();
 const httpServer = createServer(app);
 
 // Socket.IO Setup
+const getEnvOrigins = (...keys) => {
+  const origins = keys.flatMap((key) => {
+    const value = process.env[key];
+    if (!value) return [];
+    return value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  });
+
+  return [...new Set(origins)];
+};
+
 const allowedOrigins = [
-  process.env.FRONTEND_URL || 'http://localhost:5173',
+  ...getEnvOrigins('CORS_ORIGIN', 'FRONTEND_URL', 'CLIENT_URL'),
   'http://localhost:3000',
   'http://localhost:3002',
   'http://localhost:5173',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:5173',
 ];
 
 const corsOptions = {
@@ -139,6 +154,9 @@ const corsOptions = {
     return callback(new Error(`CORS policy violation: origin ${origin} not allowed`));
   },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 204,
 };
 
 const io = new Server(httpServer, {
@@ -178,6 +196,7 @@ io.on('connection', (socket) => {
 });
 
 // Security Middleware
+app.set('trust proxy', 1);
 app.use(helmet());
 
 app.use(cors(corsOptions));

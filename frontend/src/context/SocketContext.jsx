@@ -37,7 +37,8 @@ export const SocketProvider = ({ children }) => {
 
   useEffect(() => {
     if (token && user) {
-      const socketUrl = import.meta.env.VITE_SOCKET_URL || window.location.origin;
+      const apiBaseUrl = (import.meta.env.VITE_API_URL || window.location.origin).replace(/\/$/, '');
+      const socketUrl = import.meta.env.VITE_SOCKET_URL || apiBaseUrl.replace(/\/api$/, '');
 
       const newSocket = io(socketUrl, {
         auth: { token },
@@ -45,6 +46,8 @@ export const SocketProvider = ({ children }) => {
         reconnection: true,
         reconnectionDelay: 1000,
         reconnectionAttempts: Infinity,
+        withCredentials: true,
+        path: '/socket.io',
       });
 
       newSocket.on('connect', () => {
