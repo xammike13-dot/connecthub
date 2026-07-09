@@ -2,6 +2,69 @@ import Notification from '../models/Notification.js';
 import { asyncHandler, ResponseError } from '../middleware/error.js';
 
 /**
+ * WhatsApp Webhook Verification
+ * Meta requires verification of webhook URLs before they can receive messages
+ * 
+ * This endpoint handles GET requests from Meta during webhook setup:
+ * - Verifies hub.mode === "subscribe"
+ * - Verifies hub.verify_token matches WHATSAPP_VERIFY_TOKEN from .env
+ * - Returns hub.challenge if verification succeeds
+ */
+export const verifyWhatsAppWebhook = asyncHandler(async (req, res) => {
+  const hubMode = req.query['hub.mode'];
+  const hubVerifyToken = req.query['hub.verify_token'];
+  const hubChallenge = req.query['hub.challenge'];
+
+  console.log('[WhatsApp Webhook Verification]', {
+    mode: hubMode,
+    tokenProvided: !!hubVerifyToken,
+    challenge: !!hubChallenge,
+  });
+
+  // Check if WHATSAPP_VERIFY_TOKEN is configured
+  const whatsappVerifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
+  if (!whatsappVerifyToken) {
+    console.error('[WhatsApp Webhook] WHATSAPP_VERIFY_TOKEN is not configured.');
+    return res.status(403).json({ success: false });
+  }
+
+  // Verify webhook as per Meta's requirements
+  if (hubMode === 'subscribe' && hubVerifyToken === whatsappVerifyToken) {
+    console.log('[WhatsApp Webhook] Verification successful');
+    return res.status(200).send(hubChallenge);
+  }
+
+  console.error('[WhatsApp Webhook] Verification failed', {
+    modeMatches: hubMode === 'subscribe',
+    tokenMatches: hubVerifyToken === whatsappVerifyToken,
+  });
+
+  res.status(403).json({ success: false });
+});
+
+/**
+ * WhatsApp Message Webhook Handler
+ * Receives incoming messages from Meta WhatsApp API
+ */
+export const handleWhatsAppMessage = asyncHandler(async (req, res) => {
+  console.log('[WhatsApp Webhook Message]', JSON.stringify(req.body, null, 2));
+
+  // Meta sends all webhook events as POST requests
+  // Always respond with 200 OK to acknowledge receipt
+  res.status(200).json({ success: true });
+
+  // Process the message asynchronously (don't wait for completion)
+  // This prevents timeout issues with Meta's webhook
+  const payload = req.body;
+
+  // TODO: Process WhatsApp messages here
+  // - Extract message content
+  // - Create notifications
+  // - Send replies
+  // - Update chat history
+});
+
+/**
  * Get all notifications for current user
  */
 export const getNotifications = asyncHandler(async (req, res) => {
