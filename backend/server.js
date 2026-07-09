@@ -26,6 +26,33 @@ console.log('[Server] CLOUDINARY_CLOUD_NAME:', process.env.CLOUDINARY_CLOUD_NAME
 console.log('[Server] CLOUDINARY_API_KEY:', process.env.CLOUDINARY_API_KEY ? 'SET' : 'MISSING');
 console.log('[Server] CLOUDINARY_API_SECRET:', process.env.CLOUDINARY_API_SECRET ? 'SET' : 'MISSING');
 
+// WhatsApp Webhook Verification Token validation - warn if missing
+const whatsappVerifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
+if (!whatsappVerifyToken) {
+  console.warn('');
+  console.warn('═══════════════════════════════════════════════════════════');
+  console.warn('  WARNING: WhatsApp Webhook Configuration');
+  console.warn('═══════════════════════════════════════════════════════════');
+  console.warn('');
+  console.warn('  WHATSAPP_VERIFY_TOKEN is not configured.');
+  console.warn('  WhatsApp webhook verification will be disabled.');
+  console.warn('');
+  console.warn('  To enable WhatsApp webhooks, add to backend/.env:');
+  console.warn('    WHATSAPP_VERIFY_TOKEN=your_secure_verify_token');
+  console.warn('');
+  console.warn('═══════════════════════════════════════════════════════════');
+  console.warn('');
+} else {
+  console.log('');
+  console.log('═══════════════════════════════════════════════════���═══════');
+  console.log('  WhatsApp Webhook Verification Token Loaded');
+  console.log('═══════════════════════════════════════════════════════════');
+  console.log('[Server] WHATSAPP_VERIFY_TOKEN: LOADED ✓');
+  console.log('[Server] Webhook endpoint: GET/POST /api/notifications/webhook');
+  console.log('═══════════════════════════════════════════════════════════');
+  console.log('');
+}
+
 // MPesa Daraja API validation - fail fast if missing required config
 const requiredMpesaVars = [
   'MPESA_CONSUMER_KEY',
