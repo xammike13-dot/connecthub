@@ -137,25 +137,23 @@ const getEnvOrigins = (...keys) => {
   return [...new Set(origins)];
 };
 
-const allowedOrigins = [
-  ...getEnvOrigins('CORS_ORIGIN', 'FRONTEND_URL', 'CLIENT_URL'),
-  'http://localhost:3000',
-  'http://localhost:3002',
-  'http://localhost:5173',
-  'http://127.0.0.1:3000',
-  'http://127.0.0.1:5173',
-];
+const allowedOrigins = getEnvOrigins('FRONTEND_URL', 'CLIENT_URL', 'CORS_ORIGIN');
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+  return allowedOrigins.includes(origin);
+};
 
 const corsOptions = {
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (isAllowedOrigin(origin)) {
       return callback(null, true);
     }
-    return callback(new Error(`CORS policy violation: origin ${origin} not allowed`));
+    return callback(null, false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
   optionsSuccessStatus: 204,
 };
 
@@ -200,6 +198,7 @@ app.set('trust proxy', 1);
 app.use(helmet());
 
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // Body Parsers
 app.use(express.json());
