@@ -6,12 +6,22 @@ import {
   markAllAsRead,
   deleteNotification,
   deleteAllNotifications,
+  verifyWhatsAppWebhook,
+  handleWhatsAppMessage,
 } from '../controllers/notificationController.js';
 import { protect } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// All routes require authentication
+// WhatsApp webhook verification endpoint (public - no authentication)
+// GET /api/notifications/webhook
+router.get('/webhook', verifyWhatsAppWebhook);
+
+// WhatsApp message webhook endpoint (public - no authentication)
+// POST /api/notifications/webhook
+router.post('/webhook', handleWhatsAppMessage);
+
+// All routes below require authentication
 router.use(protect);
 
 // Get all notifications
