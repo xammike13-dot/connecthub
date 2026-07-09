@@ -15,30 +15,37 @@ export const verifyWhatsAppWebhook = asyncHandler(async (req, res) => {
   const hubVerifyToken = req.query['hub.verify_token'];
   const hubChallenge = req.query['hub.challenge'];
 
-  console.log('[WhatsApp Webhook Verification]', {
-    mode: hubMode,
-    tokenProvided: !!hubVerifyToken,
-    challenge: !!hubChallenge,
-  });
+  // Temporary enhanced logging for webhook verification (safe to remove after testing)
+  console.log('[WhatsApp Webhook Verification] Requested URL:', req.originalUrl || req.url);
+  console.log('[WhatsApp Webhook Verification] hub.mode:', hubMode);
+  console.log('[WhatsApp Webhook Verification] hub.verify_token (provided):', hubVerifyToken);
+  console.log('[WhatsApp Webhook Verification] hub.challenge (provided):', hubChallenge);
 
   // Check if WHATSAPP_VERIFY_TOKEN is configured
   const whatsappVerifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
   if (!whatsappVerifyToken) {
-    console.error('[WhatsApp Webhook] WHATSAPP_VERIFY_TOKEN is not configured.');
+    console.error('[WhatsApp Webhook] WHATSAPP_VERIFY_TOKEN is not configured. Responding 403.');
+    console.log('[WhatsApp Webhook Verification] Token Matched:', false);
     return res.status(403).json({ success: false });
   }
 
+  const tokenMatched = hubVerifyToken === whatsappVerifyToken;
+  console.log('[WhatsApp Webhook Verification] Token Matched:', tokenMatched);
+
   // Verify webhook as per Meta's requirements
-  if (hubMode === 'subscribe' && hubVerifyToken === whatsappVerifyToken) {
-    console.log('[WhatsApp Webhook] Verification successful');
-    return res.status(200).send(hubChallenge);
+  if (hubMode === 'subscribe' && tokenMatched) {
+    console.log('[WhatsApp Webhook] Verification successful. Responding 200 with challenge.');
+    // Echo back the hub.challenge as plain text per Meta's spec
+    res.status(200).send(hubChallenge);
+    return;
   }
 
   console.error('[WhatsApp Webhook] Verification failed', {
     modeMatches: hubMode === 'subscribe',
-    tokenMatches: hubVerifyToken === whatsappVerifyToken,
+    tokenMatches: tokenMatched,
   });
 
+  console.log('[WhatsApp Webhook] Responding 403');
   res.status(403).json({ success: false });
 });
 
@@ -356,128 +363,4 @@ export const createOrderNotification = async (userId, order, status, userRole = 
   );
 };
 
-/**
- * Create notification for payment
- */
-export const createPaymentNotification = async (userId, transaction, navigationTarget = null, req = null) => {
-  return createNotification(
-    userId,
-    'payment',
-    'Payment Successful',
-    `Your payment of KSh ${transaction.amount?.totalAmount || 0} has been processed`,
-    { transactionId: transaction._id },
-    '/transactions',
-    navigationTarget,
-    req
-  );
-};
-
-/**
- * Create notification for ride
- * @param {string} customMessage - Optional custom message (e.g., for decline reasons)
- */
-export const createRideNotification = async (userId, ride, status, userRole = 'customer', req = null, customMessage = null) => {
-  const statusMessages = {
-    pending_payment: 'Payment Pending',
-    waiting_rider: 'Waiting for Rider',
-    accepted: 'Ride Accepted',
-    started: 'Ride Started',
-    in_progress: 'Ride In Progress',
-    awaiting_customer_confirmation: 'Awaiting Arrival Confirmation',
-    completed: 'Ride Completed',
-    declined: 'Ride Declined',
-    cancelled: 'Ride Cancelled',
-  };
-
-  // Determine navigation target based on user role
-  let navigationTarget;
-  if (userRole === 'rider') {
-    navigationTarget = '/rider/rides';
-  } else {
-    navigationTarget = '/customer/rides';
-  }
-
-  // Use custom message if provided, otherwise use default
-  const message = customMessage || `Your ride ${status}: ${ride.pickupLocation?.address || 'Pickup'} → ${ride.dropoffLocation?.address || 'Dropoff'}`;
-
-  return createNotification(
-    userId,
-    `ride_${status}`,
-    statusMessages[status] || 'Ride Update',
-    message,
-    { rideId: ride._id, status },
-    `/rides/${ride._id}`,
-    navigationTarget,
-    req
-  );
-};
-
-/**
- * Create notification for booking
- */
-export const createBookingNotification = async (userId, booking, property, status, userRole = 'customer', req = null) => {
-  // Determine navigation target based on user role
-  let navigationTarget;
-  if (userRole === 'landlord') {
-    navigationTarget = '/landlord/bookings';
-  } else {
-    navigationTarget = '/customer/rentals';
-  }
-
-  return createNotification(
-    userId,
-    status === 'pending' ? 'booking' : 'booking_confirmed',
-    status === 'pending' ? 'Booking Created' : 'Booking Confirmed',
-    `Your booking at ${property?.title || 'Property'} has been ${status}`,
-    { bookingId: booking._id, propertyId: property?._id, status },
-    `/rentals/${property?._id}`,
-    navigationTarget,
-    req
-  );
-};
-
-/**
- * Create notification for rental booking
- */
-export const createRentalNotification = async (userId, rental, booking, eventType, userRole = 'customer', req = null) => {
-  const eventMessages = {
-    booking_pending: 'Rental Booking Requested',
-    new_booking: 'New Booking Request',
-    booking_confirmed: 'Booking Accepted',
-    booking_cancelled: 'Booking Declined',
-    move_in_date_set: 'Move-In Date Set',
-    move_in_confirmed: 'Move-In Confirmed',
-    move_in_confirmed_success: 'Move-In Confirmed Successfully',
-  };
-
-  const eventDetails = {
-    booking_pending: `Your booking for ${rental?.rentalName || 'a rental'} is pending landlord acceptance.`,
-    new_booking: `You have a new booking request for ${rental?.rentalName || 'a rental'}. Please accept or decline.`,
-    booking_confirmed: `Your booking for ${rental?.rentalName || 'a rental'} has been accepted. Please select your move-in date.`,
-    booking_cancelled: `Your booking for ${rental?.rentalName || 'a rental'} was declined. Reason: ${booking?.declineReason || 'No reason provided'}`,
-    move_in_date_set: `Your move-in date for ${rental?.rentalName || 'a rental'} has been set. Please confirm when you have moved in.`,
-    move_in_confirmed: `Customer has confirmed move-in for ${rental?.rentalName || 'a rental'}. Funds have been released.`,
-    move_in_confirmed_success: `You have confirmed move-in for ${rental?.rentalName || 'a rental'}. Payment has been released to the landlord.`,
-  };
-
-  const messageType = eventType === 'new_booking' ? 'booking_request' : 'rental_booking';
-
-  // Determine navigation target based on user role
-  let navigationTarget;
-  if (userRole === 'landlord') {
-    navigationTarget = '/landlord/bookings';
-  } else {
-    navigationTarget = '/customer/bookings';
-  }
-
-  return createNotification(
-    userId,
-    messageType,
-    eventMessages[eventType] || 'Rental Booking Update',
-    eventDetails[eventType] || `${rental?.rentalName || 'Rental'}: ${eventType}`,
-    { rentalId: rental?._id, bookingId: booking?._id, eventType, status: booking?.status },
-    `/rentals/${rental?._id}`,
-    navigationTarget,
-    req
-  );
-};
+export default null;
