@@ -8,7 +8,9 @@ import DashboardLayout from './layouts/DashboardLayout';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
-import PhoneVerificationPage from './pages/PhoneVerificationPage';
+import EmailVerificationPage from './pages/EmailVerificationPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import LandlordSetupPage from './pages/LandlordSetupPage';
 import BusinessSetupPage from './pages/BusinessSetupPage';
 import RiderSetupPage from './pages/RiderSetupPage';
@@ -75,7 +77,9 @@ function App() {
                 {/* Auth Routes */}
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
-                <Route path="/verify-phone" element={<PhoneVerificationPage />} />
+                <Route path="/verify-email" element={<EmailVerificationPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/setup/landlord" element={<LandlordSetupPage />} />
                 <Route path="/setup/business" element={<BusinessSetupPage />} />
                 <Route path="/setup/rider" element={<RiderSetupPage />} />

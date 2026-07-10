@@ -65,6 +65,20 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    // Email verification fields
+    emailVerificationToken: String,
+    emailVerificationExpire: Date,
+    emailVerificationAttempts: {
+      type: Number,
+      default: 0,
+    },
+    emailVerificationResendAttempts: {
+      type: Number,
+      default: 0,
+    },
+    emailVerificationLastResend: Date,
+
+    // Phone verification fields (legacy, no longer used)
     verificationToken: String,
     phoneVerificationToken: String,
     phoneVerificationExpire: Date,
@@ -77,6 +91,8 @@ const userSchema = new mongoose.Schema(
       default: 0,
     },
     phoneVerificationLastResend: Date,
+
+    // Password reset fields
     resetPasswordToken: String,
     resetPasswordExpire: Date,
     googleId: String,

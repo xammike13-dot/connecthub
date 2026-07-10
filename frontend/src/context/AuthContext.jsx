@@ -73,8 +73,7 @@ export const AuthProvider = ({ children }) => {
           success: false,
           requiresVerification: true,
           emailVerified: data.emailVerified,
-          phoneVerified: data.phoneVerified,
-          message: data.message || 'Please verify your phone number',
+          message: data.message || 'Please verify your email address',
         };
       }
 

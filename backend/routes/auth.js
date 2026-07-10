@@ -1,5 +1,17 @@
 import express from 'express';
-import { register, login, getProfile, updateProfile, updatePassword, logoutAllDevices, deactivateAccount, deleteAccount, debugLogin } from '../controllers/authController.js';
+import { 
+  register, 
+  login, 
+  getProfile, 
+  updateProfile, 
+  updatePassword, 
+  logoutAllDevices, 
+  deactivateAccount, 
+  deleteAccount, 
+  debugLogin,
+  forgotPassword,
+  resetPassword
+} from '../controllers/authController.js';
 import { googleAuth, completeGoogleSignup } from '../controllers/googleAuthController.js';
 import { protect } from '../middleware/auth.js';
 
@@ -7,6 +19,8 @@ const router = express.Router();
 
 router.post('/register', register);
 router.post('/login', login);
+router.post('/forgotpassword', forgotPassword);
+router.post('/resetpassword', resetPassword);
 router.post('/google', googleAuth);
 router.post('/google/complete', completeGoogleSignup);
 router.get('/debug/test-login/:email', debugLogin);

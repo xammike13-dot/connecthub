@@ -48,17 +48,19 @@ const LoginPage = () => {
     const result = await login(formData.email, formData.password);
 
     if (result.requiresVerification) {
-      const phone = result.user?.phone;
+      // Email not verified - redirect to email verification
+      const email = result.user?.email || formData.email;
       const role = result.user?.role;
-      if (phone) {
-        localStorage.setItem('signupPhone', phone);
-      }
+      
+      // Store data for verification flow
+      localStorage.setItem('signupEmail', email);
       if (role) {
         localStorage.setItem('signupRole', role);
       }
-      setError('Please verify your phone number before logging in.');
+      
+      setError('Please verify your email before logging in.');
       setLoading(false);
-      navigate('/verify-phone');
+      navigate('/verify-email');
       return;
     }
 
@@ -96,7 +98,7 @@ const LoginPage = () => {
     setLoading(false);
   };
 
-  // Check for phone verification success message
+  // Check for login message (e.g., after successful verification)
   const [loginMessage, setLoginMessage] = useState('');
   useEffect(() => {
     if (location.state?.message) {
@@ -191,9 +193,9 @@ const LoginPage = () => {
               </div>
 
               <div className="text-sm">
-                <a href="#" className="text-blue-600 hover:text-blue-700 font-medium">
+                <Link to="/forgot-password" className="text-blue-600 hover:text-blue-700 font-medium">
                   Forgot password?
-                </a>
+                </Link>
               </div>
             </div>
 

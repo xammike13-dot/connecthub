@@ -51,9 +51,9 @@ const RegisterPage = () => {
     const result = await register(registerData);
 
     if (result.success) {
-      // Store signup data for verification flow
+      // Store signup data for email verification flow
       localStorage.setItem('signupEmail', formData.email);
-      localStorage.setItem('signupPhone', formData.phone);
+      localStorage.setItem('signupName', formData.name);
       localStorage.setItem('signupRole', formData.role);
       
       // Show development mode message if applicable
@@ -61,8 +61,8 @@ const RegisterPage = () => {
         console.log('Development mode: OTP logged to backend console');
       }
       
-      // Redirect to phone verification
-      navigate('/verify-phone');
+      // Redirect to email verification
+      navigate('/verify-email');
     } else {
       setError(result.message);
     }

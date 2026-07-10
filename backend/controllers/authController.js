@@ -2,7 +2,11 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import Wallet from '../models/Wallet.js';
 import VerificationToken from '../models/VerificationToken.js';
-import { generateVerificationCode, sendWhatsAppVerification } from '../utils/phoneService.js';
+import { generateVerificationCode } from '../utils/phoneService.js';
+import { 
+  sendVerificationEmail, 
+  sendWelcomeEmail 
+} from '../services/emailService.js';
 
 // Generate JWT Token
 const generateToken = (id) => {
@@ -36,17 +40,17 @@ const handleLoginSuccess = async (user, password, req, res) => {
     });
   }
 
-  // Check phone verification status for new accounts only
-  if (user.phoneVerified === false && user.accountActive === false) {
-    console.log('[LOGIN FAILED] User phone not verified and account inactive');
+  // Check email verification status - users must verify email before logging in
+  if (!user.emailVerified) {
+    console.log('[LOGIN FAILED] Email not verified for:', user.email);
     return res.status(403).json({
       success: false,
-      message: 'Please verify your phone number before logging in.',
+      message: 'Please verify your email before logging in.',
       requiresVerification: true,
-      phoneVerified: user.phoneVerified,
+      emailVerified: user.emailVerified,
       user: {
         id: user._id,
-        phone: user.phone,
+        email: user.email,
         role: user.role,
       },
     });
@@ -99,7 +103,7 @@ const handleLoginSuccess = async (user, password, req, res) => {
       avatar: user.avatar,
       lastLogin: user.lastLogin,
       withdrawalNumber: user.withdrawalNumber,
-      phoneVerified: user.phoneVerified,
+      emailVerified: user.emailVerified,
       setupCompleted: user.setupCompleted,
       onboardingCompleted: user.onboardingCompleted,
     },
@@ -122,15 +126,15 @@ export const register = async (req, res, next) => {
       });
     }
 
-    // Create user with verification fields
+    // Create user with verification fields (pending/unverified state)
     const user = await User.create({
       name,
       email,
       phone,
       password,
       role: role || 'customer',
-      phoneVerified: false,
-      accountActive: false,
+      emailVerified: false,
+      isActive: false, // Account is not active until email is verified
       setupCompleted: false,
       onboardingCompleted: false,
     });
@@ -140,41 +144,53 @@ export const register = async (req, res, next) => {
       user: user._id,
     });
 
-    // Generate and send phone verification code
+    // Generate email verification code
     const code = generateVerificationCode();
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    // Delete any existing unused email verification tokens for this user
+    await VerificationToken.deleteMany({
+      userId: user._id,
+      type: 'email',
+      used: false,
+    });
 
     // Create verification token
     await VerificationToken.create({
       userId: user._id,
-      type: 'phone',
+      type: 'email',
       token: code,
       expiresAt,
     });
 
-    // Update user with verification token
-    user.phoneVerificationToken = code;
-    user.phoneVerificationExpire = expiresAt;
+    // Update user with verification token info
+    user.emailVerificationToken = code;
+    user.emailVerificationExpire = expiresAt;
     await user.save();
 
-    // Send WhatsApp verification
-    const phoneResult = await sendWhatsAppVerification(phone, code);
+    // Send verification email using Brevo
+    const emailResult = await sendVerificationEmail(email, code);
+
+    if (!emailResult.success) {
+      console.error('[REGISTER] Failed to send verification email:', emailResult.error);
+      // Don't fail registration if email fails - user can resend
+    }
 
     // Do NOT create token or auto-login
-    // User must verify phone first
+    // User must verify email first
     res.status(201).json({
       success: true,
-      message: 'Registration successful. Please verify your phone number.',
+      message: 'Registration successful. Please verify your email address.',
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
-        phone: user.phone,
         role: user.role,
       },
-      devMode: phoneResult.devMode,
+      devMode: emailResult.devMode,
     });
   } catch (error) {
+    console.error('[REGISTER ERROR]', error);
     res.status(500).json({
       success: false,
       message: error.message,
@@ -229,6 +245,7 @@ export const login = async (req, res, next) => {
 
     return handleLoginSuccess(user, password, req, res);
   } catch (error) {
+    console.error('[LOGIN ERROR]', error);
     res.status(500).json({
       success: false,
       message: error.message,
@@ -252,7 +269,8 @@ export const getProfile = async (req, res, next) => {
         phone: user.phone,
         role: user.role,
         avatar: user.avatar,
-        isVerified: user.isVerified,
+        isVerified: user.emailVerified,
+        emailVerified: user.emailVerified,
         lastLogin: user.lastLogin,
         withdrawalNumber: user.withdrawalNumber,
         sessions: user.sessions,
@@ -444,6 +462,146 @@ export const deleteAccount = async (req, res, next) => {
   }
 };
 
+// @desc    Forgot password - send reset code
+// @route   POST /api/auth/forgotpassword
+// @access  Public
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is required',
+      });
+    }
+
+    // Find user by email (case-insensitive)
+    const user = await User.findOne({ 
+      email: { $regex: new RegExp(`^${email}$`, 'i') } 
+    });
+
+    if (!user) {
+      // For security, don't reveal if user exists
+      return res.status(200).json({
+        success: true,
+        message: 'If an account exists with this email, a reset code has been sent.',
+      });
+    }
+
+    // Generate reset code
+    const code = generateVerificationCode();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    // Delete any existing unused password reset tokens
+    await VerificationToken.deleteMany({
+      userId: user._id,
+      type: 'password_reset',
+      used: false,
+    });
+
+    // Create new reset token
+    await VerificationToken.create({
+      userId: user._id,
+      type: 'password_reset',
+      token: code,
+      expiresAt,
+    });
+
+    // Send reset email
+    const emailResult = await sendPasswordResetEmail(email, code);
+
+    if (!emailResult.success) {
+      console.error('[FORGOT PASSWORD] Failed to send reset email:', emailResult.error);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'If an account exists with this email, a reset code has been sent.',
+      devMode: emailResult.devMode,
+    });
+  } catch (error) {
+    console.error('[FORGOT PASSWORD ERROR]', error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// @desc    Reset password with code
+// @route   POST /api/auth/resetpassword
+// @access  Public
+export const resetPassword = async (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body;
+
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email, reset code, and new password are required',
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters',
+      });
+    }
+
+    // Find user
+    const user = await User.findOne({ 
+      email: { $regex: new RegExp(`^${email}$`, 'i') } 
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid reset code',
+      });
+    }
+
+    // Find valid reset token
+    const resetToken = await VerificationToken.findOne({
+      userId: user._id,
+      type: 'password_reset',
+      token: code,
+      used: false,
+      expiresAt: { $gt: new Date() },
+    });
+
+    if (!resetToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired reset code',
+      });
+    }
+
+    // Mark token as used
+    resetToken.used = true;
+    await resetToken.save();
+
+    // Update password (will be hashed by pre-save hook)
+    user.password = newPassword;
+    await user.save();
+
+    // Send confirmation email
+    await sendPasswordResetConfirmation(email);
+
+    res.status(200).json({
+      success: true,
+      message: 'Password has been reset successfully',
+    });
+  } catch (error) {
+    console.error('[RESET PASSWORD ERROR]', error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 // @desc    Debug login endpoint
 // @route   GET /api/auth/debug/test-login/:email
 // @access  Public (debug only)
@@ -465,7 +623,8 @@ export const debugLogin = async (req, res, next) => {
       isDeleted: user?.isDeleted,
       userEmail: user?.email,
       userName: user?.name,
-      userRole: user?.role
+      userRole: user?.role,
+      emailVerified: user?.emailVerified
     };
     
     console.log('[DEBUG LOGIN RESPONSE]', response);

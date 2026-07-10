@@ -1,17 +1,54 @@
-import { useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import api from '../services/apiClient';
 
 const EmailVerificationPage = () => {
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  const [role, setRole] = useState('');
   
-  const [searchParams] = useSearchParams();
-  const email = searchParams.get('email');
   const navigate = useNavigate();
+  const { authenticateWithToken } = useAuth();
+  const cooldownRef = useRef(null);
+
+  // Get signup data from localStorage
+  useEffect(() => {
+    const storedEmail = localStorage.getItem('signupEmail');
+    const storedName = localStorage.getItem('signupName');
+    const storedRole = localStorage.getItem('signupRole');
+
+    if (!storedEmail) {
+      // No signup data, redirect to register
+      navigate('/register');
+      return;
+    }
+
+    setEmail(storedEmail);
+    setName(storedName || '');
+    setRole(storedRole || 'customer');
+  }, [navigate]);
+
+  // Countdown timer for resend
+  useEffect(() => {
+    if (cooldown > 0) {
+      cooldownRef.current = setTimeout(() => {
+        setCooldown(cooldown - 1);
+      }, 1000);
+    }
+
+    return () => {
+      if (cooldownRef.current) {
+        clearTimeout(cooldownRef.current);
+      }
+    };
+  }, [cooldown]);
 
   const handleResend = async () => {
     if (!email) {
@@ -19,13 +56,19 @@ const EmailVerificationPage = () => {
       return;
     }
 
+    if (cooldown > 0) {
+      return;
+    }
+
     setResending(true);
     setError('');
+    setSuccess('');
 
     try {
-      await api.post('/verification/send-email', { email });
-      setSuccess('Verification code sent successfully');
-      setTimeout(() => setSuccess(''), 3000);
+      const { data } = await api.post('/verification/send-email', { email });
+      setSuccess('Verification code sent successfully!');
+      // Start cooldown (60 seconds)
+      setCooldown(60);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to send verification code');
     } finally {
@@ -36,21 +79,70 @@ const EmailVerificationPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     setLoading(true);
 
     try {
-      await api.post('/verification/verify-email', { email, code });
+      const { data } = await api.post('/verification/verify-email', { email, code });
       
-      // Redirect to phone verification
-      navigate('/verify-phone', { 
-        state: { email, fromSignup: true } 
-      });
+      if (data.success) {
+        // Save token and authenticate user
+        if (data.token) {
+          authenticateWithToken(data.token, data.user);
+        }
+        
+        // Clear signup data
+        localStorage.removeItem('signupEmail');
+        localStorage.removeItem('signupName');
+        localStorage.removeItem('signupRole');
+        
+        setSuccess('Email verified successfully!');
+        
+        // Determine redirect based on role and setup status
+        setTimeout(() => {
+          if (data.user) {
+            const { role, setupCompleted } = data.user;
+            if (!setupCompleted && role !== 'customer') {
+              const setupPages = {
+                landlord: '/setup/landlord',
+                business: '/setup/business',
+                rider: '/setup/rider',
+              };
+              navigate(setupPages[role] || '/customer/dashboard');
+            } else {
+              const dashboardMap = {
+                customer: '/customer/dashboard',
+                landlord: '/landlord/dashboard',
+                business: '/business/dashboard',
+                rider: '/rider/dashboard',
+              };
+              navigate(dashboardMap[role] || '/customer/dashboard');
+            }
+          } else {
+            navigate('/login', { state: { message: 'Email verified successfully! Please log in.' } });
+          }
+        }, 1500);
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Invalid or expired code');
     } finally {
       setLoading(false);
     }
   };
+
+  // Mask email for display
+  const maskEmail = (email) => {
+    if (!email) return '';
+    const [username, domain] = email.split('@');
+    if (username.length <= 2) {
+      return `${username[0]}***@${domain}`;
+    }
+    return `${username.slice(0, 2)}***${username.slice(-1)}@${domain}`;
+  };
+
+  if (!email) {
+    return null; // Will redirect in useEffect
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-neutral-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
@@ -94,7 +186,12 @@ const EmailVerificationPage = () => {
             <p className="text-sm text-blue-800">
               We've sent a 6-digit verification code to:
             </p>
-            <p className="text-sm font-semibold text-blue-900 mt-1">{email}</p>
+            <p className="text-sm font-semibold text-blue-900 mt-1">{maskEmail(email)}</p>
+            {name && (
+              <p className="text-sm text-blue-700 mt-1">
+                Welcome, <strong>{name}</strong>!
+              </p>
+            )}
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -106,19 +203,24 @@ const EmailVerificationPage = () => {
                 id="code"
                 name="code"
                 type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 required
                 value={code}
-                onChange={(e) => setCode(e.target.value)}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 className="input-field text-center text-2xl tracking-widest"
                 placeholder="000000"
                 maxLength={6}
               />
+              <p className="text-xs text-neutral-500 mt-1 text-center">
+                Enter the 6-digit code from your email
+              </p>
             </div>
 
             <button
               type="submit"
-              disabled={loading}
-              className="btn-primary w-full flex items-center justify-center"
+              disabled={loading || code.length !== 6}
+              className="btn-primary w-full flex items-center justify-center disabled:opacity-50"
             >
               {loading ? (
                 <>
@@ -129,18 +231,24 @@ const EmailVerificationPage = () => {
                   Verifying...
                 </>
               ) : (
-                'Verify'
+                'Verify Email'
               )}
             </button>
 
-            <button
-              type="button"
-              onClick={handleResend}
-              disabled={resending}
-              className="w-full text-blue-600 hover:text-blue-700 font-medium text-sm disabled:text-neutral-400"
-            >
-              {resending ? 'Sending...' : 'Resend Code'}
-            </button>
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={handleResend}
+                disabled={resending || cooldown > 0}
+                className="text-blue-600 hover:text-blue-700 font-medium text-sm disabled:text-neutral-400 disabled:cursor-not-allowed"
+              >
+                {resending 
+                  ? 'Sending...' 
+                  : cooldown > 0 
+                    ? `Resend code in ${cooldown}s` 
+                    : 'Resend Code'}
+              </button>
+            </div>
           </form>
         </div>
 
