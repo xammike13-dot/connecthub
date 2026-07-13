@@ -146,6 +146,7 @@ export const register = async (req, res, next) => {
 
     // Generate email verification code
     const code = generateVerificationCode();
+    console.log('[REGISTER] Generated verification code for', email, ':', code);
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
     // Delete any existing unused email verification tokens for this user

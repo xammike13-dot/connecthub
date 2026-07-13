@@ -82,8 +82,26 @@ const EmailVerificationPage = () => {
     setSuccess('');
     setLoading(true);
 
+    // Ensure we have both email and code
+    const currentEmail = email || localStorage.getItem('signupEmail');
+    
+    if (!currentEmail) {
+      setError('Email not found. Please try registering again.');
+      setLoading(false);
+      return;
+    }
+
+    if (!code || code.length !== 6) {
+      setError('Please enter a valid 6-digit verification code.');
+      setLoading(false);
+      return;
+    }
+
+    console.log('[VERIFY] Attempting to verify email:', currentEmail, 'Code length:', code.length);
+
     try {
-      const { data } = await api.post('/verification/verify-email', { email, code });
+      const { data } = await api.post('/verification/verify-email', { email: currentEmail, code });
+      console.log('[VERIFY] Response:', data);
       
       if (data.success) {
         // Save token and authenticate user

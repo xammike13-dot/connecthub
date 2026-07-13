@@ -190,6 +190,8 @@ const sendEmail = async (to, subject, htmlContent, textContent = '') => {
  * @returns {Promise<{success: boolean, error?: string}>}
  */
 export const sendVerificationEmail = async (email, code) => {
+  console.log('[EMAIL SERVICE] sendVerificationEmail called with:', { email, codeLength: code?.length, code });
+  
   const htmlContent = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
       <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">

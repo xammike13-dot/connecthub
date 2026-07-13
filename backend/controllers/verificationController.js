@@ -15,7 +15,10 @@ export const sendEmailVerificationCode = async (req, res) => {
   try {
     const { email } = req.body;
 
+    console.log('[SEND EMAIL VERIFICATION] Received request for email:', email);
+
     if (!email) {
+      console.log('[SEND EMAIL VERIFICATION] Validation failed - email is required');
       return res.status(400).json({
         success: false,
         message: 'Email is required',
@@ -126,7 +129,10 @@ export const verifyEmailCode = async (req, res) => {
   try {
     const { email, code } = req.body;
 
+    console.log('[VERIFY EMAIL] Received request:', { email, code: code ? `${code.length} digits` : undefined });
+
     if (!email || !code) {
+      console.log('[VERIFY EMAIL] Validation failed - missing:', { hasEmail: !!email, hasCode: !!code });
       return res.status(400).json({
         success: false,
         message: 'Email and code are required',
