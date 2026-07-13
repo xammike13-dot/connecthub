@@ -97,7 +97,7 @@ const RentalDetailPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <LoadingSpinner size="lg" />
       </div>
     );
@@ -105,7 +105,7 @@ const RentalDetailPage = () => {
 
   if (error || !rental) {
     return (
-      <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-500 mb-4">{error || 'Rental not found'}</p>
           <Button onClick={() => navigate('/rentals')}>Back to Rentals</Button>
@@ -125,13 +125,13 @@ const RentalDetailPage = () => {
   const hasMultiplePhotos = photoCount > 1;
 
   return (
-    <div className="min-h-screen bg-neutral-950">
+    <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <div className="bg-neutral-900 border-b border-neutral-800">
+      <div className="bg-white border-b border-neutral-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <button
             onClick={() => navigate('/rentals')}
-            className="flex items-center gap-2 text-neutral-400 hover:text-white transition-colors"
+            className="flex items-center gap-2 text-neutral-500 hover:text-neutral-900 transition-colors"
           >
             <ArrowLeft size={20} />
             <span>Back to Rentals</span>
@@ -203,34 +203,34 @@ const RentalDetailPage = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="bg-neutral-900 rounded-xl p-6 border border-neutral-800"
+              className="bg-white rounded-xl p-6 border border-neutral-200 shadow-sm"
             >
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h1 className="text-3xl font-bold text-white mb-2">{rental.rentalName}</h1>
-                  <div className="flex items-center gap-2 text-neutral-400">
+                  <h1 className="text-3xl font-bold text-neutral-900 mb-2">{rental.rentalName}</h1>
+                  <div className="flex items-center gap-2 text-neutral-500">
                     <MapPin size={16} />
                     <span className="capitalize">{rental.location}</span>
                   </div>
                 </div>
                 <button
                   onClick={handleFavorite}
-                  className="p-3 rounded-full bg-neutral-800 hover:bg-neutral-700 transition-colors"
+                  className="p-3 rounded-full bg-neutral-100 hover:bg-neutral-200 transition-colors"
                 >
                   <Heart
                     size={24}
                     fill={isFavorite ? '#ef4444' : 'none'}
-                    className={isFavorite ? 'text-red-500' : 'text-neutral-400'}
+                    className={isFavorite ? 'text-red-500' : 'text-neutral-500'}
                   />
                 </button>
               </div>
 
               <div className="flex items-center gap-6 mb-6 text-sm">
-                <div className="flex items-center gap-2 text-neutral-400">
+                <div className="flex items-center gap-2 text-neutral-500">
                   <Eye size={16} />
                   <span>{rental.views || 0} views</span>
                 </div>
-                <div className="flex items-center gap-2 text-neutral-400">
+                <div className="flex items-center gap-2 text-neutral-500">
                   <Heart size={16} fill={isFavorite ? '#ef4444' : 'none'} className={isFavorite ? 'text-red-500' : ''} />
                   <span>{rental.favoritesCount || 0} favorites</span>
                 </div>
@@ -248,18 +248,18 @@ const RentalDetailPage = () => {
               </div>
 
               <div className="mb-6">
-                <h3 className="text-lg font-semibold text-white mb-2">Description</h3>
-                <p className="text-neutral-400">{rental.description || 'No description available.'}</p>
+                <h3 className="text-lg font-semibold text-neutral-900 mb-2">Description</h3>
+                <p className="text-neutral-600">{rental.description || 'No description available.'}</p>
               </div>
 
               {rental.amenities?.length > 0 && (
                 <div>
-                  <h3 className="text-lg font-semibold text-white mb-3">Amenities</h3>
+                  <h3 className="text-lg font-semibold text-neutral-900 mb-3">Amenities</h3>
                   <div className="flex flex-wrap gap-2">
                     {rental.amenities.map((amenity, index) => (
                       <span
                         key={index}
-                        className="bg-neutral-800 text-neutral-300 text-sm px-3 py-1 rounded capitalize"
+                        className="bg-neutral-100 text-neutral-700 text-sm px-3 py-1 rounded capitalize border border-neutral-200"
                       >
                         {amenity}
                       </span>
@@ -274,9 +274,9 @@ const RentalDetailPage = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="bg-neutral-900 rounded-xl p-6 border border-neutral-800"
+              className="bg-white rounded-xl p-6 border border-neutral-200 shadow-sm"
             >
-              <h3 className="text-lg font-semibold text-white mb-4">Landlord</h3>
+              <h3 className="text-lg font-semibold text-neutral-900 mb-4">Landlord</h3>
               <div className="flex items-center gap-4">
                 <Avatar
                   src={rental.landlord?.avatar}
@@ -284,8 +284,8 @@ const RentalDetailPage = () => {
                   size="lg"
                 />
                 <div>
-                  <p className="font-medium text-white">{rental.landlord?.name || 'Unknown'}</p>
-                  <p className="text-sm text-neutral-400">{rental.landlord?.email || ''}</p>
+                  <p className="font-medium text-neutral-900">{rental.landlord?.name || 'Unknown'}</p>
+                  <p className="text-sm text-neutral-500">{rental.landlord?.email || ''}</p>
                 </div>
               </div>
             </motion.div>
@@ -298,25 +298,25 @@ const RentalDetailPage = () => {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.3 }}
-              className="bg-neutral-900 rounded-xl p-6 border border-neutral-800 sticky top-24"
+              className="bg-white rounded-xl p-6 border border-neutral-200 shadow-sm sticky top-24"
             >
               <div className="mb-6">
-                <p className="text-neutral-400 text-sm mb-1">Monthly Rent</p>
-                <p className="text-3xl font-bold text-white">
+                <p className="text-neutral-500 text-sm mb-1">Monthly Rent</p>
+                <p className="text-3xl font-bold text-neutral-900">
                   KSh {rental.monthlyPrice?.toLocaleString()}
                 </p>
               </div>
 
               <div className="space-y-3 mb-6">
-                <div className="flex items-center gap-2 text-sm text-neutral-400">
+                <div className="flex items-center gap-2 text-sm text-neutral-500">
                   <Check size={16} className="text-green-500" />
                   <span>Secure payment</span>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-neutral-400">
+                <div className="flex items-center gap-2 text-sm text-neutral-500">
                   <Check size={16} className="text-green-500" />
                   <span>Verified landlord</span>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-neutral-400">
+                <div className="flex items-center gap-2 text-sm text-neutral-500">
                   <Check size={16} className="text-green-500" />
                   <span>Move-in confirmation required</span>
                 </div>

@@ -138,7 +138,7 @@ const MobileBottomNav = () => {
   const navItems = getNavItems();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-neutral-950 border-t border-neutral-800 z-40 safe-area-bottom">
+    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 z-40 safe-area-bottom shadow-lg">
       <div className="flex items-center justify-around py-2">
         {navItems.map((item) => (
           <NavLink
@@ -147,8 +147,8 @@ const MobileBottomNav = () => {
             className={({ isActive }) =>
               `flex flex-col items-center justify-center px-2 py-1 relative transition-colors ${
                 isActive
-                  ? 'text-gold-400'
-                  : 'text-neutral-500 hover:text-neutral-300'
+                  ? 'text-blue-600'
+                  : 'text-neutral-500 hover:text-blue-600'
               }`
             }
           >
@@ -157,11 +157,11 @@ const MobileBottomNav = () => {
                 {isActive && (
                   <motion.div
                     layoutId="navIndicator"
-                    className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-gold-gradient rounded-full"
+                    className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-blue-600 rounded-full"
                     transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                   />
                 )}
-                <span className={isActive ? 'text-gold-400' : ''}>
+                <span className={isActive ? 'text-blue-600' : ''}>
                   {item.icon}
                 </span>
                 <span className="text-xs mt-1">{item.label}</span>
