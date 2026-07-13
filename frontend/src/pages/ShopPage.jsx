@@ -227,9 +227,9 @@ const ShopPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-950">
+    <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <div className="bg-neutral-900/80 backdrop-blur-sm border-b border-neutral-800 sticky top-0 z-30">
+      <div className="bg-white border-b border-neutral-200 sticky top-0 z-30 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-4">
           {/* Search Bar */}
           <form onSubmit={handleSearch} className="relative">
@@ -244,7 +244,7 @@ const ShopPage = () => {
                   <button
                     type="button"
                     onClick={() => setSearchQuery('')}
-                    className="text-neutral-500 hover:text-neutral-300"
+                    className="text-neutral-500 hover:text-neutral-600"
                   >
                     <X size={18} />
                   </button>
@@ -259,7 +259,7 @@ const ShopPage = () => {
             <div className="flex items-center gap-2 overflow-x-auto">
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center gap-2 px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-sm font-medium text-neutral-300 hover:bg-neutral-700 hover:border-gold-500/50 transition-all whitespace-nowrap"
+                className="flex items-center gap-2 px-4 py-2 bg-neutral-100 border border-neutral-200 rounded-lg text-sm font-medium text-neutral-700 hover:bg-neutral-200 hover:border-blue-500/50 transition-all whitespace-nowrap"
               >
                 <Filter size={16} />
                 Filters
@@ -268,7 +268,7 @@ const ShopPage = () => {
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
-                className="px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-sm font-medium text-neutral-300 hover:bg-neutral-700 hover:border-gold-500/50 transition-all cursor-pointer"
+                className="px-4 py-2 bg-neutral-100 border border-neutral-200 rounded-lg text-sm font-medium text-neutral-700 hover:bg-neutral-200 hover:border-blue-500/50 transition-all cursor-pointer"
               >
                 {categories.map((cat) => (
                   <option key={cat.id} value={cat.id}>
@@ -281,7 +281,7 @@ const ShopPage = () => {
                 <select
                   value={selectedSubcategory}
                   onChange={(e) => setSelectedSubcategory(e.target.value)}
-                  className="px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-sm font-medium text-neutral-300 hover:bg-neutral-700 hover:border-gold-500/50 transition-all cursor-pointer"
+                  className="px-4 py-2 bg-neutral-100 border border-neutral-200 rounded-lg text-sm font-medium text-neutral-700 hover:bg-neutral-200 hover:border-blue-500/50 transition-all cursor-pointer"
                 >
                   <option value="">All {categories.find(c => c.id === selectedCategory)?.name}</option>
                   {subcategories[selectedCategory].map((sub) => (
@@ -295,7 +295,7 @@ const ShopPage = () => {
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-sm font-medium text-neutral-300 hover:bg-neutral-700 hover:border-gold-500/50 transition-all cursor-pointer"
+                className="px-4 py-2 bg-neutral-100 border border-neutral-200 rounded-lg text-sm font-medium text-neutral-700 hover:bg-neutral-200 hover:border-blue-500/50 transition-all cursor-pointer"
               >
                 {sortOptions.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -306,15 +306,15 @@ const ShopPage = () => {
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-sm text-neutral-500 hidden sm:block">
+              <span className="text-sm text-neutral-600 hidden sm:block">
                 {totalProducts} products
               </span>
-              <div className="flex items-center gap-1 bg-neutral-800 border border-neutral-700 rounded-lg p-1">
+              <div className="flex items-center gap-1 bg-neutral-100 border border-neutral-200 rounded-lg p-1">
                 <button
                   onClick={() => setViewMode('grid')}
                   className={`p-2 rounded transition-all ${viewMode === 'grid'
-                    ? 'bg-gold-500/20 text-gold-400'
-                    : 'text-neutral-500 hover:text-neutral-300'
+                    ? 'bg-blue-500/20 text-blue-650'
+                    : 'text-neutral-500 hover:text-neutral-600'
                     }`}
                 >
                   <Grid size={16} />
@@ -322,8 +322,8 @@ const ShopPage = () => {
                 <button
                   onClick={() => setViewMode('list')}
                   className={`p-2 rounded transition-all ${viewMode === 'list'
-                    ? 'bg-gold-500/20 text-gold-400'
-                    : 'text-neutral-500 hover:text-neutral-300'
+                    ? 'bg-blue-500/20 text-blue-650'
+                    : 'text-neutral-500 hover:text-neutral-600'
                     }`}
                 >
                   <List size={16} />
@@ -339,12 +339,12 @@ const ShopPage = () => {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="border-t border-neutral-800 bg-neutral-900/80"
+            className="border-t border-neutral-200 bg-white"
           >
             <div className="max-w-7xl mx-auto px-4 py-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-neutral-300 mb-2">
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">
                     Price Range
                   </label>
                   <div className="flex items-center gap-2">

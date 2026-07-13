@@ -64,9 +64,9 @@ const Navbar = () => {
           </div>
 
           {/* Right Side */}
-          <div className="hidden md:flex items-center gap-4">
+          <div className="flex items-center gap-2 md:gap-4">
             {isAuthenticated ? (
-              <>
+              <div className="hidden md:flex items-center gap-4">
                 {/* Cart */}
                 <Link to="/cart" className="relative p-2 text-neutral-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
                   <ShoppingCart size={22} />
@@ -96,7 +96,7 @@ const Navbar = () => {
                 <button onClick={handleLogout} className="px-4 py-2 text-neutral-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium">
                   Logout
                 </button>
-              </>
+              </div>
             ) : (
               <>
                 {/* Cart */}
@@ -110,12 +110,12 @@ const Navbar = () => {
                 </Link>
 
                 {/* Login */}
-                <Link to="/login" className="px-5 py-2 text-neutral-600 hover:text-blue-600 font-medium transition-colors">
+                <Link to="/login" className="px-3 md:px-5 py-2 text-neutral-600 hover:text-blue-600 font-medium transition-colors text-sm md:text-base">
                   Login
                 </Link>
 
                 {/* Sign Up */}
-                <Link to="/register" className="btn-primary px-5 py-2">
+                <Link to="/register" className="btn-primary px-3 md:px-5 py-2 text-sm md:text-base">
                   Sign Up
                 </Link>
               </>

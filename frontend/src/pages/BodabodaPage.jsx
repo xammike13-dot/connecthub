@@ -877,23 +877,13 @@ const BodabodaPage = () => {
         ) : null}
         
         <div className="flex gap-3 mt-6">
-          {waitingForRiderAcceptance && rideRequest?._id ? (
-            <Button
-              variant="primary"
-              onClick={() => navigate(`/customer/rides/${rideRequest._id}`)}
-              className="flex-1"
-            >
-              View My Ride
-            </Button>
-          ) : (
-            <Button
-              variant="primary"
-              onClick={() => navigate('/customer/rides')}
-              className="flex-1"
-            >
-              My Rides
-            </Button>
-          )}
+          <Button
+            variant="primary"
+            onClick={() => navigate('/customer/rides')}
+            className="flex-1"
+          >
+            My Rides
+          </Button>
           {riderDeclinedMessage && (
             <Button
               variant="outline"

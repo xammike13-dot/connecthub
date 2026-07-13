@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Sidebar from '../components/Sidebar';
@@ -7,6 +8,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 const DashboardLayout = ({ allowedRoles }) => {
   const { user, loading, isAuthenticated, initialized } = useAuth();
   const location = useLocation();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Show loading spinner while auth is being initialized
   if (loading || !initialized) {
@@ -44,11 +46,11 @@ const DashboardLayout = ({ allowedRoles }) => {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 flex">
-      <Sidebar />
-      <div className="flex-1 flex flex-col ml-64">
-        <DashboardHeader />
-        <main className="flex-1 p-6">
+    <div className="min-h-screen bg-slate-50 flex">
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <div className="flex-1 flex flex-col lg:ml-64 min-w-0">
+        <DashboardHeader onMenuClick={() => setSidebarOpen(true)} />
+        <main className="flex-1 p-4 md:p-6">
           <Outlet />
         </main>
       </div>

@@ -1,12 +1,13 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-const Sidebar = () => {
+const Sidebar = ({ isOpen, onClose }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {
     logout();
+    if (onClose) onClose();
     navigate('/login');
   };
 
@@ -149,16 +150,37 @@ const Sidebar = () => {
   const menuItems = getMenuItems();
 
   return (
-    <aside className="fixed left-0 top-0 h-full w-64 bg-white border-r border-neutral-200 z-40 shadow-sm">
-      {/* Logo */}
-      <div className="p-6 border-b border-neutral-200">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-blue">
-            <span className="text-white font-bold text-lg">C</span>
+    <>
+      {/* Mobile Backdrop */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-neutral-900 bg-opacity-50 z-40 lg:hidden"
+          onClick={onClose}
+        />
+      )}
+
+      <aside className={`fixed left-0 top-0 h-full w-64 bg-white border-r border-neutral-200 z-50 shadow-sm transition-transform duration-300 transform lg:translate-x-0 ${
+        isOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}>
+        {/* Logo */}
+        <div className="p-6 border-b border-neutral-200 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-blue">
+              <span className="text-white font-bold text-lg">C</span>
+            </div>
+            <span className="text-xl font-bold text-neutral-900">ConnectHub</span>
           </div>
-          <span className="text-xl font-bold text-neutral-900">ConnectHub</span>
+          {/* Mobile Close Button */}
+          <button
+            onClick={onClose}
+            className="lg:hidden p-1.5 rounded-lg text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 transition-colors"
+            title="Close Menu"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
-      </div>
 
       {/* User Info */}
       <div className="p-4 border-b border-neutral-200">
@@ -189,6 +211,9 @@ const Sidebar = () => {
           <NavLink
             key={item.path}
             to={item.path}
+            onClick={() => {
+              if (onClose) onClose();
+            }}
             className={({ isActive }) =>
               `sidebar-link ${isActive ? 'active' : ''}`
             }
@@ -206,12 +231,13 @@ const Sidebar = () => {
           className="flex items-center gap-3 w-full px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013 3h4a3 3 0 013 3v1" />
           </svg>
           <span>Logout</span>
         </button>
       </div>
     </aside>
+    </>
   );
 };
 

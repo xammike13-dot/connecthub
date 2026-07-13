@@ -188,9 +188,9 @@ const HealthcareShopPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-950">
+    <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <div className="bg-neutral-900/80 backdrop-blur-sm border-b border-neutral-800 sticky top-0 z-30">
+      <div className="bg-white border-b border-neutral-200 sticky top-0 z-30 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-4">
           {/* Title */}
           <div className="flex items-center gap-3 mb-4">
@@ -198,8 +198,8 @@ const HealthcareShopPage = () => {
               <Heart className="w-5 h-5 text-red-500" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">Healthcare Products</h1>
-              <p className="text-sm text-neutral-400">Medicines, medical supplies, and health products</p>
+              <h1 className="text-xl font-bold text-neutral-900">Healthcare Products</h1>
+              <p className="text-sm text-neutral-500">Medicines, medical supplies, and health products</p>
             </div>
           </div>
 
@@ -216,7 +216,7 @@ const HealthcareShopPage = () => {
                   <button
                     type="button"
                     onClick={() => setSearchQuery('')}
-                    className="text-neutral-500 hover:text-neutral-300"
+                    className="text-neutral-500 hover:text-neutral-600"
                   >
                     <X size={18} />
                   </button>
@@ -231,7 +231,7 @@ const HealthcareShopPage = () => {
             <div className="flex items-center gap-2 overflow-x-auto">
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center gap-2 px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-sm font-medium text-neutral-300 hover:bg-neutral-700 hover:border-red-500/50 transition-all whitespace-nowrap"
+                className="flex items-center gap-2 px-4 py-2 bg-neutral-100 border border-neutral-200 rounded-lg text-sm font-medium text-neutral-700 hover:bg-neutral-200 hover:border-red-500/50 transition-all whitespace-nowrap"
               >
                 <Filter size={16} />
                 Filters
@@ -240,7 +240,7 @@ const HealthcareShopPage = () => {
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-sm font-medium text-neutral-300 hover:bg-neutral-700 hover:border-red-500/50 transition-all cursor-pointer"
+                className="px-4 py-2 bg-neutral-100 border border-neutral-200 rounded-lg text-sm font-medium text-neutral-700 hover:bg-neutral-200 hover:border-red-500/50 transition-all cursor-pointer"
               >
                 {sortOptions.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -251,15 +251,15 @@ const HealthcareShopPage = () => {
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-sm text-neutral-500 hidden sm:block">
+              <span className="text-sm text-neutral-600 hidden sm:block">
                 {totalProducts} healthcare products
               </span>
-              <div className="flex items-center gap-1 bg-neutral-800 border border-neutral-700 rounded-lg p-1">
+              <div className="flex items-center gap-1 bg-neutral-100 border border-neutral-200 rounded-lg p-1">
                 <button
                   onClick={() => setViewMode('grid')}
                   className={`p-2 rounded transition-all ${viewMode === 'grid'
-                    ? 'bg-red-500/20 text-red-400'
-                    : 'text-neutral-500 hover:text-neutral-300'
+                    ? 'bg-red-500/20 text-red-500'
+                    : 'text-neutral-500 hover:text-neutral-600'
                     }`}
                 >
                   <Grid size={16} />
@@ -267,8 +267,8 @@ const HealthcareShopPage = () => {
                 <button
                   onClick={() => setViewMode('list')}
                   className={`p-2 rounded transition-all ${viewMode === 'list'
-                    ? 'bg-red-500/20 text-red-400'
-                    : 'text-neutral-500 hover:text-neutral-300'
+                    ? 'bg-red-500/20 text-red-500'
+                    : 'text-neutral-500 hover:text-neutral-600'
                     }`}
                 >
                   <List size={16} />
@@ -284,12 +284,12 @@ const HealthcareShopPage = () => {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="border-t border-neutral-800 bg-neutral-900/80"
+            className="border-t border-neutral-200 bg-white"
           >
             <div className="max-w-7xl mx-auto px-4 py-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-neutral-300 mb-2">
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">
                     Price Range
                   </label>
                   <div className="flex items-center gap-2">
