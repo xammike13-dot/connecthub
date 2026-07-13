@@ -4,6 +4,13 @@ import VerificationToken from '../models/VerificationToken.js';
 import { sendVerificationEmail, sendWelcomeEmail } from '../services/emailService.js';
 import { generateVerificationCode } from '../utils/phoneService.js';
 
+// Generate JWT Token
+const generateToken = (id) => {
+  return jwt.sign({ id }, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRE || '30d',
+  });
+};
+
 // Resend cooldown in milliseconds (60 seconds)
 const RESEND_COOLDOWN = 60 * 1000;
 const MAX_RESEND_ATTEMPTS_PER_DAY = 5;
