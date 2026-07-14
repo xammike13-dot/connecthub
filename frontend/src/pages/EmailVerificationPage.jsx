@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/apiClient';
 
@@ -15,8 +15,16 @@ const EmailVerificationPage = () => {
   const [role, setRole] = useState('');
   
   const navigate = useNavigate();
+  const location = useLocation();
   const { authenticateWithToken } = useAuth();
   const cooldownRef = useRef(null);
+
+  // Set message from registration if navigated to directly
+  useEffect(() => {
+    if (location.state?.message) {
+      setSuccess(location.state.message);
+    }
+  }, [location.state]);
 
   // Get signup data from localStorage
   useEffect(() => {

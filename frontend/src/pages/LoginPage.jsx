@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import PasswordInput from '../components/ui/PasswordInput';
+import api from '../services/apiClient.js';
 
 const LoginPage = () => {
   const [formData, setFormData] = useState({
@@ -40,15 +41,53 @@ const LoginPage = () => {
     });
   };
 
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendMessage, setResendMessage] = useState('');
+
+  const handleResendVerification = async () => {
+    setResendLoading(true);
+    setResendMessage('');
+    setError('');
+    setLoginMessage('');
+
+    const email = formData.email;
+    if (!email) {
+      setError('Please enter your email address to resend verification.');
+      setResendLoading(false);
+      return;
+    }
+
+    try {
+      // Import/access api client and trigger resend
+      const { data } = await api.post('/verification/send-email', { email });
+      if (data.success) {
+        // Store details in localStorage so user can verify on verify-email page
+        localStorage.setItem('signupEmail', email);
+
+        setResendMessage("We've sent a verification code to your email. Redirecting you to verify...");
+
+        setTimeout(() => {
+          navigate('/verify-email', { state: { message: "We've sent a verification code to your email. Enter the code below to verify your account." } });
+        }, 2000);
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to resend verification email.');
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setResendMessage('');
+    setLoginMessage('');
     setLoading(true);
 
     const result = await login(formData.email, formData.password);
 
     if (result.requiresVerification) {
-      // Email not verified - redirect to email verification
+      // Email not verified - show explicit prompt
       const email = result.user?.email || formData.email;
       const role = result.user?.role;
       
@@ -58,9 +97,8 @@ const LoginPage = () => {
         localStorage.setItem('signupRole', role);
       }
       
-      setError('Please verify your email before logging in.');
+      setError('Your email is not verified.');
       setLoading(false);
-      navigate('/verify-email');
       return;
     }
 
@@ -137,12 +175,33 @@ const LoginPage = () => {
             </div>
           )}
 
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 flex items-center gap-2">
+          {resendMessage && (
+            <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-4 flex items-center gap-2">
               <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
               </svg>
-              {error}
+              {resendMessage}
+            </div>
+          )}
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+                <span>{error}</span>
+              </div>
+              {error === 'Your email is not verified.' && (
+                <button
+                  type="button"
+                  onClick={handleResendVerification}
+                  disabled={resendLoading}
+                  className="mt-1 self-start text-sm text-blue-600 hover:text-blue-800 font-semibold underline disabled:text-neutral-400"
+                >
+                  {resendLoading ? 'Sending...' : 'Resend Verification Email'}
+                </button>
+              )}
             </div>
           )}
 

@@ -5,7 +5,9 @@ import VerificationToken from '../models/VerificationToken.js';
 import { generateVerificationCode } from '../utils/phoneService.js';
 import { 
   sendVerificationEmail, 
-  sendWelcomeEmail 
+  sendWelcomeEmail,
+  sendPasswordResetEmail,
+  sendPasswordResetConfirmation
 } from '../services/emailService.js';
 
 // Generate JWT Token
