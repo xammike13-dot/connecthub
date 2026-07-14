@@ -1,5 +1,46 @@
 import User from '../models/User.js';
 
+// Helper function to handle Mongoose and other errors consistently
+const handleControllerError = (error, res, genericMessage) => {
+  console.error(error.stack || error);
+
+  const isDev = process.env.NODE_ENV !== 'production';
+
+  // Handle Mongoose ValidationError
+  if (error.name === 'ValidationError') {
+    const messages = Object.values(error.errors).map(err => err.message);
+    return res.status(400).json({
+      success: false,
+      message: isDev ? `Validation Error: ${messages.join(', ')}` : 'Failed to complete setup due to a validation error.',
+      error: isDev ? error.message : undefined,
+    });
+  }
+
+  // Handle Mongoose CastError
+  if (error.name === 'CastError') {
+    return res.status(400).json({
+      success: false,
+      message: isDev ? `Cast Error: Invalid ${error.path} value` : 'Failed to complete setup due to an invalid field format.',
+      error: isDev ? error.message : undefined,
+    });
+  }
+
+  // Handle duplicate key error (E11000)
+  if (error.code === 11000) {
+    const fields = Object.keys(error.keyValue || {}).join(', ');
+    return res.status(409).json({
+      success: false,
+      message: isDev ? `Duplicate field value error for fields: ${fields}` : 'Failed to complete setup. Duplicate data detected.',
+      error: isDev ? error.message : undefined,
+    });
+  }
+
+  return res.status(500).json({
+    success: false,
+    message: isDev ? error.message : genericMessage,
+  });
+};
+
 // @desc    Complete landlord setup
 // @route   POST /api/setup/landlord
 // @access  Private
@@ -7,7 +48,22 @@ export const completeLandlordSetup = async (req, res) => {
   try {
     const { profilePhoto, businessLogo } = req.body;
 
-    const user = await User.findById(req.user.id);
+    const userId = req.user?.id || req.user?._id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authorized to access this route. User credentials missing.',
+      });
+    }
+
+    const user = await User.findById(userId).select("+password");
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.',
+      });
+    }
 
     if (user.role !== 'landlord') {
       return res.status(403).json({
@@ -16,11 +72,23 @@ export const completeLandlordSetup = async (req, res) => {
       });
     }
 
-    // Update user with setup data
-    if (profilePhoto) {
+    // Validate that image paths are valid strings before saving
+    if (profilePhoto !== undefined && profilePhoto !== null) {
+      if (typeof profilePhoto !== 'string') {
+        return res.status(400).json({
+          success: false,
+          message: 'Profile photo must be a valid string.',
+        });
+      }
       user.profilePhoto = profilePhoto;
     }
-    if (businessLogo) {
+    if (businessLogo !== undefined && businessLogo !== null) {
+      if (typeof businessLogo !== 'string') {
+        return res.status(400).json({
+          success: false,
+          message: 'Business logo must be a valid string.',
+        });
+      }
       user.businessLogo = businessLogo;
     }
 
@@ -42,10 +110,7 @@ export const completeLandlordSetup = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    handleControllerError(error, res, 'Failed to complete setup.');
   }
 };
 
@@ -56,7 +121,22 @@ export const completeBusinessSetup = async (req, res) => {
   try {
     const { profilePhoto, businessLogo } = req.body;
 
-    const user = await User.findById(req.user.id);
+    const userId = req.user?.id || req.user?._id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authorized to access this route. User credentials missing.',
+      });
+    }
+
+    const user = await User.findById(userId).select("+password");
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.',
+      });
+    }
 
     if (user.role !== 'business') {
       return res.status(403).json({
@@ -65,11 +145,23 @@ export const completeBusinessSetup = async (req, res) => {
       });
     }
 
-    // Update user with setup data
-    if (profilePhoto) {
+    // Validate that image paths are valid strings before saving
+    if (profilePhoto !== undefined && profilePhoto !== null) {
+      if (typeof profilePhoto !== 'string') {
+        return res.status(400).json({
+          success: false,
+          message: 'Profile photo must be a valid string.',
+        });
+      }
       user.profilePhoto = profilePhoto;
     }
-    if (businessLogo) {
+    if (businessLogo !== undefined && businessLogo !== null) {
+      if (typeof businessLogo !== 'string') {
+        return res.status(400).json({
+          success: false,
+          message: 'Business logo must be a valid string.',
+        });
+      }
       user.businessLogo = businessLogo;
     }
 
@@ -91,10 +183,7 @@ export const completeBusinessSetup = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    handleControllerError(error, res, 'Failed to complete setup.');
   }
 };
 
@@ -105,7 +194,22 @@ export const completeRiderSetup = async (req, res) => {
   try {
     const { profilePhoto, motorcyclePhoto, workingArea, workingHours, ratePerKm } = req.body;
 
-    const user = await User.findById(req.user.id);
+    const userId = req.user?.id || req.user?._id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authorized to access this route. User credentials missing.',
+      });
+    }
+
+    const user = await User.findById(userId).select("+password");
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.',
+      });
+    }
 
     if (user.role !== 'rider') {
       return res.status(403).json({
@@ -114,22 +218,39 @@ export const completeRiderSetup = async (req, res) => {
       });
     }
 
-    // Update user with setup data
-    if (profilePhoto) {
+    // Validate that image paths are valid strings before saving
+    if (profilePhoto !== undefined && profilePhoto !== null) {
+      if (typeof profilePhoto !== 'string') {
+        return res.status(400).json({
+          success: false,
+          message: 'Profile photo must be a valid string.',
+        });
+      }
       user.profilePhoto = profilePhoto;
     }
-    if (motorcyclePhoto) {
+    if (motorcyclePhoto !== undefined && motorcyclePhoto !== null) {
+      if (typeof motorcyclePhoto !== 'string') {
+        return res.status(400).json({
+          success: false,
+          message: 'Motorcycle photo must be a valid string.',
+        });
+      }
+      user.riderProfile = user.riderProfile || {};
+      user.riderProfile.motorcycle = user.riderProfile.motorcycle || {};
       user.riderProfile.motorcycle.photo = motorcyclePhoto;
     }
     if (workingArea) {
+      user.riderProfile = user.riderProfile || {};
       // workingArea should be an object with: county, town, serviceRadius
       user.riderProfile.workingArea = workingArea;
     }
     if (workingHours) {
+      user.riderProfile = user.riderProfile || {};
       // workingHours should be an object with: start, end
       user.riderProfile.workingHours = workingHours;
     }
     if (ratePerKm) {
+      user.riderProfile = user.riderProfile || {};
       user.riderProfile.dayRatePerKm = ratePerKm;
       user.riderProfile.nightRatePerKm = ratePerKm; // Use same rate for simplicity
     }
@@ -152,10 +273,7 @@ export const completeRiderSetup = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    handleControllerError(error, res, 'Failed to complete setup.');
   }
 };
 
@@ -164,7 +282,22 @@ export const completeRiderSetup = async (req, res) => {
 // @access  Private
 export const completeOnboarding = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    const userId = req.user?.id || req.user?._id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authorized to access this route. User credentials missing.',
+      });
+    }
+
+    const user = await User.findById(userId).select("+password");
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.',
+      });
+    }
 
     user.onboardingCompleted = true;
     await user.save();
@@ -174,10 +307,7 @@ export const completeOnboarding = async (req, res) => {
       message: 'Onboarding completed successfully',
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    handleControllerError(error, res, 'Failed to complete onboarding.');
   }
 };
 
@@ -186,7 +316,22 @@ export const completeOnboarding = async (req, res) => {
 // @access  Private
 export const getSetupStatus = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    const userId = req.user?.id || req.user?._id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authorized to access this route. User credentials missing.',
+      });
+    }
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.',
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -198,9 +343,6 @@ export const getSetupStatus = async (req, res) => {
       riderProfile: user.riderProfile,
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    handleControllerError(error, res, 'Failed to get setup status.');
   }
 };

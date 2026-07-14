@@ -26,6 +26,8 @@ const BusinessSetupPage = () => {
     }
   };
 
+  const { refreshProfile } = useAuth();
+
   const handleSubmit = async () => {
     setLoading(true);
     try {
@@ -33,12 +35,16 @@ const BusinessSetupPage = () => {
         profilePhoto,
         businessLogo,
       });
+
+      // Refresh the user profile to sync setupCompleted: true in context
+      await refreshProfile();
       
       // Show guided walkthrough after setup
       setShowWalkthrough(true);
     } catch (error) {
       console.error('Setup failed:', error);
-      alert('Failed to complete setup. Please try again.');
+      const serverMessage = error.response?.data?.message || 'Failed to complete setup. Please try again.';
+      alert(serverMessage);
     } finally {
       setLoading(false);
     }
