@@ -37,6 +37,8 @@ import AdminDashboard from './pages/AdminDashboard';
 import BusinessProductsPage from './pages/BusinessProductsPage';
 import BusinessOrdersPage from './pages/BusinessOrdersPage';
 import BusinessProfilePage from './pages/BusinessProfilePage';
+import BusinessCustomersPage from './pages/BusinessCustomersPage';
+import BusinessAnalyticsPage from './pages/BusinessAnalyticsPage';
 import LandlordPropertiesPage from './pages/LandlordPropertiesPage';
 import LandlordPropertyNew from './pages/LandlordPropertyNew';
 import LandlordPropertyEdit from './pages/LandlordPropertyEdit';
@@ -131,6 +133,8 @@ function App() {
                   <Route path="dashboard" element={<BusinessDashboard />} />
                   <Route path="products" element={<BusinessProductsPage />} />
                   <Route path="orders" element={<BusinessOrdersPage />} />
+                  <Route path="customers" element={<BusinessCustomersPage />} />
+                  <Route path="analytics" element={<BusinessAnalyticsPage />} />
                   <Route path="profile" element={<BusinessProfilePage />} />
                   <Route path="settings" element={<BusinessSettings />} />
                   <Route path="earnings" element={<EarningsDashboardPage />} />

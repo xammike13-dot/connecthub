@@ -1,0 +1,44 @@
+Loading middleware/error.js
+Loading models/Rental.js
+Loading middleware/auth.js
+Loading controllers/landlordController.js
+Loading routes/landlordRoutes.js
+[Server] Loading .env from: /app/backend/.env
+[Server] .env exists: false
+[Server] CLOUDINARY_CLOUD_NAME: MISSING
+[Server] CLOUDINARY_API_KEY: MISSING
+[Server] CLOUDINARY_API_SECRET: MISSING
+
+═══════════════════════════════════════════════════════════
+  WARNING: WhatsApp Webhook Configuration
+═══════════════════════════════════════════════════════════
+
+  WHATSAPP_VERIFY_TOKEN is not configured.
+  WhatsApp webhook verification will be disabled.
+
+  To enable WhatsApp webhooks, add to backend/.env:
+    WHATSAPP_VERIFY_TOKEN=your_secure_verify_token
+
+═══════════════════════════════════════════════════════════
+
+
+═══════════════════════════════════════════════════════════
+  FATAL: Missing required MPesa Daraja configuration
+═══════════════════════════════════════════════════════════
+
+  The following environment variables must be set in backend/.env:
+    - MPESA_CONSUMER_KEY
+    - MPESA_CONSUMER_SECRET
+    - MPESA_SHORTCODE
+    - MPESA_PASSKEY
+    - MPESA_CALLBACK_URL
+
+  These are required for M-Pesa STK Push payments.
+  Please configure your Daraja API credentials.
+
+═══════════════════════════════════════════════════════════
+
+[Server] MPesa payments will be disabled. Set all MPESA_* variables to enable.
+[RENT REMINDER JOB] Scheduled to run daily at midnight
+[RENT REMINDER JOB] First run in: 436 minutes
+Error: The `uri` parameter to `openUri()` must be a string, got "undefined". Make sure the first parameter to `mongoose.connect()` or `mongoose.createConnection()` is a string.
