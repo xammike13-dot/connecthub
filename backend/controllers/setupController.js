@@ -73,7 +73,7 @@ export const completeLandlordSetup = async (req, res) => {
     }
 
     // Validate that image paths are valid strings before saving
-    if (profilePhoto !== undefined && profilePhoto !== null) {
+    if (profilePhoto !== undefined && profilePhoto !== null && profilePhoto !== '') {
       if (typeof profilePhoto !== 'string') {
         return res.status(400).json({
           success: false,
@@ -192,7 +192,7 @@ export const completeBusinessSetup = async (req, res) => {
 // @access  Private
 export const completeRiderSetup = async (req, res) => {
   try {
-    const { profilePhoto, motorcyclePhoto, workingArea, workingHours, ratePerKm } = req.body;
+    const { profilePhoto, motorcyclePhoto, workingArea, workingHours, ratePerKm, dayRatePerKm, nightRatePerKm } = req.body;
 
     const userId = req.user?.id || req.user?._id;
     if (!userId) {
@@ -228,7 +228,7 @@ export const completeRiderSetup = async (req, res) => {
       }
       user.profilePhoto = profilePhoto;
     }
-    if (motorcyclePhoto !== undefined && motorcyclePhoto !== null) {
+    if (motorcyclePhoto !== undefined && motorcyclePhoto !== null && motorcyclePhoto !== '') {
       if (typeof motorcyclePhoto !== 'string') {
         return res.status(400).json({
           success: false,
@@ -239,21 +239,45 @@ export const completeRiderSetup = async (req, res) => {
       user.riderProfile.motorcycle = user.riderProfile.motorcycle || {};
       user.riderProfile.motorcycle.photo = motorcyclePhoto;
     }
-    if (workingArea) {
-      user.riderProfile = user.riderProfile || {};
-      // workingArea should be an object with: county, town, serviceRadius
-      user.riderProfile.workingArea = workingArea;
+
+    // Strict Backend Validation for Rider Setup
+    if (!workingArea || !workingArea.county || !workingArea.town || !workingArea.serviceRadius) {
+      return res.status(400).json({
+        success: false,
+        message: 'Working Area (County, Town, and Service Radius) is required.',
+      });
     }
-    if (workingHours) {
-      user.riderProfile = user.riderProfile || {};
-      // workingHours should be an object with: start, end
-      user.riderProfile.workingHours = workingHours;
+
+    if (!workingHours || !workingHours.start || !workingHours.end) {
+      return res.status(400).json({
+        success: false,
+        message: 'Working Hours (Start and End times) are required.',
+      });
     }
-    if (ratePerKm) {
-      user.riderProfile = user.riderProfile || {};
-      user.riderProfile.dayRatePerKm = ratePerKm;
-      user.riderProfile.nightRatePerKm = ratePerKm; // Use same rate for simplicity
+
+    const finalDayRate = dayRatePerKm !== undefined && dayRatePerKm !== null ? parseFloat(dayRatePerKm) : parseFloat(ratePerKm);
+    const finalNightRate = nightRatePerKm !== undefined && nightRatePerKm !== null ? parseFloat(nightRatePerKm) : parseFloat(ratePerKm);
+
+    if (isNaN(finalDayRate) || finalDayRate <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'A valid Day Rate greater than 0 is required.',
+      });
     }
+
+    if (isNaN(finalNightRate) || finalNightRate <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'A valid Night Rate greater than 0 is required.',
+      });
+    }
+
+    // Save fields
+    user.riderProfile = user.riderProfile || {};
+    user.riderProfile.workingArea = workingArea;
+    user.riderProfile.workingHours = workingHours;
+    user.riderProfile.dayRatePerKm = finalDayRate;
+    user.riderProfile.nightRatePerKm = finalNightRate;
 
     user.setupCompleted = true;
     await user.save();

@@ -256,7 +256,24 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/users', userRoutes);
 
-// 404 Route
+// Serve frontend static assets in production
+const frontendDistPath = path.resolve(__dirname, '../frontend/dist');
+app.use(express.static(frontendDistPath));
+
+// Handle React Router client-side routing fallback - wildcard route for non-API requests
+app.get(/^\/(?!api|uploads).*/, (req, res) => {
+  const indexPath = path.join(frontendDistPath, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(404).json({
+      success: false,
+      message: 'Frontend build directory not found. Please run build.',
+    });
+  }
+});
+
+// 404 Route for remaining API requests (or requests matching /api/*)
 app.use('*', (req, res) => {
   res.status(404).json({
     success: false,

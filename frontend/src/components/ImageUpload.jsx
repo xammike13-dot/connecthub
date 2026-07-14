@@ -93,7 +93,7 @@ const ImageUpload = ({
         const newImages = [...images, imageObject];
         setImages(newImages);
         if (onUpload) {
-          onUpload(newImages[0]);
+          onUpload(imageObject);
         }
       } else {
         console.log('[ImageUpload] Calling uploadMultiple with', files.length, 'files');

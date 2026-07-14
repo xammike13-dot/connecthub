@@ -44,6 +44,7 @@ const LandlordPropertyEdit = () => {
   const [images, setImages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
@@ -315,13 +316,14 @@ const LandlordPropertyEdit = () => {
             maxFiles={5}
             initialImages={images}
             onUpload={(imgs) => setImages(Array.isArray(imgs) ? imgs : [imgs])}
+            onUploadStateChange={setUploading}
           />
         </div>
 
         {/* Actions */}
         <div className="flex items-center gap-4">
-          <Button type="submit" isLoading={saving} variant="primary">
-            Save Changes
+          <Button type="submit" isLoading={saving || uploading} disabled={uploading} variant="primary">
+            {uploading ? 'Uploading Images...' : 'Save Changes'}
           </Button>
           <Button
             type="button"

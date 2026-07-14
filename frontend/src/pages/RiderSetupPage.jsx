@@ -18,13 +18,26 @@ const RiderSetupPage = () => {
     start: '06:00',
     end: '22:00',
   });
-  const [ratePerKm, setRatePerKm] = useState('25');
+  const [dayRatePerKm, setDayRatePerKm] = useState('25');
+  const [nightRatePerKm, setNightRatePerKm] = useState('35');
   const [loading, setLoading] = useState(false);
   const [showWalkthrough, setShowWalkthrough] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
 
   const handleNext = () => {
+    if (step === 3) {
+      if (!workingArea.county || !workingArea.town || !workingArea.serviceRadius) {
+        alert('Please fill in County, Town, and Service Radius.');
+        return;
+      }
+    }
+    if (step === 4) {
+      if (!workingHours.start || !workingHours.end) {
+        alert('Please fill in both Start and End times.');
+        return;
+      }
+    }
     if (step < 5) {
       setStep(step + 1);
     }
@@ -39,6 +52,10 @@ const RiderSetupPage = () => {
   const { refreshProfile } = useAuth();
 
   const handleSubmit = async () => {
+    if (!dayRatePerKm || !nightRatePerKm) {
+      alert('Please set both Day Rate and Night Rate.');
+      return;
+    }
     setLoading(true);
     try {
       await api.post('/setup/rider', {
@@ -50,7 +67,8 @@ const RiderSetupPage = () => {
           serviceRadius: workingArea.serviceRadius,
         },
         workingHours,
-        ratePerKm: parseFloat(ratePerKm),
+        dayRatePerKm: parseFloat(dayRatePerKm),
+        nightRatePerKm: parseFloat(nightRatePerKm),
       });
 
       // Refresh the user profile to sync setupCompleted: true in context
@@ -114,7 +132,7 @@ const RiderSetupPage = () => {
       content: (
         <div className="space-y-4">
           <ImageUpload
-            onUpload={(url) => setProfilePhoto(url)}
+            onUpload={(img) => setProfilePhoto(typeof img === 'string' ? img : img?.url || '')}
             currentImage={profilePhoto}
             aspectRatio="square"
             label="Profile Photo"
@@ -128,7 +146,7 @@ const RiderSetupPage = () => {
       content: (
         <div className="space-y-4">
           <ImageUpload
-            onUpload={(url) => setMotorcyclePhoto(url)}
+            onUpload={(img) => setMotorcyclePhoto(typeof img === 'string' ? img : img?.url || '')}
             currentImage={motorcyclePhoto}
             aspectRatio="landscape"
             label="Motorcycle Photo"
@@ -216,19 +234,19 @@ const RiderSetupPage = () => {
       ),
     },
     {
-      title: 'Rate Per KM',
-      description: 'Set your rate per kilometer',
+      title: 'Rates Per KM',
+      description: 'Set your rates for day and night services',
       content: (
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-2">
-              Rate (KSh)
+              Day Rate (KSh)
             </label>
             <div className="relative">
               <input
                 type="number"
-                value={ratePerKm}
-                onChange={(e) => setRatePerKm(e.target.value)}
+                value={dayRatePerKm}
+                onChange={(e) => setDayRatePerKm(e.target.value)}
                 className="input-field pl-16"
                 placeholder="25"
                 required
@@ -237,7 +255,27 @@ const RiderSetupPage = () => {
                 KSh
               </span>
             </div>
-            <p className="text-sm text-neutral-500 mt-2">Example: KSh 25/km</p>
+            <p className="text-sm text-neutral-500 mt-1">For daytime rides (e.g. 6:00 AM to 6:00 PM)</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-2">
+              Night Rate (KSh)
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                value={nightRatePerKm}
+                onChange={(e) => setNightRatePerKm(e.target.value)}
+                className="input-field pl-16"
+                placeholder="35"
+                required
+              />
+              <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-neutral-500 font-medium">
+                KSh
+              </span>
+            </div>
+            <p className="text-sm text-neutral-500 mt-1">For nighttime rides (e.g. 6:00 PM to 6:00 AM)</p>
           </div>
         </div>
       ),
@@ -304,21 +342,31 @@ const RiderSetupPage = () => {
               <div />
             )}
 
-            {step < 5 ? (
-              <button
-                type="button"
-                onClick={handleNext}
-                className="btn-primary px-6 py-3"
-              >
-                Next
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={loading}
-                className="btn-primary px-6 py-3 flex items-center gap-2"
-              >
+            <div className="flex gap-3">
+              {(step === 1 || step === 2) && (
+                <button
+                  type="button"
+                  onClick={handleNext}
+                  className="px-6 py-3 border border-neutral-300 rounded-lg bg-white hover:bg-neutral-50 transition-colors text-neutral-600 font-medium"
+                >
+                  Skip
+                </button>
+              )}
+              {step < 5 ? (
+                <button
+                  type="button"
+                  onClick={handleNext}
+                  className="btn-primary px-6 py-3"
+                >
+                  Next
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={loading}
+                  className="btn-primary px-6 py-3 flex items-center gap-2"
+                >
                 {loading ? (
                   <>
                     <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
@@ -330,8 +378,9 @@ const RiderSetupPage = () => {
                 ) : (
                   'Finish'
                 )}
-              </button>
-            )}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
