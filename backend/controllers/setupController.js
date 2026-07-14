@@ -5,9 +5,37 @@ import User from '../models/User.js';
 // @access  Private
 export const completeLandlordSetup = async (req, res) => {
   try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authorized, user ID is missing',
+      });
+    }
+
     const { profilePhoto, businessLogo } = req.body;
 
-    const user = await User.findById(req.user.id);
+    // Validate that image paths are valid strings if they are provided
+    if (profilePhoto !== undefined && typeof profilePhoto !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation Error: profilePhoto must be a string url',
+      });
+    }
+    if (businessLogo !== undefined && typeof businessLogo !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation Error: businessLogo must be a string url',
+      });
+    }
+
+    const user = await User.findById(req.user.id).select('+password');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
 
     if (user.role !== 'landlord') {
       return res.status(403).json({
@@ -42,9 +70,23 @@ export const completeLandlordSetup = async (req, res) => {
       },
     });
   } catch (error) {
+    console.error('[LANDLORD SETUP ERROR STACK]:', error.stack);
+
+    // Mongoose ValidationError, CastError, and Duplicate Key checks
+    let errorMessage = error.message;
+    if (error.name === 'ValidationError') {
+      errorMessage = `Validation Error: ${Object.values(error.errors).map(e => e.message).join(', ')}`;
+    } else if (error.name === 'CastError') {
+      errorMessage = `Cast Error: Invalid value for field ${error.path}`;
+    } else if (error.code === 11000) {
+      errorMessage = 'Duplicate Key Error: Unique constraint violated';
+    }
+
     res.status(500).json({
       success: false,
-      message: error.message,
+      message: process.env.NODE_ENV === 'production' ? 'Failed to complete setup.' : errorMessage,
+      error: errorMessage,
+      stack: error.stack,
     });
   }
 };
@@ -54,9 +96,36 @@ export const completeLandlordSetup = async (req, res) => {
 // @access  Private
 export const completeBusinessSetup = async (req, res) => {
   try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authorized, user ID is missing',
+      });
+    }
+
     const { profilePhoto, businessLogo } = req.body;
 
-    const user = await User.findById(req.user.id);
+    if (profilePhoto !== undefined && typeof profilePhoto !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation Error: profilePhoto must be a string url',
+      });
+    }
+    if (businessLogo !== undefined && typeof businessLogo !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation Error: businessLogo must be a string url',
+      });
+    }
+
+    const user = await User.findById(req.user.id).select('+password');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
 
     if (user.role !== 'business') {
       return res.status(403).json({
@@ -91,9 +160,22 @@ export const completeBusinessSetup = async (req, res) => {
       },
     });
   } catch (error) {
+    console.error('[BUSINESS SETUP ERROR STACK]:', error.stack);
+
+    let errorMessage = error.message;
+    if (error.name === 'ValidationError') {
+      errorMessage = `Validation Error: ${Object.values(error.errors).map(e => e.message).join(', ')}`;
+    } else if (error.name === 'CastError') {
+      errorMessage = `Cast Error: Invalid value for field ${error.path}`;
+    } else if (error.code === 11000) {
+      errorMessage = 'Duplicate Key Error: Unique constraint violated';
+    }
+
     res.status(500).json({
       success: false,
-      message: error.message,
+      message: process.env.NODE_ENV === 'production' ? 'Failed to complete setup.' : errorMessage,
+      error: errorMessage,
+      stack: error.stack,
     });
   }
 };
@@ -103,9 +185,36 @@ export const completeBusinessSetup = async (req, res) => {
 // @access  Private
 export const completeRiderSetup = async (req, res) => {
   try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authorized, user ID is missing',
+      });
+    }
+
     const { profilePhoto, motorcyclePhoto, workingArea, workingHours, ratePerKm } = req.body;
 
-    const user = await User.findById(req.user.id);
+    if (profilePhoto !== undefined && typeof profilePhoto !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation Error: profilePhoto must be a string url',
+      });
+    }
+    if (motorcyclePhoto !== undefined && typeof motorcyclePhoto !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation Error: motorcyclePhoto must be a string url',
+      });
+    }
+
+    const user = await User.findById(req.user.id).select('+password');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
 
     if (user.role !== 'rider') {
       return res.status(403).json({
@@ -122,16 +231,14 @@ export const completeRiderSetup = async (req, res) => {
       user.riderProfile.motorcycle.photo = motorcyclePhoto;
     }
     if (workingArea) {
-      // workingArea should be an object with: county, town, serviceRadius
       user.riderProfile.workingArea = workingArea;
     }
     if (workingHours) {
-      // workingHours should be an object with: start, end
       user.riderProfile.workingHours = workingHours;
     }
     if (ratePerKm) {
       user.riderProfile.dayRatePerKm = ratePerKm;
-      user.riderProfile.nightRatePerKm = ratePerKm; // Use same rate for simplicity
+      user.riderProfile.nightRatePerKm = ratePerKm;
     }
 
     user.setupCompleted = true;
@@ -152,9 +259,22 @@ export const completeRiderSetup = async (req, res) => {
       },
     });
   } catch (error) {
+    console.error('[RIDER SETUP ERROR STACK]:', error.stack);
+
+    let errorMessage = error.message;
+    if (error.name === 'ValidationError') {
+      errorMessage = `Validation Error: ${Object.values(error.errors).map(e => e.message).join(', ')}`;
+    } else if (error.name === 'CastError') {
+      errorMessage = `Cast Error: Invalid value for field ${error.path}`;
+    } else if (error.code === 11000) {
+      errorMessage = 'Duplicate Key Error: Unique constraint violated';
+    }
+
     res.status(500).json({
       success: false,
-      message: error.message,
+      message: process.env.NODE_ENV === 'production' ? 'Failed to complete setup.' : errorMessage,
+      error: errorMessage,
+      stack: error.stack,
     });
   }
 };

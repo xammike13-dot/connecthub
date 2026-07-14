@@ -38,7 +38,8 @@ const BusinessSetupPage = () => {
       setShowWalkthrough(true);
     } catch (error) {
       console.error('Setup failed:', error);
-      alert('Failed to complete setup. Please try again.');
+      const msg = error.response?.data?.message || error.response?.data?.error || 'Failed to complete setup. Please try again.';
+      alert(msg);
     } finally {
       setLoading(false);
     }
