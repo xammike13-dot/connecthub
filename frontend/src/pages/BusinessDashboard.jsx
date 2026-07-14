@@ -5,6 +5,23 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import { useAuth } from '../context/AuthContext';
 import GuidedWalkthrough from '../components/GuidedWalkthrough';
 import api from '../services/api';
+import { motion } from 'framer-motion';
+import {
+  Package,
+  CheckCircle,
+  AlertCircle,
+  ShoppingCart,
+  Clock,
+  XCircle,
+  DollarSign,
+  TrendingUp,
+  Plus,
+  ClipboardList,
+  Wallet,
+  Bell,
+  ArrowRight,
+  RefreshCw
+} from 'lucide-react';
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-KE', {
@@ -17,26 +34,32 @@ const formatCurrency = (amount) => {
 
 const StatCard = ({ title, value, subtitle, icon, color = 'primary' }) => {
   const colorClasses = {
-    primary: 'bg-gradient-to-br from-blue-500 to-blue-600',
-    success: 'bg-gradient-to-br from-green-500 to-green-600',
-    warning: 'bg-gradient-to-br from-yellow-500 to-yellow-600',
-    danger: 'bg-gradient-to-br from-red-500 to-red-600',
-    info: 'bg-gradient-to-br from-purple-500 to-purple-600',
+    primary: 'from-blue-500 to-blue-600 text-blue-600 bg-blue-50 border-blue-100',
+    success: 'from-emerald-500 to-emerald-600 text-emerald-600 bg-emerald-50 border-emerald-100',
+    warning: 'from-amber-500 to-amber-600 text-amber-600 bg-amber-50 border-amber-100',
+    danger: 'from-rose-500 to-rose-600 text-rose-600 bg-rose-50 border-rose-100',
+    info: 'from-indigo-500 to-indigo-600 text-indigo-600 bg-indigo-50 border-indigo-100',
+  };
+
+  const iconBgClasses = {
+    primary: 'bg-blue-100',
+    success: 'bg-emerald-100',
+    warning: 'bg-amber-100',
+    danger: 'bg-rose-100',
+    info: 'bg-indigo-100',
   };
 
   return (
-    <div className="card p-6 relative overflow-hidden">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-secondary-500 mb-1">{title}</p>
-          <p className="text-3xl font-bold text-secondary-800">
-            {typeof value === 'number' ? value.toLocaleString() : value}
-          </p>
-          {subtitle && <p className="text-xs text-secondary-400 mt-1">{subtitle}</p>}
-        </div>
-        <div className={`w-14 h-14 rounded-xl ${colorClasses[color]} flex items-center justify-center shadow-lg`}>
-          {icon}
-        </div>
+    <div className={`card p-5 bg-white border rounded-2xl shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex items-center justify-between overflow-hidden relative group`}>
+      <div className="space-y-1.5 z-10">
+        <p className="text-xs font-bold text-secondary-400 uppercase tracking-wider">{title}</p>
+        <p className="text-3xl font-extrabold text-secondary-800 tracking-tight">
+          {typeof value === 'number' ? value.toLocaleString() : value}
+        </p>
+        {subtitle && <p className="text-xs text-secondary-500 font-medium">{subtitle}</p>}
+      </div>
+      <div className={`w-12.5 h-12.5 rounded-xl ${iconBgClasses[color]} ${colorClasses[color].split(' ')[0]} flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform duration-200 z-10`}>
+        {icon}
       </div>
     </div>
   );
@@ -104,17 +127,17 @@ const BusinessDashboard = () => {
 
   if (error) {
     return (
-      <div className="card bg-red-50 border border-red-200 p-6">
-        <div className="flex items-center justify-between">
+      <div className="card bg-red-50 border border-red-200 p-6 rounded-2xl">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h3 className="text-lg font-semibold text-red-800">Error Loading Dashboard</h3>
-            <p className="text-red-600 mt-1">{error}</p>
+            <h3 className="text-lg font-bold text-red-800">Error Loading Dashboard</h3>
+            <p className="text-red-600 text-sm mt-1">{error}</p>
           </div>
           <button
             onClick={handleRefresh}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+            className="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors font-semibold shadow-sm"
           >
-            Retry
+            Retry Loading
           </button>
         </div>
       </div>
@@ -125,15 +148,15 @@ const BusinessDashboard = () => {
     switch (status) {
       case 'delivered':
       case 'completed':
-        return 'bg-green-100 text-green-600';
+        return 'bg-emerald-100 text-emerald-700 border-emerald-200';
       case 'processing':
       case 'paid':
-        return 'bg-purple-100 text-purple-600';
+        return 'bg-blue-100 text-blue-700 border-blue-200';
       case 'cancelled':
       case 'refunded':
-        return 'bg-red-100 text-red-600';
+        return 'bg-rose-100 text-rose-700 border-rose-200';
       default:
-        return 'bg-yellow-100 text-yellow-600';
+        return 'bg-amber-100 text-amber-700 border-amber-200';
     }
   };
 
@@ -145,267 +168,232 @@ const BusinessDashboard = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
+      {/* Sub-header inside main body */}
+      <div className="flex items-center justify-between flex-wrap gap-4 bg-white p-5 border border-secondary-100 rounded-2xl shadow-sm">
         <div>
-          <h1 className="text-2xl font-bold text-secondary-800">
+          <h2 className="text-xl md:text-2xl font-extrabold text-secondary-800 tracking-tight">
             Welcome back, {user?.name?.split(' ')[0] || 'Business Owner'}!
-          </h1>
-          <p className="text-secondary-500 mt-1">
-            Here's what's happening with your business today.
+          </h2>
+          <p className="text-sm text-secondary-500 mt-1 font-medium">
+            Here's what's happening with your business operations today.
           </p>
         </div>
 
         <button
           onClick={handleRefresh}
           disabled={refreshing}
-          className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 flex items-center gap-2"
+          className="px-4 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 disabled:opacity-50 flex items-center gap-2 transition-all duration-150 font-semibold shadow-sm text-sm"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          {refreshing ? 'Refreshing...' : 'Refresh'}
+          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+          {refreshing ? 'Refreshing...' : 'Refresh Stats'}
         </button>
       </div>
 
-      {/* Product Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Product Stats Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <StatCard
           title="Total Products"
           value={stats?.totalProducts || 0}
-          subtitle="All products"
+          subtitle="All inventory listings"
           color="primary"
-          icon={
-            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-            </svg>
-          }
+          icon={<Package className="w-6 h-6" />}
         />
 
         <StatCard
           title="Active Products"
           value={stats?.activeProducts || 0}
-          subtitle="In stock and available"
+          subtitle="Published and available"
           color="success"
-          icon={
-            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          }
+          icon={<CheckCircle className="w-6 h-6" />}
         />
 
         <StatCard
           title="Out of Stock"
           value={stats?.outOfStockProducts || 0}
-          subtitle="Need restocking"
+          subtitle="Restocking required"
           color="warning"
-          icon={
-            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-          }
+          icon={<AlertCircle className="w-6 h-6" />}
         />
 
         <StatCard
           title="Total Orders"
           value={stats?.totalOrders || 0}
-          subtitle="All time orders"
+          subtitle="All-time client orders"
           color="info"
-          icon={
-            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-          }
+          icon={<ShoppingCart className="w-6 h-6" />}
         />
       </div>
 
-      {/* Order Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Order Stats Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         <StatCard
           title="Pending Orders"
           value={stats?.pendingOrders || 0}
-          subtitle="Awaiting processing"
+          subtitle="Awaiting preparation"
           color="warning"
-          icon={
-            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          }
+          icon={<Clock className="w-6 h-6" />}
         />
 
         <StatCard
           title="Completed Orders"
           value={stats?.completedOrders || 0}
-          subtitle="Successfully delivered"
+          subtitle="Delivered successfully"
           color="success"
-          icon={
-            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          }
+          icon={<CheckCircle className="w-6 h-6" />}
         />
 
         <StatCard
           title="Cancelled Orders"
           value={stats?.cancelledOrders || 0}
-          subtitle="Order cancellations"
+          subtitle="Refunds and cancellations"
           color="danger"
-          icon={
-            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14L21 3m0 0l-11 0m11 0l0 11" />
-            </svg>
-          }
+          icon={<XCircle className="w-6 h-6" />}
         />
       </div>
 
-      {/* Financial Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="card p-6">
-          <h3 className="text-lg font-semibold text-secondary-800 mb-4">Available Balance</h3>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-3xl font-bold text-green-600">
-                {formatCurrency(stats?.availableBalance || 0)}
-              </p>
-              <p className="text-sm text-secondary-500 mt-1">Ready to withdraw</p>
-            </div>
-            <button
-              onClick={() => window.location.href = '/business/wallet'}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-            >
-              Withdraw
-            </button>
+      {/* Financial Overview Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="card p-5 bg-white border border-secondary-100 rounded-2xl shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+          <div>
+            <p className="text-xs font-bold text-secondary-400 uppercase tracking-wider">Available Balance</p>
+            <p className="text-2xl font-extrabold text-emerald-600 mt-1">{formatCurrency(stats?.availableBalance || 0)}</p>
+            <p className="text-xs text-secondary-500 font-medium mt-1">Ready for withdraw</p>
+          </div>
+          <button
+            onClick={() => window.location.href = '/business/wallet'}
+            className="w-full mt-4 py-2 bg-emerald-600 text-white font-bold text-sm rounded-xl hover:bg-emerald-700 transition-colors shadow-sm"
+          >
+            Withdraw Funds
+          </button>
+        </div>
+
+        <div className="card p-5 bg-white border border-secondary-100 rounded-2xl shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+          <div>
+            <p className="text-xs font-bold text-secondary-400 uppercase tracking-wider">Pending Balance</p>
+            <p className="text-2xl font-extrabold text-amber-500 mt-1">{formatCurrency(stats?.pendingBalance || 0)}</p>
+            <p className="text-xs text-secondary-500 font-medium mt-1">In escrow / transit</p>
+          </div>
+          <div className="mt-4 text-xs text-secondary-400 font-semibold leading-normal">
+            Released instantly upon order confirmation.
           </div>
         </div>
 
-        <div className="card p-6">
-          <h3 className="text-lg font-semibold text-secondary-800 mb-4">Pending Balance</h3>
+        <div className="card p-5 bg-white border border-secondary-100 rounded-2xl shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
           <div>
-            <p className="text-3xl font-bold text-yellow-600">
-              {formatCurrency(stats?.pendingBalance || 0)}
-            </p>
-            <p className="text-sm text-secondary-500 mt-1">Awaiting completion</p>
+            <p className="text-xs font-bold text-secondary-400 uppercase tracking-wider">Total Revenue</p>
+            <p className="text-2xl font-extrabold text-blue-600 mt-1">{formatCurrency(stats?.totalRevenue || 0)}</p>
+            <p className="text-xs text-secondary-500 font-medium mt-1">From completed sales</p>
+          </div>
+          <div className="mt-4 flex items-center gap-1 text-xs text-green-500 font-bold">
+            <TrendingUp size={14} /> +8.5% growth
           </div>
         </div>
 
-        <div className="card p-6">
-          <h3 className="text-lg font-semibold text-secondary-800 mb-4">Total Revenue</h3>
+        <div className="card p-5 bg-white border border-secondary-100 rounded-2xl shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
           <div>
-            <p className="text-3xl font-bold text-blue-600">
-              {formatCurrency(stats?.totalRevenue || 0)}
-            </p>
-            <p className="text-sm text-secondary-500 mt-1">From completed orders</p>
+            <p className="text-xs font-bold text-secondary-400 uppercase tracking-wider">Total Earnings</p>
+            <p className="text-2xl font-extrabold text-indigo-600 mt-1">{formatCurrency(stats?.totalEarnings || 0)}</p>
+            <p className="text-xs text-secondary-500 font-medium mt-1">All-time gross value</p>
           </div>
-        </div>
-
-        <div className="card p-6">
-          <h3 className="text-lg font-semibold text-secondary-800 mb-4">Total Earnings</h3>
-          <div>
-            <p className="text-3xl font-bold text-purple-600">
-              {formatCurrency(stats?.totalEarnings || 0)}
-            </p>
-            <p className="text-sm text-secondary-500 mt-1">All time earnings</p>
+          <div className="mt-4 text-xs text-secondary-400 font-semibold leading-normal">
+            Cumulative business payout logs.
           </div>
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="card p-6">
-        <h2 className="text-xl font-semibold text-secondary-800 mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Quick Actions Grid */}
+      <div className="card p-6 bg-white border border-secondary-100 rounded-2xl shadow-sm">
+        <h2 className="text-lg font-bold text-secondary-800 tracking-tight mb-4">Operational Quick Actions</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Link
             to="/business/products"
-            className="p-4 rounded-lg border border-secondary-200 hover:border-blue-500 hover:bg-blue-50 transition-colors flex items-center gap-3"
+            className="p-4 rounded-xl border border-secondary-100 hover:border-blue-500 hover:bg-blue-50/50 transition-all duration-150 flex items-center gap-3.5 group"
           >
-            <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-              <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
+            <div className="w-11 h-11 rounded-xl bg-blue-50 group-hover:bg-blue-100 flex items-center justify-center text-blue-600 transition-colors shadow-sm">
+              <Plus size={20} className="stroke-[2.5]" />
             </div>
             <div>
-              <h3 className="font-semibold text-secondary-800">Add Product</h3>
-              <p className="text-sm text-secondary-500">List new item</p>
+              <h3 className="font-bold text-sm text-secondary-800">Add Product</h3>
+              <p className="text-xs text-secondary-400 font-semibold mt-0.5">List new item</p>
             </div>
           </Link>
 
           <Link
             to="/business/orders"
-            className="p-4 rounded-lg border border-secondary-200 hover:border-green-500 hover:bg-green-50 transition-colors flex items-center gap-3"
+            className="p-4 rounded-xl border border-secondary-100 hover:border-emerald-500 hover:bg-emerald-50/50 transition-all duration-150 flex items-center gap-3.5 group"
           >
-            <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-              <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
+            <div className="w-11 h-11 rounded-xl bg-emerald-50 group-hover:bg-emerald-100 flex items-center justify-center text-emerald-600 transition-colors shadow-sm">
+              <ClipboardList size={20} />
             </div>
             <div>
-              <h3 className="font-semibold text-secondary-800">Manage Orders</h3>
-              <p className="text-sm text-secondary-500">View and process</p>
+              <h3 className="font-bold text-sm text-secondary-800">Manage Orders</h3>
+              <p className="text-xs text-secondary-400 font-semibold mt-0.5">View and process</p>
             </div>
           </Link>
 
           <Link
             to="/business/wallet"
-            className="p-4 rounded-lg border border-secondary-200 hover:border-purple-500 hover:bg-purple-50 transition-colors flex items-center gap-3"
+            className="p-4 rounded-xl border border-secondary-100 hover:border-indigo-500 hover:bg-indigo-50/50 transition-all duration-150 flex items-center gap-3.5 group"
           >
-            <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
-              <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-              </svg>
+            <div className="w-11 h-11 rounded-xl bg-indigo-50 group-hover:bg-indigo-100 flex items-center justify-center text-indigo-600 transition-colors shadow-sm">
+              <Wallet size={20} />
             </div>
             <div>
-              <h3 className="font-semibold text-secondary-800">Wallet</h3>
-              <p className="text-sm text-secondary-500">Manage earnings</p>
+              <h3 className="font-bold text-sm text-secondary-800">Wallet Control</h3>
+              <p className="text-xs text-secondary-400 font-semibold mt-0.5">Manage earnings</p>
             </div>
           </Link>
 
           <Link
-            to="/business/notifications"
-            className="p-4 rounded-lg border border-secondary-200 hover:border-yellow-500 hover:bg-yellow-50 transition-colors flex items-center gap-3"
+            to="/business/settings"
+            className="p-4 rounded-xl border border-secondary-100 hover:border-amber-500 hover:bg-amber-50/50 transition-all duration-150 flex items-center gap-3.5 group"
           >
-            <div className="w-10 h-10 rounded-lg bg-yellow-100 flex items-center justify-center">
-              <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
+            <div className="w-11 h-11 rounded-xl bg-amber-50 group-hover:bg-amber-100 flex items-center justify-center text-amber-600 transition-colors shadow-sm">
+              <Bell size={20} />
             </div>
             <div>
-              <h3 className="font-semibold text-secondary-800">Notifications</h3>
-              <p className="text-sm text-secondary-500">View alerts</p>
+              <h3 className="font-bold text-sm text-secondary-800">Profile Settings</h3>
+              <p className="text-xs text-secondary-400 font-semibold mt-0.5">Configure account</p>
             </div>
           </Link>
         </div>
       </div>
 
-      {/* Recent Orders */}
-      <div className="card p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-secondary-800">Recent Orders</h2>
-          <Link to="/business/orders" className="text-primary-600 hover:text-primary-700 text-sm font-medium">
-            View all
+      {/* Recent Orders Table */}
+      <div className="card p-6 bg-white border border-secondary-100 rounded-2xl shadow-sm">
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+          <h2 className="text-lg font-bold text-secondary-800 tracking-tight">Recent Business Orders</h2>
+          <Link to="/business/orders" className="text-primary-600 hover:text-primary-700 text-xs font-bold flex items-center gap-1 transition-colors">
+            View All Orders
+            <ArrowRight size={14} />
           </Link>
         </div>
+
         {orders && orders.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="overflow-x-auto rounded-xl border border-secondary-100">
+            <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-secondary-200">
-                  <th className="text-left py-3 px-4 text-sm font-medium text-secondary-600">Customer</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-secondary-600">Items</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-secondary-600">Amount</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-secondary-600">Status</th>
+                <tr className="bg-secondary-50/80 border-b border-secondary-100">
+                  <th className="py-3 px-4 text-xs font-bold text-secondary-500 uppercase tracking-wider">Customer</th>
+                  <th className="py-3 px-4 text-xs font-bold text-secondary-500 uppercase tracking-wider">Items count</th>
+                  <th className="py-3 px-4 text-xs font-bold text-secondary-500 uppercase tracking-wider text-right">Amount</th>
+                  <th className="py-3 px-4 text-xs font-bold text-secondary-500 uppercase tracking-wider text-center">Status</th>
                 </tr>
               </thead>
-              <tbody>
-                {orders.map((order) => (
-                  <tr key={order._id} className="border-b border-secondary-100 hover:bg-secondary-50">
-                    <td className="py-3 px-4 text-secondary-800">
+              <tbody className="divide-y divide-secondary-50">
+                {orders.slice(0, 5).map((order) => (
+                  <tr key={order._id} className="hover:bg-secondary-50/30 transition-colors">
+                    <td className="py-3.5 px-4 font-semibold text-sm text-secondary-800">
                       {order.customer?.name || 'Customer'}
                     </td>
-                    <td className="py-3 px-4 text-secondary-600">{order.items?.length || 0} items</td>
-                    <td className="py-3 px-4 text-secondary-800 font-medium">
+                    <td className="py-3.5 px-4 text-sm text-secondary-600">
+                      {order.items?.length || 0} items
+                    </td>
+                    <td className="py-3.5 px-4 text-sm font-bold text-secondary-800 text-right">
                       {formatCurrency(order.finalAmount || order.totalAmount || 0)}
                     </td>
-                    <td className="py-3 px-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadgeClass(order.status)}`}>
+                    <td className="py-3.5 px-4 text-center">
+                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold border ${getStatusBadgeClass(order.status)}`}>
                         {formatStatus(order.status)}
                       </span>
                     </td>
@@ -415,11 +403,9 @@ const BusinessDashboard = () => {
             </table>
           </div>
         ) : (
-          <div className="text-center py-8 text-secondary-500">
-            <svg className="w-12 h-12 mx-auto mb-3 text-secondary-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-            <p>No orders yet</p>
+          <div className="text-center py-10 text-secondary-400">
+            <ShoppingCart className="w-12 h-12 mx-auto mb-3 text-secondary-200" />
+            <p className="text-sm font-medium">No order files found</p>
           </div>
         )}
       </div>

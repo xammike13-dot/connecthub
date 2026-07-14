@@ -39,9 +39,8 @@ const Sidebar = ({ isOpen, onClose }) => {
           { path: '/business/dashboard', label: 'Dashboard', icon: 'home' },
           { path: '/business/products', label: 'Products', icon: 'shopping' },
           { path: '/business/orders', label: 'Orders', icon: 'orders' },
-          { path: '/business/wallet', label: 'Wallet', icon: 'money' },
-          { path: '/business/profile', label: 'Profile', icon: 'user' },
-          { path: '/business/notifications', label: 'Notifications', icon: 'calendar' },
+          { path: '/business/customers', label: 'Customers', icon: 'users' },
+          { path: '/business/analytics', label: 'Analytics', icon: 'chart' },
           { path: '/business/settings', label: 'Settings', icon: 'settings' },
         ];
       case 'rider':
