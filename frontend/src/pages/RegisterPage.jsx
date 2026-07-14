@@ -61,8 +61,8 @@ const RegisterPage = () => {
         console.log('Development mode: OTP logged to backend console');
       }
       
-      // Redirect to Login page instead of /verify-email
-      navigate('/login', { state: { message: 'Registration successful! Please verify your email or log in.' } });
+      // Redirect directly to Email Verification / Enter Verification Code page
+      navigate('/verify-email', { state: { message: "We've sent a verification code to your email. Enter the code below to verify your account." } });
     } else {
       setError(result.message);
     }

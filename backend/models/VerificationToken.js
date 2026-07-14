@@ -9,7 +9,7 @@ const verificationTokenSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['email', 'phone'],
+      enum: ['email', 'phone', 'password_reset'],
       required: true,
     },
     token: {
