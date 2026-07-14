@@ -4,6 +4,26 @@ import { useAuth } from '../context/AuthContext';
 import PasswordInput from '../components/ui/PasswordInput';
 
 const RegisterPage = () => {
+  const { isAuthenticated, user } = useAuth();
+  const navigate = useNavigate();
+
+  // Redirect if already authenticated
+  if (isAuthenticated && user) {
+    const dashboardMap = {
+      customer: '/customer/dashboard',
+      landlord: '/landlord/dashboard',
+      business: '/business/dashboard',
+      rider: '/rider/dashboard',
+      admin: '/admin/dashboard',
+    };
+    const targetPath = dashboardMap[user.role] || '/';
+    // Use setTimeout to avoid React rendering warning if navigating during render
+    setTimeout(() => {
+      navigate(targetPath, { replace: true });
+    }, 0);
+    return null;
+  }
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -15,7 +35,6 @@ const RegisterPage = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
-  const navigate = useNavigate();
 
   const roles = [
     { value: 'customer', label: 'Customer', description: 'Shop, rent, and book services' },

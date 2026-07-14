@@ -1,5 +1,7 @@
-import { Link } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useAuth } from '../context/AuthContext';
 import { 
   ShoppingBag, 
   Home, 
@@ -94,6 +96,23 @@ const testimonials = [
 ];
 
 const HomePage = () => {
+  const { isAuthenticated, user } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const dashboardMap = {
+        customer: '/customer/dashboard',
+        landlord: '/landlord/dashboard',
+        business: '/business/dashboard',
+        rider: '/rider/dashboard',
+        admin: '/admin/dashboard',
+      };
+      const targetPath = dashboardMap[user.role] || '/';
+      navigate(targetPath, { replace: true });
+    }
+  }, [isAuthenticated, user, navigate]);
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Hero Section */}

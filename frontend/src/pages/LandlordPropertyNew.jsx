@@ -38,6 +38,7 @@ const LandlordPropertyNew = () => {
   });
   const [images, setImages] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [errors, setErrors] = useState({});
   const navigate = useNavigate();
   const { addToast } = useToast();
@@ -271,13 +272,14 @@ const LandlordPropertyNew = () => {
             multiple={true}
             maxFiles={5}
             onUpload={(imgs) => setImages(Array.isArray(imgs) ? imgs : [imgs])}
+            onUploadStateChange={setUploading}
           />
         </div>
 
         {/* Actions */}
         <div className="flex items-center gap-4">
-          <Button type="submit" isLoading={loading} variant="primary">
-            Create Property
+          <Button type="submit" isLoading={loading || uploading} disabled={uploading} variant="primary">
+            {uploading ? 'Uploading Images...' : 'Create Property'}
           </Button>
           <Button
             type="button"

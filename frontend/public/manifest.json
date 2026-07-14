@@ -1,0 +1,21 @@
+{
+  "short_name": "ConnectHub",
+  "name": "ConnectHub Marketplace & Transport",
+  "icons": [
+    {
+      "src": "https://via.placeholder.com/192.png?text=ConnectHub",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "https://via.placeholder.com/512.png?text=ConnectHub",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "display": "standalone",
+  "orientation": "portrait"
+}

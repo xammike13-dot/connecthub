@@ -621,7 +621,7 @@ const BusinessProductsPage = () => {
                 multiple={false}
                 maxFiles={1}
                 initialImages={formData.images}
-                onUpload={(images) => setFormData((prev) => ({ ...prev, images: Array.isArray(images) ? images[0] : images }))}
+                onUpload={(img) => setFormData((prev) => ({ ...prev, images: [typeof img === 'string' ? img : img?.url || ''] }))}
                 onUploadStateChange={setUploading}
                 className="mt-2"
               />
@@ -740,7 +740,7 @@ const BusinessProductsPage = () => {
                 multiple={false}
                 maxFiles={1}
                 initialImages={formData.images}
-                onUpload={(images) => setFormData((prev) => ({ ...prev, images: Array.isArray(images) ? images[0] : images }))}
+                onUpload={(img) => setFormData((prev) => ({ ...prev, images: [typeof img === 'string' ? img : img?.url || ''] }))}
                 onUploadStateChange={setUploading}
                 className="mt-2"
               />
