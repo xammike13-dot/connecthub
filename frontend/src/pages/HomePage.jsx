@@ -352,16 +352,16 @@ const HomePage = () => {
             <div>
               <h4 className="text-neutral-800 font-bold text-sm uppercase tracking-wider mb-4">Company</h4>
               <ul className="space-y-2 text-sm">
-                <li><a href="#" className="text-neutral-600 hover:text-blue-600 transition-colors">About Us</a></li>
+                <li><Link to="/about" className="text-neutral-600 hover:text-blue-600 transition-colors">About Us</Link></li>
                 <li><a href="#" className="text-neutral-600 hover:text-blue-600 transition-colors">Careers</a></li>
                 <li><a href="#" className="text-neutral-600 hover:text-blue-600 transition-colors">Press</a></li>
-                <li><a href="#" className="text-neutral-600 hover:text-blue-600 transition-colors">Contact</a></li>
+                <li><Link to="/support" className="text-neutral-600 hover:text-blue-600 transition-colors">Contact</Link></li>
               </ul>
             </div>
             <div>
               <h4 className="text-neutral-800 font-bold text-sm uppercase tracking-wider mb-4">Support</h4>
               <ul className="space-y-2 text-sm">
-                <li><a href="#" className="text-neutral-600 hover:text-blue-600 transition-colors">Help Center</a></li>
+                <li><Link to="/support" className="text-neutral-600 hover:text-blue-600 transition-colors">Help Center</Link></li>
                 <li><a href="#" className="text-neutral-600 hover:text-blue-600 transition-colors">Safety</a></li>
                 <li><a href="#" className="text-neutral-600 hover:text-blue-600 transition-colors">Terms of Service</a></li>
                 <li><a href="#" className="text-neutral-600 hover:text-blue-600 transition-colors">Privacy Policy</a></li>

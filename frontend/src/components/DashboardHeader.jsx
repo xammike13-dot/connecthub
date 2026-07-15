@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useSocket } from '../context/SocketContext';
 import { notificationAPI } from '../services/api';
-import { Check, Trash2, CheckCheck, Menu, HelpCircle, Headphones, Bell, X, Phone, Mail, FileText, CheckCircle2 } from 'lucide-react';
+import { Check, Trash2, CheckCheck, Menu, HelpCircle, Headphones, Bell, X, Phone, Mail, FileText, CheckCircle2, MessageCircle } from 'lucide-react';
 import Modal from './ui/Modal';
 import Button from './ui/Button';
 
@@ -115,7 +115,13 @@ const DashboardHeader = ({ onMenuClick }) => {
 
             {/* Help Center Icon with text tooltip/trigger */}
             <button
-              onClick={() => setHelpOpen(true)}
+              onClick={() => {
+                if (user?.role && ['customer', 'landlord', 'business', 'rider'].includes(user.role)) {
+                  navigate(`/${user.role}/help`);
+                } else {
+                  setHelpOpen(true);
+                }
+              }}
               className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm font-semibold text-neutral-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
               title="Help Center"
             >
@@ -319,22 +325,30 @@ const DashboardHeader = ({ onMenuClick }) => {
             <p className="text-sm text-secondary-500 mt-1">Our support agents are available 24/7 to help resolve any operational concerns.</p>
           </div>
 
-          <div className="bg-secondary-50 p-4 rounded-xl border border-secondary-200/60 space-y-3.5 text-left text-sm mt-3">
-            <div className="flex items-center gap-3">
+          <div className="bg-secondary-50 p-4 rounded-xl border border-secondary-200/60 space-y-3 text-left text-sm mt-3">
+            <a href="tel:0748459757" className="flex items-center gap-3 hover:bg-neutral-100 p-1.5 rounded-lg transition-colors block">
               <Phone size={16} className="text-blue-600" />
               <div>
                 <p className="font-semibold text-secondary-700 text-xs">Call Hotline</p>
-                <p className="font-bold text-secondary-800 text-sm mt-0.5">+254 700 123 456</p>
+                <p className="font-bold text-secondary-800 text-sm mt-0.5">0748459757</p>
               </div>
-            </div>
+            </a>
 
-            <div className="flex items-center gap-3">
+            <a href="mailto:connecthub387@gmail.com" className="flex items-center gap-3 hover:bg-neutral-100 p-1.5 rounded-lg transition-colors block">
               <Mail size={16} className="text-blue-600" />
               <div>
                 <p className="font-semibold text-secondary-700 text-xs">Email Desk</p>
-                <p className="font-bold text-secondary-800 text-sm mt-0.5">support@connecthub.com</p>
+                <p className="font-bold text-secondary-800 text-sm mt-0.5 break-all">connecthub387@gmail.com</p>
               </div>
-            </div>
+            </a>
+
+            <a href="https://wa.me/254748459757" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 hover:bg-neutral-100 p-1.5 rounded-lg transition-colors block">
+              <MessageCircle size={16} className="text-green-600" />
+              <div>
+                <p className="font-semibold text-secondary-700 text-xs">WhatsApp Chat</p>
+                <p className="font-bold text-secondary-800 text-sm mt-0.5">0748459757</p>
+              </div>
+            </a>
           </div>
 
           <div className="pt-4 border-t border-secondary-100 flex justify-center gap-3">
