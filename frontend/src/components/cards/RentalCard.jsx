@@ -41,12 +41,12 @@ const RentalCard = ({
     favoritesCount,
   } = rental;
 
-  // Handle both old (string) and new (object) image formats
-  const mainImage = images?.[0]
-    ? typeof images[0] === 'string'
-      ? images[0]
-      : images[0]?.url || 'https://via.placeholder.com/400x300?text=Rental'
-    : 'https://via.placeholder.com/400x300?text=Rental';
+  // Handle both old (string) and new (object) image formats safely
+  const mainImage = (images?.[0] && typeof images[0] === 'string' && images[0].trim() !== '')
+    ? images[0]
+    : (images?.[0]?.url && typeof images[0].url === 'string' && images[0].url.trim() !== '')
+      ? images[0].url
+      : 'https://via.placeholder.com/400x300?text=Rental';
 
   const photoCount = images?.length || 0;
   const hasMultiplePhotos = photoCount > 1;

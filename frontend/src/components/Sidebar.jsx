@@ -41,6 +41,7 @@ const Sidebar = ({ isOpen, onClose }) => {
           { path: '/business/orders', label: 'Orders', icon: 'orders' },
           { path: '/business/customers', label: 'Customers', icon: 'users' },
           { path: '/business/analytics', label: 'Analytics', icon: 'chart' },
+          { path: '/business/profile', label: 'Profile', icon: 'user' },
           { path: '/business/settings', label: 'Settings', icon: 'settings' },
         ];
       case 'rider':

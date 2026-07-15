@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { businessAPI } from '../services/api';
-import { Search, User, Mail, Phone, ShoppingBag, Award, Wallet, ArrowLeft } from 'lucide-react';
+import { Search, User, Mail, Phone, ShoppingBag, Award, Wallet } from 'lucide-react';
 import Input from '../components/ui/Input';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Button from '../components/ui/Button';
