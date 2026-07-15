@@ -8,6 +8,7 @@ import {
   getMyProducts,
   getMyServices,
   getOrders,
+  getCustomers,
 } from '../controllers/businessController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -27,6 +28,9 @@ router.get('/withdrawals', getWithdrawals);
 
 // Dashboard stats
 router.get('/dashboard/stats', getDashboardStats);
+
+// Customers
+router.get('/customers', getCustomers);
 
 // Products - use specific paths that don't conflict with ID patterns
 router.get('/my-products', getMyProducts);

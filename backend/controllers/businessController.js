@@ -81,6 +81,92 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Get unique customers who have ordered from this business, with aggregated statistics.
+ * Supports searching by customer name, email, or phone.
+ */
+export const getCustomers = asyncHandler(async (req, res) => {
+  const businessId = req.user._id;
+  const { search, page = 1, limit = 10 } = req.query;
+
+  // First, find all orders for this business
+  const query = { business: businessId };
+  const allOrders = await Order.find(query)
+    .populate('customer', 'name email phone')
+    .sort('-createdAt');
+
+  // Map orders to unique customers with aggregated metrics
+  const customerMap = {};
+
+  allOrders.forEach((order) => {
+    const cust = order.customer;
+    if (!cust) return;
+
+    const customerId = cust._id ? cust._id.toString() : 'unknown';
+    const orderAmount = order.finalAmount || order.totalAmount || 0;
+
+    if (!customerMap[customerId]) {
+      customerMap[customerId] = {
+        id: customerId,
+        name: cust.name || 'Anonymous Customer',
+        email: cust.email || 'N/A',
+        phone: order.deliveryAddress?.phone || cust.phone || 'N/A',
+        address: order.deliveryAddress?.address || 'N/A',
+        orderCount: 1,
+        totalSpent: orderAmount,
+        lastOrderDate: new Date(order.createdAt),
+        status: order.status,
+      };
+    } else {
+      customerMap[customerId].orderCount += 1;
+      customerMap[customerId].totalSpent += orderAmount;
+      const currentOrderDate = new Date(order.createdAt);
+      if (currentOrderDate > customerMap[customerId].lastOrderDate) {
+        customerMap[customerId].lastOrderDate = currentOrderDate;
+        customerMap[customerId].status = order.status;
+      }
+    }
+  });
+
+  let customersList = Object.values(customerMap);
+
+  // Apply in-memory search filter if search query is provided
+  if (search && search.trim() !== '') {
+    const searchLower = search.toLowerCase();
+    customersList = customersList.filter(
+      (cust) =>
+        cust.name.toLowerCase().includes(searchLower) ||
+        cust.email.toLowerCase().includes(searchLower) ||
+        cust.phone.toLowerCase().includes(searchLower) ||
+        cust.address.toLowerCase().includes(searchLower)
+    );
+  }
+
+  // High-level statistics across all matching customers (before pagination)
+  const stats = {
+    totalCustomers: customersList.length,
+    repeatCustomers: customersList.filter((c) => c.orderCount > 1).length,
+    totalSales: customersList.reduce((sum, c) => sum + c.totalSpent, 0),
+    averageSpending: customersList.length > 0 ? (customersList.reduce((sum, c) => sum + c.totalSpent, 0) / customersList.length) : 0,
+  };
+
+  // Pagination
+  const total = customersList.length;
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+  const paginatedCustomers = customersList.slice(skip, skip + parseInt(limit));
+
+  res.status(200).json({
+    success: true,
+    data: paginatedCustomers,
+    stats,
+    pagination: {
+      total,
+      pages: Math.ceil(total / parseInt(limit)),
+      currentPage: parseInt(page),
+    },
+  });
+});
+
+/**
  * Get business profile
  */
 export const getProfile = asyncHandler(async (req, res) => {
