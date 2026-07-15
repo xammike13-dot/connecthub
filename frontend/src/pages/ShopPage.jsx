@@ -4,11 +4,10 @@ import { motion } from 'framer-motion';
 import {
   Search,
   Filter,
-  SlidersHorizontal,
-  ChevronDown,
   Grid,
   List,
   X,
+  Sparkles,
 } from 'lucide-react';
 import ProductCard from '../components/cards/ProductCard';
 import { SkeletonCard } from '../components/ui/Skeleton';
@@ -23,18 +22,22 @@ import { productAPI } from '../services/api';
 // Updated categories based on requirements
 const categories = [
   { id: 'all', name: 'All Products' },
-  { id: 'food-stuffs', name: 'Food Stuffs' },
-  { id: 'households', name: 'Households' },
-  { id: 'gas', name: 'Gas' },
-  { id: 'wines-spirits', name: 'Wines & Spirits' },
-  { id: 'house-shopping', name: 'House Shopping' },
+  { id: 'Food', name: 'Food' },
+  { id: 'Household', name: 'Household' },
+  { id: 'Electronics', name: 'Electronics' },
+  { id: 'Fashion', name: 'Fashion' },
+  { id: 'Gas', name: 'Gas' },
+  { id: 'Wines & Spirits', name: 'Wines & Spirits' },
+  { id: 'Second Hand', name: 'Second Hand' },
+  { id: 'Test', name: 'Test' },
 ];
 
 // Subcategories for each main category
 const subcategories = {
-  'food-stuffs': ['Snacks', 'Beverages', 'Fries'],
-  'households': ['New', 'Second Hand'],
-  'house-shopping': ['Rice', 'Unga', 'Cooking Oil', 'Salt', 'Sugar', 'Flour', 'Soap', 'Other Essentials'],
+  'Food': ['Snacks', 'Beverages', 'Fries', 'Rice', 'Unga', 'Cooking Oil', 'Salt', 'Sugar', 'Flour', 'Soap', 'Other Essentials'],
+  'Household': ['New', 'Second Hand', 'Kitchenware', 'Cleaning', 'Furniture'],
+  'Electronics': ['Phones', 'Accessories', 'Home Appliances', 'Computers'],
+  'Fashion': ['Men', 'Women', 'Kids', 'Shoes', 'Bags'],
 };
 
 const sortOptions = [
@@ -43,6 +46,22 @@ const sortOptions = [
   { value: '-price', label: 'Price: High to Low' },
   { value: '-rating', label: 'Highest Rated' },
 ];
+
+const mapCategoryName = (cat) => {
+  if (!cat) return 'Other';
+  const lower = cat.toLowerCase();
+  if (lower === 'food' || lower === 'food stuffs' || lower === 'food-stuffs') return 'Food';
+  if (lower === 'household' || lower === 'households' || lower === 'house-shopping' || lower === 'house shopping') return 'Household';
+  if (lower === 'electronics' || lower === 'electronic') return 'Electronics';
+  if (lower === 'fashion') return 'Fashion';
+  if (lower === 'gas') return 'Gas';
+  if (lower === 'wines & spirits' || lower === 'wines-spirits' || lower === 'wines and spirits') return 'Wines & Spirits';
+  if (lower === 'second hand' || lower === 'second-hand') return 'Second Hand';
+  if (lower === 'test') return 'Test';
+
+  // Title case fallback if it does not match exactly
+  return cat.charAt(0).toUpperCase() + cat.slice(1);
+};
 
 const ShopPage = () => {
   const navigate = useNavigate();
@@ -88,7 +107,6 @@ const ShopPage = () => {
         }
       });
       setViewedProducts(viewed);
-      console.log('[VIEWED PRODUCTS LOADED]', viewed.size, 'products');
     }
   }, [user]);
 
@@ -105,7 +123,7 @@ const ShopPage = () => {
 
       const params = {
         page: pageNumber,
-        limit: 12,
+        limit: 24, // increased limit to fetch more products for grouping
         category: selectedCategory !== 'all' ? selectedCategory : undefined,
         subcategory: selectedSubcategory || undefined,
         search: searchQuery || undefined,
@@ -159,9 +177,8 @@ const ShopPage = () => {
       navigate('/login', { state: { from: location.pathname } });
       return;
     }
-    console.log('[FAVORITE TOGGLE] Product:', productId);
     const wasFavorite = isInWishlist(productId);
-    const result = await toggleWishlist(productId);
+    await toggleWishlist(productId);
 
     // Update local product state to reflect count change
     setProducts(prevProducts =>
@@ -170,7 +187,6 @@ const ShopPage = () => {
           const newCount = wasFavorite
             ? Math.max(0, (product.favoritesCount || 0) - 1)
             : (product.favoritesCount || 0) + 1;
-          console.log('[FAVORITE COUNT UPDATED] Product:', productId, 'Old:', product.favoritesCount, 'New:', newCount);
           return { ...product, favoritesCount: newCount };
         }
         return product;
@@ -179,27 +195,22 @@ const ShopPage = () => {
   };
 
   const handleViewProduct = async (productId) => {
-    console.log('[VIEW CLICK] Product:', productId);
     if (user) {
-      // Check if already viewed using local state
       const alreadyViewed = viewedProducts.has(productId);
 
       if (!alreadyViewed) {
         try {
-          console.log('[TRACKING VIEW] Product:', productId);
           await productAPI.trackView(productId);
           localStorage.setItem(`viewed_product_${productId}`, 'true');
 
           // Update local viewed products state immediately
           setViewedProducts(prev => new Set([...prev, productId]));
-          console.log('[VIEW STATE UPDATED] Product:', productId, 'added to viewed set');
 
           // Update local product state to reflect view count change
           setProducts(prevProducts =>
             prevProducts.map(product => {
               if (product._id === productId) {
                 const newCount = (product.views || 0) + 1;
-                console.log('[VIEW COUNT UPDATED] Product:', productId, 'Old:', product.views, 'New:', newCount);
                 return { ...product, views: newCount };
               }
               return product;
@@ -208,8 +219,6 @@ const ShopPage = () => {
         } catch (error) {
           console.error('Failed to track view:', error);
         }
-      } else {
-        console.log('[VIEW ALREADY TRACKED] Product:', productId);
       }
     }
     navigate(`/marketplace/${productId}`);
@@ -226,25 +235,40 @@ const ShopPage = () => {
     setPriceRange({ min: 0, max: 1000000 });
   };
 
+  // Group products by category when selectedCategory is "all"
+  const groupProducts = (items) => {
+    const grouped = {};
+    items.forEach(product => {
+      const cat = mapCategoryName(product.category);
+      if (!grouped[cat]) {
+        grouped[cat] = [];
+      }
+      grouped[cat].push(product);
+    });
+    return grouped;
+  };
+
+  const groupedProducts = groupProducts(products);
+
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
+      {/* Header / Filter Panel */}
       <div className="bg-white border-b border-neutral-200 sticky top-0 z-30 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-4">
           {/* Search Bar */}
           <form onSubmit={handleSearch} className="relative">
             <Input
               type="text"
-              placeholder="Search products..."
+              placeholder="Search local products, brands, essentials..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              leftIcon={<Search size={18} />}
+              leftIcon={<Search size={18} className="text-neutral-400" />}
               rightIcon={
                 searchQuery && (
                   <button
                     type="button"
                     onClick={() => setSearchQuery('')}
-                    className="text-neutral-500 hover:text-neutral-600"
+                    className="text-neutral-400 hover:text-neutral-600 transition-colors"
                   >
                     <X size={18} />
                   </button>
@@ -254,21 +278,25 @@ const ShopPage = () => {
             />
           </form>
 
-          {/* Filters Bar */}
-          <div className="flex items-center justify-between mt-4">
-            <div className="flex items-center gap-2 overflow-x-auto">
+          {/* Quick Filters / Toolbar */}
+          <div className="flex items-center justify-between mt-4 gap-2 overflow-visible">
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar flex-1">
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center gap-2 px-4 py-2 bg-neutral-100 border border-neutral-200 rounded-lg text-sm font-medium text-neutral-700 hover:bg-neutral-200 hover:border-blue-500/50 transition-all whitespace-nowrap"
+                className={`flex items-center gap-1.5 px-3 py-2 border rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                  showFilters
+                    ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                    : 'bg-neutral-50 border-neutral-200 text-neutral-700 hover:bg-neutral-100 hover:border-neutral-300'
+                }`}
               >
-                <Filter size={16} />
-                Filters
+                <Filter size={14} />
+                <span>Filters</span>
               </button>
 
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
-                className="px-4 py-2 bg-neutral-100 border border-neutral-200 rounded-lg text-sm font-medium text-neutral-700 hover:bg-neutral-200 hover:border-blue-500/50 transition-all cursor-pointer"
+                className="px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs font-semibold text-neutral-700 hover:bg-neutral-100 transition-all cursor-pointer outline-none focus:border-blue-500"
               >
                 {categories.map((cat) => (
                   <option key={cat.id} value={cat.id}>
@@ -281,9 +309,9 @@ const ShopPage = () => {
                 <select
                   value={selectedSubcategory}
                   onChange={(e) => setSelectedSubcategory(e.target.value)}
-                  className="px-4 py-2 bg-neutral-100 border border-neutral-200 rounded-lg text-sm font-medium text-neutral-700 hover:bg-neutral-200 hover:border-blue-500/50 transition-all cursor-pointer"
+                  className="px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs font-semibold text-neutral-700 hover:bg-neutral-100 transition-all cursor-pointer outline-none focus:border-blue-500"
                 >
-                  <option value="">All {categories.find(c => c.id === selectedCategory)?.name}</option>
+                  <option value="">All {selectedCategory}</option>
                   {subcategories[selectedCategory].map((sub) => (
                     <option key={sub} value={sub}>
                       {sub}
@@ -295,7 +323,7 @@ const ShopPage = () => {
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="px-4 py-2 bg-neutral-100 border border-neutral-200 rounded-lg text-sm font-medium text-neutral-700 hover:bg-neutral-200 hover:border-blue-500/50 transition-all cursor-pointer"
+                className="px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs font-semibold text-neutral-700 hover:bg-neutral-100 transition-all cursor-pointer outline-none focus:border-blue-500"
               >
                 {sortOptions.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -305,77 +333,83 @@ const ShopPage = () => {
               </select>
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-neutral-600 hidden sm:block">
-                {totalProducts} products
+            <div className="flex items-center gap-3 shrink-0">
+              <span className="text-xs text-neutral-500 font-bold hidden sm:inline-block">
+                {totalProducts} Products
               </span>
-              <div className="flex items-center gap-1 bg-neutral-100 border border-neutral-200 rounded-lg p-1">
+              <div className="flex items-center gap-1 bg-neutral-100 border border-neutral-200 rounded-lg p-0.5">
                 <button
                   onClick={() => setViewMode('grid')}
-                  className={`p-2 rounded transition-all ${viewMode === 'grid'
-                    ? 'bg-blue-500/20 text-blue-650'
-                    : 'text-neutral-500 hover:text-neutral-600'
-                    }`}
+                  className={`p-1.5 rounded transition-all ${
+                    viewMode === 'grid'
+                      ? 'bg-white text-blue-600 shadow-xs'
+                      : 'text-neutral-500 hover:text-neutral-700'
+                  }`}
+                  title="Grid View"
                 >
-                  <Grid size={16} />
+                  <Grid size={14} />
                 </button>
                 <button
                   onClick={() => setViewMode('list')}
-                  className={`p-2 rounded transition-all ${viewMode === 'list'
-                    ? 'bg-blue-500/20 text-blue-650'
-                    : 'text-neutral-500 hover:text-neutral-600'
-                    }`}
+                  className={`p-1.5 rounded transition-all ${
+                    viewMode === 'list'
+                      ? 'bg-white text-blue-600 shadow-xs'
+                      : 'text-neutral-500 hover:text-neutral-700'
+                  }`}
+                  title="List View"
                 >
-                  <List size={16} />
+                  <List size={14} />
                 </button>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Expanded Filters */}
+        {/* Expanded Filters Box */}
         {showFilters && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="border-t border-neutral-200 bg-white"
+            className="border-t border-neutral-200 bg-neutral-50"
           >
             <div className="max-w-7xl mx-auto px-4 py-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Price Range
+                  <label className="block text-xs font-bold text-neutral-600 mb-1.5 uppercase tracking-wider">
+                    Price Range (KSh)
                   </label>
                   <div className="flex items-center gap-2">
                     <Input
                       type="number"
                       placeholder="Min"
-                      value={priceRange.min}
+                      value={priceRange.min || ''}
                       onChange={(e) =>
                         setPriceRange({ ...priceRange, min: Number(e.target.value) })
                       }
                       fullWidth
                     />
-                    <span className="text-neutral-500">-</span>
+                    <span className="text-neutral-400 font-bold">-</span>
                     <Input
                       type="number"
                       placeholder="Max"
-                      value={priceRange.max}
+                      value={priceRange.max === 1000000 ? '' : priceRange.max}
                       onChange={(e) =>
-                        setPriceRange({ ...priceRange, max: Number(e.target.value) })
+                        setPriceRange({ ...priceRange, max: Number(e.target.value) || 1000000 })
                       }
                       fullWidth
                     />
                   </div>
                 </div>
-                <div className="flex items-end">
+
+                <div>
                   <Button
                     variant="outline"
                     onClick={clearFilters}
-                    className="w-full"
+                    className="w-full flex items-center justify-center gap-2 text-xs font-bold h-[42px]"
                   >
-                    Clear All Filters
+                    <X size={14} />
+                    <span>Clear All Filters</span>
                   </Button>
                 </div>
               </div>
@@ -384,10 +418,11 @@ const ShopPage = () => {
         )}
       </div>
 
-      {/* Product Grid */}
+      {/* Main Marketplace Area */}
       <div className="max-w-7xl mx-auto px-4 py-6">
         {loading && products.length === 0 ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          /* Loading skeleton grid */
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
             {Array.from({ length: 8 }).map((_, i) => (
               <SkeletonCard key={i} />
             ))}
@@ -404,38 +439,101 @@ const ShopPage = () => {
           <EmptyState
             variant="search"
             title="No products found"
-            message="Try adjusting your search or filter criteria"
-            actionLabel="Clear Filters"
+            message="Try adjusting your search query, price ranges, or filters."
+            actionLabel="Reset Marketplace"
             onAction={clearFilters}
           />
         ) : (
           <>
-            <div
-              className={`grid gap-4 ${viewMode === 'grid'
-                ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4'
-                : 'grid-cols-1'
+            {selectedCategory !== 'all' ? (
+              /* Single Category View Grid */
+              <div
+                className={`grid gap-4 sm:gap-6 ${
+                  viewMode === 'grid'
+                    ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4'
+                    : 'grid-cols-1'
                 }`}
-            >
-              {products.map((product) => (
-                <ProductCard
-                  key={product._id}
-                  product={product}
-                  onAddToCart={handleAddToCart}
-                  onFavorite={handleFavorite}
-                  isFavorite={isInWishlist(product._id)}
-                  onView={handleViewProduct}
-                  isViewed={viewedProducts.has(product._id)}
-                />
-              ))}
-            </div>
+              >
+                {products.map((product) => (
+                  <ProductCard
+                    key={product._id}
+                    product={product}
+                    onAddToCart={handleAddToCart}
+                    onFavorite={handleFavorite}
+                    isFavorite={isInWishlist(product._id)}
+                    onView={handleViewProduct}
+                    isViewed={viewedProducts.has(product._id)}
+                  />
+                ))}
+              </div>
+            ) : (
+              /* Grouped by Categories View */
+              <div className="space-y-12">
+                {/* Hero Feature Box / Prompt */}
+                <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl p-6 sm:p-8 text-white shadow-md relative overflow-hidden mb-8">
+                  <div className="relative z-10 max-w-lg">
+                    <span className="bg-white/25 text-white text-[10px] uppercase font-bold tracking-widest px-2.5 py-1 rounded-full flex items-center gap-1 w-fit mb-3">
+                      <Sparkles size={12} /> Local Marketplace
+                    </span>
+                    <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight">
+                      Browse by Category
+                    </h1>
+                    <p className="text-white/80 text-sm mt-2 leading-relaxed">
+                      Discover amazing goods from verified local vendors near you, grouped by category for your convenience.
+                    </p>
+                  </div>
+                  {/* Decorative background circle */}
+                  <div className="absolute -right-12 -bottom-12 w-48 h-48 bg-white/10 rounded-full blur-2xl"></div>
+                </div>
 
-            {/* Load More */}
+                {Object.entries(groupedProducts).map(([categoryName, categoryProducts]) => (
+                  <div key={categoryName} className="space-y-4">
+                    {/* Category Header */}
+                    <div className="flex items-center justify-between border-b border-neutral-200 pb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-1.5 h-6 bg-blue-600 rounded-full"></span>
+                        <h2 className="text-lg sm:text-xl font-extrabold text-neutral-800 tracking-tight">
+                          {categoryName}
+                        </h2>
+                      </div>
+                      <span className="text-[10px] sm:text-xs font-bold bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full border border-blue-100 shadow-2xs">
+                        {categoryProducts.length} {categoryProducts.length === 1 ? 'item' : 'items'}
+                      </span>
+                    </div>
+
+                    {/* Category Products Grid */}
+                    <div
+                      className={`grid gap-4 sm:gap-6 ${
+                        viewMode === 'grid'
+                          ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4'
+                          : 'grid-cols-1'
+                      }`}
+                    >
+                      {categoryProducts.map((product) => (
+                        <ProductCard
+                          key={product._id}
+                          product={product}
+                          onAddToCart={handleAddToCart}
+                          onFavorite={handleFavorite}
+                          isFavorite={isInWishlist(product._id)}
+                          onView={handleViewProduct}
+                          isViewed={viewedProducts.has(product._id)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Load More Button */}
             {hasMore && (
-              <div className="flex justify-center mt-8">
+              <div className="flex justify-center mt-12 pb-8">
                 <Button
                   variant="secondary"
                   onClick={handleLoadMore}
                   isLoading={loading}
+                  className="px-8 font-bold border-neutral-300 hover:border-neutral-400"
                 >
                   Load More Products
                 </Button>

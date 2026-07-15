@@ -12,7 +12,6 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
-import Button from '../ui/Button';
 import Avatar from '../ui/Avatar';
 
 const ProductCard = ({
@@ -20,14 +19,11 @@ const ProductCard = ({
   onAddToCart,
   onFavorite,
   isFavorite = false,
-  showQuickView = true,
   onView,
   isViewed = false,
 }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { addToCart } = useCart();
-  const [isHovered, setIsHovered] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
 
   const {
@@ -53,44 +49,45 @@ const ProductCard = ({
     : (images?.[0]?.url && typeof images[0].url === 'string' && images[0].url.trim() !== '')
       ? images[0].url
       : 'https://via.placeholder.com/300x300?text=No+Image';
+
   const discountPercent = discount || (originalPrice && originalPrice > price
     ? Math.round(((originalPrice - price) / originalPrice) * 100)
     : 0);
+
   const isOutOfStock = stock === 0;
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 15 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      className="group bg-white rounded-xl shadow-md overflow-hidden border border-neutral-200 hover:border-blue-400 hover:shadow-xl transition-all duration-300"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      className="group bg-white rounded-xl shadow-sm hover:shadow-md border border-neutral-250/70 hover:border-blue-400 transition-all duration-300 flex flex-col h-full overflow-hidden"
     >
-      {/* Image Container */}
+      {/* Image Container with standard ratio */}
       <div className="relative aspect-square overflow-hidden bg-neutral-100">
         <img
           src={mainImage}
           alt={name}
-          className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 ${imageLoaded ? 'opacity-100' : 'opacity-0'
-            }`}
+          className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 ${
+            imageLoaded ? 'opacity-100' : 'opacity-0'
+          }`}
           onLoad={() => setImageLoaded(true)}
         />
 
         {/* Badges */}
-        <div className="absolute top-3 left-3 flex flex-col gap-1">
+        <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
           {discountPercent > 0 && (
-            <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded shadow-md">
+            <span className="bg-red-500 text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded shadow">
               -{discountPercent}%
             </span>
           )}
           {isVerified && (
-            <span className="bg-green-500 text-white text-xs font-bold px-2 py-1 rounded flex items-center gap-1 shadow-md">
-              <BadgeCheck size={12} /> Verified
+            <span className="bg-green-500 text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded flex items-center gap-0.5 shadow">
+              <BadgeCheck size={10} /> Verified
             </span>
           )}
           {isOutOfStock && (
-            <span className="bg-neutral-800 text-white text-xs font-bold px-2 py-1 rounded shadow-md">
+            <span className="bg-neutral-800 text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded shadow">
               Out of Stock
             </span>
           )}
@@ -105,127 +102,132 @@ const ProductCard = ({
             console.log('[FAVORITE CLICK] Product:', _id, 'Is Favorite:', isFavorite);
             onFavorite?.(_id);
           }}
-          className="absolute top-3 right-3 p-2 rounded-full transition-all duration-200 backdrop-blur-sm shadow-md bg-white/90 text-neutral-500 hover:bg-white hover:text-red-500"
+          className="absolute top-2 right-2 p-1.5 rounded-full transition-all duration-200 backdrop-blur-sm shadow bg-white/90 text-neutral-500 hover:bg-white hover:text-red-500 z-10"
         >
-          <Heart size={16} fill={isFavorite ? 'currentColor' : 'none'} className={isFavorite ? 'text-red-500' : ''} />
+          <Heart
+            size={14}
+            fill={isFavorite ? 'currentColor' : 'none'}
+            className={isFavorite ? 'text-red-500' : ''}
+          />
         </motion.button>
-
-        {/* Quick Actions Overlay */}
-        {showQuickView && isHovered && !isOutOfStock && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-white via-white/95 to-transparent"
-          >
-            <div className="flex gap-2">
-              <button
-                onClick={() => onView?.(_id)}
-                className={`flex-1 text-sm font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-1 border transition-all ${isViewed
-                    ? 'bg-blue-500 text-white border-blue-500'
-                    : 'bg-neutral-100 text-neutral-700 border-neutral-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300'
-                  }`}
-              >
-                <Eye size={14} /> {isViewed ? 'Viewed' : 'View'}
-              </button>
-              <Button
-                size="sm"
-                onClick={() => {
-                  addToCart(product);
-                }}
-                className="flex-1"
-              >
-                <ShoppingCart size={14} /> Add
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => {
-                  if (!user) {
-                    navigate('/login', { state: { from: `/marketplace/${_id}` } });
-                    return;
-                  }
-                  addToCart(product);
-                  navigate('/checkout');
-                }}
-                className="flex-1"
-              >
-                <Zap size={14} /> Buy
-              </Button>
-            </div>
-          </motion.div>
-        )}
       </div>
 
-      {/* Content */}
-      <div className="p-4">
+      {/* Content area: takes remaining vertical space */}
+      <div className="p-3 sm:p-4 flex flex-col flex-grow">
         {/* Category */}
-        <p className="text-xs text-blue-600 font-medium uppercase tracking-wide mb-1">
+        <p className="text-[10px] sm:text-xs text-blue-600 font-bold uppercase tracking-wider mb-1">
           {category}
         </p>
 
-        {/* Name */}
-        <Link to={`/marketplace/${_id}`} onClick={() => onView?.(_id)}>
-          <h3 className="font-semibold text-neutral-900 line-clamp-2 hover:text-blue-600 transition-colors">
+        {/* Product Name (clamped & with exact line height minimums to align the card bodies perfectly) */}
+        <Link to={`/marketplace/${_id}`} onClick={() => onView?.(_id)} className="block mb-2 flex-grow">
+          <h3 className="font-semibold text-neutral-900 line-clamp-2 hover:text-blue-600 transition-colors text-xs sm:text-sm md:text-base leading-snug min-h-[2.5rem]">
             {name}
           </h3>
         </Link>
 
-        {/* Rating */}
-        {rating && (
-          <div className="flex items-center gap-1 mt-2">
-            <Star size={14} className="text-yellow-500 fill-current" />
-            <span className="text-sm font-medium text-neutral-700">
-              {rating.toFixed(1)}
+        {/* Ratings, Views & Favorites Stats */}
+        <div className="flex items-center justify-between mb-2 pb-2 border-b border-neutral-50">
+          {rating ? (
+            <div className="flex items-center gap-0.5">
+              <Star size={12} className="text-yellow-500 fill-current" />
+              <span className="text-xs font-bold text-neutral-800">
+                {rating.toFixed(1)}
+              </span>
+              {reviewCount > 0 && (
+                <span className="text-[10px] text-neutral-400 font-medium">({reviewCount})</span>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-0.5">
+              <Star size={12} className="text-neutral-200" />
+              <span className="text-[10px] text-neutral-400">No reviews</span>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 text-[10px] text-neutral-400 font-semibold">
+            <span className="flex items-center gap-0.5">
+              <Eye size={11} /> {views || 0}
             </span>
-            {reviewCount > 0 && (
-              <span className="text-xs text-neutral-500">({reviewCount})</span>
+            <span className="flex items-center gap-0.5">
+              <Heart size={11} className={favoritesCount > 0 ? 'text-red-400 fill-current' : ''} /> {favoritesCount || 0}
+            </span>
+          </div>
+        </div>
+
+        {/* Pricing & Delivery Details */}
+        <div className="flex flex-col gap-1 mb-2">
+          <div className="flex items-baseline gap-1.5 flex-wrap">
+            <span className="text-sm sm:text-base md:text-lg font-extrabold text-blue-600">
+              KSh {price?.toLocaleString() || '0'}
+            </span>
+            {originalPrice && originalPrice > price && (
+              <span className="text-[10px] sm:text-xs text-neutral-400 line-through font-medium">
+                KSh {originalPrice?.toLocaleString()}
+              </span>
             )}
           </div>
-        )}
-
-        {/* Statistics */}
-        <div className="flex items-center gap-3 mt-2 text-xs text-neutral-500">
-          <div className="flex items-center gap-1">
-            <Eye size={12} />
-            <span>{views || 0}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <Heart size={12} className={favoritesCount > 0 ? 'text-red-500' : ''} fill={favoritesCount > 0 ? 'currentColor' : 'none'} />
-            <span>{favoritesCount || 0}</span>
+          <div className="flex items-center gap-1 text-[10px] text-neutral-500 font-medium">
+            <Truck size={11} className="text-neutral-450" />
+            <span>Delivery: {deliveryFee === 0 ? <span className="text-green-600 font-semibold">FREE</span> : `KSh ${deliveryFee}`}</span>
           </div>
         </div>
 
-        {/* Price and Delivery */}
-        <div className="mt-3 flex items-baseline gap-2 flex-wrap">
-          <span className="text-lg font-bold text-blue-600">
-            KSh {price?.toLocaleString() || '0'}
-          </span>
-          {originalPrice && originalPrice > price && (
-            <span className="text-sm text-neutral-400 line-through">
-              KSh {originalPrice?.toLocaleString()}
-            </span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-1 mt-1 text-xs text-neutral-500">
-          <Truck size={12} />
-          <span>Delivery: {deliveryFee === 0 ? 'FREE' : `KSh ${deliveryFee}`}</span>
-        </div>
-
-        {/* Business Info */}
+        {/* Business Partner Info */}
         {business && (
-          <div className="flex items-center gap-2 mt-2">
+          <div className="flex items-center gap-1.5 mt-1 mb-3">
             <Avatar
               src={business.businessProfile?.businessLogo || business.avatar}
               alt={business.businessProfile?.businessName || business.name}
-              size="sm"
+              size="xs"
+              className="border border-neutral-100"
             />
-            <p className="text-xs text-neutral-400">
+            <p className="text-[10px] text-neutral-400 font-medium truncate max-w-[120px] sm:max-w-[150px]">
               by {business.businessProfile?.businessName || business.name}
             </p>
           </div>
         )}
+
+        {/* Persistent Action Buttons (Touch friendly & beautifully spaced) */}
+        <div className="grid grid-cols-3 gap-1 sm:gap-2 mt-auto">
+          <button
+            onClick={() => onView?.(_id)}
+            className={`py-2 px-1 sm:px-1.5 rounded-lg text-[10px] sm:text-xs font-bold flex items-center justify-center gap-1 border transition-all ${
+              isViewed
+                ? 'bg-blue-50 text-blue-600 border-blue-200'
+                : 'bg-neutral-50 text-neutral-600 border-neutral-200 hover:bg-neutral-100 hover:text-neutral-800'
+            }`}
+            title="View details"
+          >
+            <Eye size={12} />
+            <span>Detail</span>
+          </button>
+          <button
+            disabled={isOutOfStock}
+            onClick={() => onAddToCart?.(product)}
+            className="py-2 px-1 sm:px-1.5 rounded-lg text-[10px] sm:text-xs font-bold flex items-center justify-center gap-1 bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100 hover:text-blue-700 transition-all disabled:opacity-50 disabled:pointer-events-none"
+            title="Add to cart"
+          >
+            <ShoppingCart size={12} />
+            <span>Add</span>
+          </button>
+          <button
+            disabled={isOutOfStock}
+            onClick={() => {
+              if (!user) {
+                navigate('/login', { state: { from: `/marketplace/${_id}` } });
+                return;
+              }
+              onAddToCart?.(product);
+              navigate('/checkout');
+            }}
+            className="py-2 px-1 sm:px-1.5 rounded-lg text-[10px] sm:text-xs font-bold flex items-center justify-center gap-1 bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition-all disabled:opacity-50 disabled:pointer-events-none"
+            title="Buy now"
+          >
+            <Zap size={12} />
+            <span>Buy</span>
+          </button>
+        </div>
       </div>
     </motion.div>
   );
