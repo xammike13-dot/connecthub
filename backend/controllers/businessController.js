@@ -48,6 +48,10 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
       createdAt: order.createdAt,
     }));
 
+  // Get rating from business profile
+  const user = await User.findById(businessId);
+  const rating = user?.businessProfile?.rating || 0;
+
   // Get wallet data from centralized service
   const walletData = await getDashboardWalletData(businessId, 'business');
   const availableBalance = walletData.availableBalance;
@@ -70,6 +74,7 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
       pendingBalance,
       totalEarnings,
       totalWithdrawn,
+      rating,
       recentOrders,
     },
   });
@@ -131,33 +136,27 @@ export const updateProfile = asyncHandler(async (req, res) => {
   ];
 
   // Update user fields
-  const userUpdates = {};
-  if (updates.name !== undefined) userUpdates.name = updates.name;
-  if (updates.email !== undefined) userUpdates.email = updates.email;
-  if (updates.phone !== undefined) userUpdates.phone = updates.phone;
-  if (updates.avatar !== undefined) userUpdates.avatar = updates.avatar;
+  const finalUpdates = {};
+  if (updates.name !== undefined) finalUpdates.name = updates.name;
+  if (updates.email !== undefined) finalUpdates.email = updates.email;
+  if (updates.phone !== undefined) finalUpdates.phone = updates.phone;
 
-  // Update business profile fields
-  const businessProfileUpdates = {};
+  // If businessLogo is provided, update root businessLogo and avatar as well
+  if (updates.businessLogo !== undefined && updates.businessLogo !== null) {
+    finalUpdates.businessLogo = updates.businessLogo;
+    finalUpdates.avatar = updates.businessLogo;
+  } else if (updates.avatar !== undefined) {
+    finalUpdates.avatar = updates.avatar;
+  }
+
+  // Update business profile fields individually using dot notation to prevent overwriting existing fields like stats
   allowedBusinessFields.forEach(field => {
     if (updates[field] !== undefined) {
-      businessProfileUpdates[field] = updates[field];
+      finalUpdates[`businessProfile.${field}`] = updates[field];
     }
   });
 
-  console.log('[updateProfile] userUpdates:', userUpdates);
-  console.log('[updateProfile] businessProfileUpdates:', businessProfileUpdates);
-
-  // Build update object
-  const finalUpdates = {};
-  if (Object.keys(userUpdates).length > 0) {
-    Object.assign(finalUpdates, userUpdates);
-  }
-  if (Object.keys(businessProfileUpdates).length > 0) {
-    finalUpdates.businessProfile = businessProfileUpdates;
-  }
-
-  console.log('[updateProfile] finalUpdates:', finalUpdates);
+  console.log('[updateProfile] finalUpdates with dot notation:', finalUpdates);
 
   const user = await User.findByIdAndUpdate(
     businessId,

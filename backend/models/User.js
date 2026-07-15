@@ -151,8 +151,18 @@ const userSchema = new mongoose.Schema(
         },
       },
       workingArea: {
-        type: String,
-        default: '',
+        county: {
+          type: String,
+          default: '',
+        },
+        town: {
+          type: String,
+          default: '',
+        },
+        serviceRadius: {
+          type: String,
+          default: '',
+        },
       },
       workingHours: {
         start: String,

@@ -119,7 +119,7 @@ export const completeLandlordSetup = async (req, res) => {
 // @access  Private
 export const completeBusinessSetup = async (req, res) => {
   try {
-    const { profilePhoto, businessLogo } = req.body;
+    const { businessLogo } = req.body;
 
     const userId = req.user?.id || req.user?._id;
     if (!userId) {
@@ -145,16 +145,7 @@ export const completeBusinessSetup = async (req, res) => {
       });
     }
 
-    // Validate that image paths are valid strings before saving
-    if (profilePhoto !== undefined && profilePhoto !== null) {
-      if (typeof profilePhoto !== 'string') {
-        return res.status(400).json({
-          success: false,
-          message: 'Profile photo must be a valid string.',
-        });
-      }
-      user.profilePhoto = profilePhoto;
-    }
+    // Validate and save the business logo to multiple fields to ensure it is displayed everywhere automatically
     if (businessLogo !== undefined && businessLogo !== null) {
       if (typeof businessLogo !== 'string') {
         return res.status(400).json({
@@ -163,6 +154,11 @@ export const completeBusinessSetup = async (req, res) => {
         });
       }
       user.businessLogo = businessLogo;
+      user.avatar = businessLogo;
+
+      // Initialize businessProfile and set the nested businessLogo
+      user.businessProfile = user.businessProfile || {};
+      user.businessProfile.businessLogo = businessLogo;
     }
 
     user.setupCompleted = true;
@@ -177,7 +173,7 @@ export const completeBusinessSetup = async (req, res) => {
         email: user.email,
         phone: user.phone,
         role: user.role,
-        profilePhoto: user.profilePhoto,
+        avatar: user.avatar,
         businessLogo: user.businessLogo,
         setupCompleted: user.setupCompleted,
       },

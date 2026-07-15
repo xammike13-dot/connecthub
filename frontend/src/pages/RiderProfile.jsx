@@ -28,7 +28,11 @@ const RiderProfile = () => {
       vehicleNumber: '',
       licenseNumber: '',
       nationalId: '',
-      workingArea: '',
+      workingArea: {
+        county: '',
+        town: '',
+        serviceRadius: '',
+      },
       workingHours: {
         start: '',
         end: '',
@@ -72,7 +76,11 @@ const RiderProfile = () => {
             vehicleNumber: data.user.riderProfile?.vehicleNumber || '',
             licenseNumber: data.user.riderProfile?.licenseNumber || '',
             nationalId: data.user.riderProfile?.nationalId || '',
-            workingArea: data.user.riderProfile?.workingArea || '',
+            workingArea: {
+              county: data.user.riderProfile?.workingArea?.county || '',
+              town: data.user.riderProfile?.workingArea?.town || '',
+              serviceRadius: data.user.riderProfile?.workingArea?.serviceRadius || '',
+            },
             workingHours: {
               start: data.user.riderProfile?.workingHours?.start || '',
               end: data.user.riderProfile?.workingHours?.end || '',
@@ -131,6 +139,20 @@ const RiderProfile = () => {
       riderProfile: {
         ...prev.riderProfile,
         [name]: processedValue,
+      },
+    }));
+  };
+
+  const handleWorkingAreaChange = (e) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({
+      ...prev,
+      riderProfile: {
+        ...prev.riderProfile,
+        workingArea: {
+          ...prev.riderProfile.workingArea,
+          [name]: value,
+        },
       },
     }));
   };
@@ -346,7 +368,11 @@ const RiderProfile = () => {
           vehicleNumber: data.user.riderProfile?.vehicleNumber || '',
           licenseNumber: data.user.riderProfile?.licenseNumber || '',
           nationalId: data.user.riderProfile?.nationalId || '',
-          workingArea: data.user.riderProfile?.workingArea || '',
+          workingArea: {
+            county: data.user.riderProfile?.workingArea?.county || '',
+            town: data.user.riderProfile?.workingArea?.town || '',
+            serviceRadius: data.user.riderProfile?.workingArea?.serviceRadius || '',
+          },
           workingHours: {
             start: data.user.riderProfile?.workingHours?.start || '',
             end: data.user.riderProfile?.workingHours?.end || '',
@@ -700,15 +726,37 @@ const RiderProfile = () => {
               Working Area & Hours
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-2">Working Area</label>
-                <Input
-                  name="workingArea"
-                  value={form.riderProfile.workingArea}
-                  onChange={handleProfileChange}
-                  placeholder="e.g., Nairobi, Westlands"
-                  fullWidth
-                />
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">County</label>
+                  <Input
+                    name="county"
+                    value={form.riderProfile.workingArea?.county || ''}
+                    onChange={handleWorkingAreaChange}
+                    placeholder="County"
+                    fullWidth
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">Town</label>
+                  <Input
+                    name="town"
+                    value={form.riderProfile.workingArea?.town || ''}
+                    onChange={handleWorkingAreaChange}
+                    placeholder="Town"
+                    fullWidth
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">Radius (km)</label>
+                  <Input
+                    name="serviceRadius"
+                    value={form.riderProfile.workingArea?.serviceRadius || ''}
+                    onChange={handleWorkingAreaChange}
+                    placeholder="10"
+                    fullWidth
+                  />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
