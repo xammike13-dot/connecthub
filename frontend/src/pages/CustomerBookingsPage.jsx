@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Home, Eye, CheckCircle, Trash2, AlertCircle, Calendar, DollarSign } from 'lucide-react';
 import { customerAPI, rentalAPI } from '../services/api';
@@ -27,6 +28,7 @@ const escrowLabels = {
 const CustomerBookingsPage = () => {
   const { success: toastSuccess, error: toastError } = useToast();
   const { socket } = useSocket();
+  const navigate = useNavigate();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState(null);
@@ -218,7 +220,7 @@ const CustomerBookingsPage = () => {
             title="No rental bookings"
             message="You haven't booked any rentals yet."
             actionLabel="Browse Rentals"
-            onAction={() => (window.location.href = '/rentals')}
+            onAction={() => navigate('/rentals')}
           />
         ) : (
           <div className="space-y-4">

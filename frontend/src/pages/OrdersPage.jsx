@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Package,
@@ -63,6 +63,7 @@ const OrdersPage = () => {
   const { orderId } = useParams();
   const { success: toastSuccess, error: toastError } = useToast();
   const { socket } = useSocket();
+  const navigate = useNavigate();
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -330,7 +331,7 @@ const OrdersPage = () => {
             title="No marketplace orders found"
             message="You haven't placed any marketplace orders yet. Start shopping to see your orders here."
             actionLabel="Browse Marketplace"
-            onAction={() => (window.location.href = '/marketplace')}
+            onAction={() => navigate('/marketplace')}
           />
         ) : (
           <div className="space-y-4">

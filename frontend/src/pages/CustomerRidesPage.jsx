@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Bike, Eye, Trash2, AlertCircle, CheckCircle, Clock, X } from 'lucide-react';
 import { rideAPI } from '../services/api';
@@ -31,6 +32,7 @@ const formatCurrency = (amount) => {
 
 const CustomerRidesPage = () => {
   const { success: toastSuccess, error: toastError } = useToast();
+  const navigate = useNavigate();
   const [rides, setRides] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedRide, setSelectedRide] = useState(null);
@@ -153,7 +155,7 @@ const CustomerRidesPage = () => {
             title="No ride activity found"
             message="You haven't requested any rides yet. Book a ride to see your history here."
             actionLabel="Request Ride"
-            onAction={() => (window.location.href = '/transport')}
+            onAction={() => navigate('/transport')}
           />
         ) : (
           <div className="space-y-4">

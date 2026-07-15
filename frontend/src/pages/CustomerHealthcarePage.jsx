@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Heart, Eye, Trash2, AlertCircle, Clock, CheckCircle, X } from 'lucide-react';
 import { customerAPI } from '../services/api';
@@ -28,6 +29,7 @@ const formatCurrency = (amount) => {
 
 const CustomerHealthcarePage = () => {
   const { success: toastSuccess, error: toastError } = useToast();
+  const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -121,7 +123,7 @@ const CustomerHealthcarePage = () => {
             title="No healthcare activity yet"
             message="You haven't placed any healthcare orders yet. Browse healthcare products to get started."
             actionLabel="Browse Healthcare Products"
-            onAction={() => (window.location.href = '/healthcare')}
+            onAction={() => navigate('/healthcare')}
           />
         ) : (
           <div className="space-y-4">
