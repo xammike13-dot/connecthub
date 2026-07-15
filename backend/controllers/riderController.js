@@ -44,6 +44,31 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
   const claimableBalance = wallet.balance || 0;
   const withdrawnAmount = wallet.totalWithdrawn || 0;
 
+  // Calculate dynamic rider rating
+  const ratingRides = rides.filter(r => r.rating?.riderRating);
+  const averageRating = ratingRides.length > 0
+    ? parseFloat((ratingRides.reduce((sum, r) => sum + r.rating.riderRating, 0) / ratingRides.length).toFixed(1))
+    : parseFloat(req.user.riderProfile?.rating || 5.0);
+
+  // Compute total reviews/customer feedback
+  const customerFeedbackRides = rides.filter(r => r.rating?.customerFeedback);
+  const reviewsCount = customerFeedbackRides.length;
+  const reviews = customerFeedbackRides.map(r => ({
+    rating: r.rating?.riderRating,
+    feedback: r.rating?.customerFeedback,
+    date: r.completedAt || r.createdAt,
+  }));
+
+  // Fetch count of ride requests waiting for a rider (pending requests in system)
+  const rideRequestsCount = await RideRequest.countDocuments({ status: 'waiting_rider' });
+
+  // Calculate total distance travelled in km
+  const totalDistance = rides
+    .filter(r => r.status === 'completed' && (r.estimatedDistance || r.fare?.distanceInKm))
+    .reduce((sum, r) => sum + (r.estimatedDistance || r.fare?.distanceInKm || 0), 0);
+
+  const distanceTravelled = parseFloat(totalDistance.toFixed(1));
+
   // Get recent completed rides (last 5) with proper field mapping
   const recentRides = rides
     .filter(r => r.status === 'completed')
@@ -72,6 +97,13 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
       pendingEarnings,
       claimableBalance,
       withdrawnAmount,
+      rating: averageRating,
+      reviewsCount,
+      reviews,
+      rideRequestsCount,
+      distanceTravelled,
+      isOnline: req.user.riderProfile?.isOnline || false,
+      status: req.user.riderProfile?.status || 'offline',
       recentRides,
     },
   });

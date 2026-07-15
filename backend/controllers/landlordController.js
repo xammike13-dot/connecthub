@@ -83,11 +83,48 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
     ? Math.round(totalViews / totalProperties)
     : 0;
 
+  // Calculate dynamic active tenants
+  const activeTenants = rentals.reduce((sum, rental) => {
+    return sum + (rental.bookings?.filter(b => b.status === 'active').length || 0);
+  }, 0);
+
+  // Calculate all-time earnings
+  const allCompletedTransactions = await Transaction.find({
+    provider: landlordId,
+    status: 'completed',
+    type: 'rental',
+  }).lean();
+
+  const allTimeEarnings = allCompletedTransactions.reduce(
+    (sum, t) => sum + (t.providerReceives || 0), 0
+  );
+
+  // Fetch rating from Landlord's profile
+  const landlordUser = await User.findById(landlordId);
+  const rating = landlordUser?.landlordProfile?.rating || 4.8;
+
+  // Compute total reviews/bookings count
+  const completedBookingsCount = rentals.reduce((sum, rental) => {
+    return sum + (rental.bookings?.filter(b => b.status === 'completed' || b.status === 'active').length || 0);
+  }, 0);
+  const reviewsCount = completedBookingsCount || 0;
+
+  // Calculate actual occupancy rate based on booked/total properties
+  const bookedRoomsCount = rentals.reduce((sum, rental) => {
+    return sum + (rental.bookings?.filter(b => b.status === 'active' || b.status === 'confirmed' || b.status === 'out_for_handover').length || 0);
+  }, 0);
+  const occupancyRate = totalProperties > 0 ? Math.round((bookedRoomsCount / totalProperties) * 100) : 0;
+
   console.log('[LANDLORD DASHBOARD DATA]', {
     landlordId,
     walletData,
     monthlyEarnings,
     pendingEarnings,
+    allTimeEarnings,
+    activeTenants,
+    rating,
+    reviewsCount,
+    occupancyRate,
     completedCount: completedTransactions.length,
     pendingCount: pendingTransactions.length
   });
@@ -98,12 +135,17 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
       totalProperties,
       vacantProperties,
       bookedRooms,
-      totalEarnings: monthlyEarnings, // Now showing monthly instead of all-time
+      totalEarnings: allTimeEarnings, // All-time completed earnings
+      monthlyEarnings, // Current month earnings
       pendingEarnings,
       availableBalance,
       pendingBalance,
       totalViews,
       averageViews,
+      activeTenants,
+      rating,
+      reviewsCount,
+      occupancyRate,
     },
   });
 });

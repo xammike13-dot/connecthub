@@ -25,6 +25,9 @@ const rentalSchema = new mongoose.Schema(
         'one-bedroom',
         'two-bedroom',
         'three-bedroom',
+        'apartment',
+        'hostel',
+        'commercial',
       ],
     },
 

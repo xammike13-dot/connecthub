@@ -228,9 +228,9 @@ const LandlordDashboard = () => {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
-          title="Total Properties"
+          title="Properties"
           value={stats?.totalProperties || 0}
-          subtitle="All your listings"
+          subtitle={`${stats?.vacantProperties || 0} vacant / ${stats?.bookedRooms || 0} booked`}
           color="primary"
           icon={
             <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -240,21 +240,9 @@ const LandlordDashboard = () => {
         />
 
         <StatCard
-          title="Vacant Rooms"
-          value={stats?.vacantProperties || 0}
-          subtitle="Available for booking"
-          color="success"
-          icon={
-            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          }
-        />
-
-        <StatCard
-          title="Booked Rooms"
-          value={stats?.bookedRooms || 0}
-          subtitle="Currently occupied"
+          title="Active Tenants"
+          value={stats?.activeTenants || 0}
+          subtitle="Currently active bookings"
           color="info"
           icon={
             <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -265,12 +253,76 @@ const LandlordDashboard = () => {
 
         <StatCard
           title="Monthly Earnings"
-          value={`KES ${stats?.totalEarnings?.toLocaleString() || 0}`}
+          value={`KES ${stats?.monthlyEarnings?.toLocaleString() || 0}`}
           subtitle="This month's rental earnings"
           color="purple"
           icon={
             <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          }
+        />
+
+        <StatCard
+          title="Total Earnings"
+          value={`KES ${stats?.totalEarnings?.toLocaleString() || 0}`}
+          subtitle="All-time completed earnings"
+          color="success"
+          icon={
+            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          }
+        />
+      </div>
+
+      {/* Reviews, Rating, Views & Occupancy Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard
+          title="Rating"
+          value={`${stats?.rating || 0} / 5.0`}
+          subtitle="Landlord rating"
+          color="warning"
+          icon={
+            <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+            </svg>
+          }
+        />
+
+        <StatCard
+          title="Reviews"
+          value={stats?.reviewsCount || 0}
+          subtitle="Total guest reviews"
+          color="info"
+          icon={
+            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+          }
+        />
+
+        <StatCard
+          title="Views"
+          value={stats?.totalViews || 0}
+          subtitle={`Avg ${stats?.averageViews || 0} views / property`}
+          color="primary"
+          icon={
+            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            </svg>
+          }
+        />
+
+        <StatCard
+          title="Occupancy"
+          value={`${stats?.occupancyRate || 0}%`}
+          subtitle={`Vacancy: ${100 - (stats?.occupancyRate || 0)}%`}
+          color="success"
+          icon={
+            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>
           }
         />
