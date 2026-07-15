@@ -110,55 +110,11 @@ const ProductCard = ({
           <Heart size={16} fill={isFavorite ? 'currentColor' : 'none'} className={isFavorite ? 'text-red-500' : ''} />
         </motion.button>
 
-        {/* Quick Actions Overlay */}
-        {showQuickView && isHovered && !isOutOfStock && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-white via-white/95 to-transparent"
-          >
-            <div className="flex gap-2">
-              <button
-                onClick={() => onView?.(_id)}
-                className={`flex-1 text-sm font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-1 border transition-all ${isViewed
-                    ? 'bg-blue-500 text-white border-blue-500'
-                    : 'bg-neutral-100 text-neutral-700 border-neutral-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300'
-                  }`}
-              >
-                <Eye size={14} /> {isViewed ? 'Viewed' : 'View'}
-              </button>
-              <Button
-                size="sm"
-                onClick={() => {
-                  addToCart(product);
-                }}
-                className="flex-1"
-              >
-                <ShoppingCart size={14} /> Add
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => {
-                  if (!user) {
-                    navigate('/login', { state: { from: `/marketplace/${_id}` } });
-                    return;
-                  }
-                  addToCart(product);
-                  navigate('/checkout');
-                }}
-                className="flex-1"
-              >
-                <Zap size={14} /> Buy
-              </Button>
-            </div>
-          </motion.div>
-        )}
       </div>
 
       {/* Content */}
-      <div className="p-4">
+      <div className="p-4 flex flex-col justify-between h-[230px]">
+        <div>
         {/* Category */}
         <p className="text-xs text-blue-600 font-medium uppercase tracking-wide mb-1">
           {category}
@@ -221,9 +177,58 @@ const ProductCard = ({
               alt={business.businessProfile?.businessName || business.name}
               size="sm"
             />
-            <p className="text-xs text-neutral-400">
+            <p className="text-xs text-neutral-400 truncate max-w-[130px]">
               by {business.businessProfile?.businessName || business.name}
             </p>
+          </div>
+        )}
+        </div>
+
+        {/* Action Buttons Row */}
+        {!isOutOfStock && (
+          <div className="mt-3 pt-2.5 border-t border-neutral-100 flex gap-1.5 flex-nowrap w-full">
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                onView?.(_id);
+              }}
+              className={`flex-1 text-[11px] font-bold py-1.5 px-2 rounded-lg flex items-center justify-center gap-0.5 border transition-all ${
+                isViewed
+                  ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
+                  : 'bg-neutral-50 text-neutral-700 border-neutral-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300'
+              }`}
+              title="View details"
+            >
+              <Eye size={12} />
+              <span className="hidden min-[360px]:inline">Detail</span>
+            </button>
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                addToCart(product);
+              }}
+              className="flex-1 text-[11px] font-bold py-1.5 px-2 bg-neutral-100 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 text-neutral-700 border border-neutral-200 rounded-lg flex items-center justify-center gap-0.5 transition-all"
+              title="Add to cart"
+            >
+              <ShoppingCart size={12} />
+              <span className="hidden min-[360px]:inline">Add</span>
+            </button>
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                if (!user) {
+                  navigate('/login', { state: { from: `/marketplace/${_id}` } });
+                  return;
+                }
+                addToCart(product);
+                navigate('/checkout');
+              }}
+              className="flex-1 text-[11px] font-bold py-1.5 px-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center justify-center gap-0.5 transition-all shadow-sm"
+              title="Buy now"
+            >
+              <Zap size={12} />
+              <span className="hidden min-[360px]:inline">Buy</span>
+            </button>
           </div>
         )}
       </div>

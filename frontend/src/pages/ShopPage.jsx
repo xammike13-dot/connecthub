@@ -20,21 +20,29 @@ import { useWishlist } from '../context/WishlistContext';
 import { useAuth } from '../context/AuthContext';
 import { productAPI } from '../services/api';
 
-// Updated categories based on requirements
+// Grouped categories based on requirements
 const categories = [
   { id: 'all', name: 'All Products' },
-  { id: 'food-stuffs', name: 'Food Stuffs' },
-  { id: 'households', name: 'Households' },
+  { id: 'food', name: 'Food' },
+  { id: 'household', name: 'Household' },
+  { id: 'electronics', name: 'Electronics' },
+  { id: 'fashion', name: 'Fashion' },
   { id: 'gas', name: 'Gas' },
   { id: 'wines-spirits', name: 'Wines & Spirits' },
-  { id: 'house-shopping', name: 'House Shopping' },
+  { id: 'second-hand', name: 'Second Hand' },
+  { id: 'other', name: 'Other categories' },
 ];
 
 // Subcategories for each main category
 const subcategories = {
-  'food-stuffs': ['Snacks', 'Beverages', 'Fries'],
-  'households': ['New', 'Second Hand'],
-  'house-shopping': ['Rice', 'Unga', 'Cooking Oil', 'Salt', 'Sugar', 'Flour', 'Soap', 'Other Essentials'],
+  'food': ['Groceries', 'Snacks', 'Beverages', 'Meals'],
+  'household': ['Cleaning', 'Kitchenware', 'Furniture', 'Decor'],
+  'electronics': ['Phones & Accessories', 'Computers', 'Audio', 'Appliances'],
+  'fashion': ['Men', 'Women', 'Shoes', 'Accessories'],
+  'gas': ['Refills', 'Cylinders', 'Accessories'],
+  'wines-spirits': ['Wines', 'Spirits', 'Beers', 'Soft Drinks'],
+  'second-hand': ['Clothing', 'Shoes', 'Household Items', 'Electronics'],
+  'other': ['Books', 'Stationery', 'Toys', 'Miscellaneous'],
 };
 
 const sortOptions = [
