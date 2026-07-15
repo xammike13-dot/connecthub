@@ -54,6 +54,11 @@ import CustomerSettings from './pages/CustomerSettings';
 import BusinessSettings from './pages/BusinessSettings';
 import RiderSettings from './pages/RiderSettings';
 import RentalDetailPage from './pages/RentalDetailPage';
+import SupportPage from './pages/SupportPage';
+import CustomerHelpPage from './pages/CustomerHelpPage';
+import BusinessHelpPage from './pages/BusinessHelpPage';
+import LandlordHelpPage from './pages/LandlordHelpPage';
+import RiderHelpPage from './pages/RiderHelpPage';
 
 
 function App() {
@@ -74,6 +79,8 @@ function App() {
                   <Route path="rentals/detail/:id" element={<RentalDetailPage />} />
                   <Route path="healthcare" element={<HealthcareShopPage />} />
                   <Route path="transport" element={<BodabodaPage />} />
+                  <Route path="support" element={<SupportPage />} />
+                  <Route path="contact" element={<SupportPage />} />
                 </Route>
 
                 {/* Auth Routes */}
@@ -107,6 +114,7 @@ function App() {
                   <Route path="notifications" element={<NotificationsPage />} />
                   <Route path="chat" element={<ChatPage />} />
                   <Route path="chat/:conversationId" element={<ChatPage />} />
+                  <Route path="help" element={<CustomerHelpPage />} />
                 </Route>
 
                 {/* Landlord Routes */}
@@ -126,6 +134,7 @@ function App() {
                   <Route path="notifications" element={<NotificationsPage />} />
                   <Route path="chat" element={<ChatPage />} />
                   <Route path="chat/:conversationId" element={<ChatPage />} />
+                  <Route path="help" element={<LandlordHelpPage />} />
                 </Route>
 
                 {/* Business Routes */}
@@ -143,6 +152,7 @@ function App() {
                   <Route path="notifications" element={<NotificationsPage />} />
                   <Route path="chat" element={<ChatPage />} />
                   <Route path="chat/:conversationId" element={<ChatPage />} />
+                  <Route path="help" element={<BusinessHelpPage />} />
                 </Route>
 
                 {/* Rider Routes */}
@@ -158,6 +168,7 @@ function App() {
                   <Route path="notifications" element={<NotificationsPage />} />
                   <Route path="chat" element={<ChatPage />} />
                   <Route path="chat/:conversationId" element={<ChatPage />} />
+                  <Route path="help" element={<RiderHelpPage />} />
                 </Route>
 
                 {/* Admin Routes */}
