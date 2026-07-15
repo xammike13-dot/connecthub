@@ -8,30 +8,38 @@ const NotificationSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      index: true,
+    },
     type: {
       type: String,
       enum: [
         'order',
         'order_update',
+        'order_accepted',
+        'order_delivered',
+        'new_order',
+        'order_payment_confirmed',
+        'delivery_confirmed',
         'payment',
+        'payment_received',
         'ride_request',
         'ride_accepted',
         'ride_completed',
         'booking',
         'booking_confirmed',
+        'booking_request',
+        'rental_booking',
         'message',
         'system',
-        'new_order',
-        'order_payment_confirmed',
-        'order_delivered',
-        'delivery_confirmed',
-        'payment_received',
-        'rental_booking',
         'ride_payment_confirmed',
         'ride_payment_failed',
-        'booking_request',
-        'order_accepted',
-        'new_booking',
+        'booking_cancelled',
+        'move_in_date_set',
+        'move_in_confirmed',
+        'move_in_confirmed_success',
         'rent_due',
         'rent_payment_received',
         'rent_payment_confirmed',
@@ -48,6 +56,33 @@ const NotificationSchema = new mongoose.Schema(
         'ride_no_rider_available',
       ],
       required: true,
+    },
+    notificationType: {
+      type: String,
+      enum: ['order', 'rental', 'ride', 'healthcare', 'payment', 'system', 'general'],
+      default: 'general',
+      index: true,
+    },
+    relatedEntityId: {
+      type: String,
+      default: null,
+      index: true,
+    },
+    relatedEntityType: {
+      type: String,
+      enum: ['Order', 'Rental', 'RideRequest', 'Transaction', 'Healthcare', null],
+      default: null,
+    },
+    actionRequired: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    status: {
+      type: String,
+      enum: ['unread', 'read', 'archived'],
+      default: 'unread',
+      index: true,
     },
     title: {
       type: String,
@@ -80,8 +115,30 @@ const NotificationSchema = new mongoose.Schema(
   }
 );
 
+// Pre-save hook to keep status/read and user/userId synchronized
+NotificationSchema.pre('save', function (next) {
+  if (this.read) {
+    this.status = 'read';
+  } else if (this.status === 'read') {
+    this.read = true;
+  } else if (this.status === 'archived') {
+    this.read = true; // Archived is read too
+  } else {
+    this.read = false;
+    this.status = 'unread';
+  }
+
+  if (this.user && !this.userId) {
+    this.userId = this.user;
+  } else if (this.userId && !this.user) {
+    this.user = this.userId;
+  }
+  next();
+});
+
 // Index for efficient querying
 NotificationSchema.index({ user: 1, read: 1, createdAt: -1 });
+NotificationSchema.index({ userId: 1, status: 1, createdAt: -1 });
 // Compound index to prevent duplicate notifications for same user, type, and data
 NotificationSchema.index({ user: 1, type: 1, 'data.rideId': 1 }, { unique: true, sparse: true });
 NotificationSchema.index({ user: 1, type: 1, 'data.orderId': 1 }, { unique: true, sparse: true });

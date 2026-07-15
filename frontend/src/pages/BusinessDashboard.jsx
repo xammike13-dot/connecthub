@@ -4,9 +4,10 @@ import { useBusinessDashboard } from '../hooks/useDashboardData';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useAuth } from '../context/AuthContext';
 import GuidedWalkthrough from '../components/GuidedWalkthrough';
-import api from '../services/api';
+import api, { orderAPI } from '../services/api';
 import { motion } from 'framer-motion';
 import { useSocket } from '../context/SocketContext';
+import { useToast } from '../components/Toast';
 import {
   Package,
   CheckCircle,
@@ -22,7 +23,9 @@ import {
   Bell,
   ArrowRight,
   RefreshCw,
-  Star
+  Star,
+  Check,
+  X,
 } from 'lucide-react';
 
 const formatCurrency = (amount) => {
@@ -70,8 +73,10 @@ const StatCard = ({ title, value, subtitle, icon, color = 'primary' }) => {
 const BusinessDashboard = () => {
   const { stats, orders, loading, error, refetch } = useBusinessDashboard();
   const { user } = useAuth();
+  const { success: toastSuccess, error: toastError } = useToast();
   const [refreshing, setRefreshing] = useState(false);
   const [showWalkthrough, setShowWalkthrough] = useState(false);
+  const [actionProcessing, setActionProcessing] = useState({});
   const location = useLocation();
   const { socket } = useSocket();
 
@@ -150,6 +155,45 @@ const BusinessDashboard = () => {
     setRefreshing(false);
   };
 
+  const handleAcceptOrder = async (orderId) => {
+    setActionProcessing(prev => ({ ...prev, [orderId]: true }));
+    try {
+      await orderAPI.accept(orderId, '30 mins');
+      toastSuccess('Order accepted successfully!');
+      refetch();
+    } catch (err) {
+      toastError(err.response?.data?.message || 'Failed to accept order');
+    } finally {
+      setActionProcessing(prev => ({ ...prev, [orderId]: false }));
+    }
+  };
+
+  const handleRejectOrder = async (orderId) => {
+    setActionProcessing(prev => ({ ...prev, [orderId]: true }));
+    try {
+      await orderAPI.businessCancel(orderId, 'Out of stock');
+      toastSuccess('Order rejected/cancelled successfully');
+      refetch();
+    } catch (err) {
+      toastError(err.response?.data?.message || 'Failed to reject order');
+    } finally {
+      setActionProcessing(prev => ({ ...prev, [orderId]: false }));
+    }
+  };
+
+  const handleMarkDelivered = async (orderId) => {
+    setActionProcessing(prev => ({ ...prev, [orderId]: true }));
+    try {
+      await orderAPI.markDelivered(orderId);
+      toastSuccess('Order marked as delivered successfully!');
+      refetch();
+    } catch (err) {
+      toastError(err.response?.data?.message || 'Failed to mark delivered');
+    } finally {
+      setActionProcessing(prev => ({ ...prev, [orderId]: false }));
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -199,6 +243,15 @@ const BusinessDashboard = () => {
     ).join(' ');
   };
 
+  // Filter Active orders for Feature 1 (pending, paid, processing, delivered)
+  const activeOrders = (orders || []).filter(o => ['pending', 'paid', 'processing', 'delivered'].includes(o.status));
+
+  // Sort: pending (high priority) > paid > processing > delivered
+  const sortedActiveOrders = [...activeOrders].sort((a, b) => {
+    const priority = { 'pending': 1, 'paid': 2, 'processing': 3, 'delivered': 4 };
+    return (priority[a.status] || 9) - (priority[b.status] || 9);
+  });
+
   return (
     <div className="space-y-6">
       {/* Sub-header inside main body */}
@@ -221,6 +274,107 @@ const BusinessDashboard = () => {
           {refreshing ? 'Refreshing...' : 'Refresh Stats'}
         </button>
       </div>
+
+      {/* FEATURE 1: ACTIVE TASKS AT THE TOP OF EVERY DASHBOARD (Business Dashboard) */}
+      {sortedActiveOrders.length > 0 && (
+        <div className="bg-orange-50/40 p-5 rounded-2xl border border-orange-100 space-y-4">
+          <div className="flex items-center gap-2">
+            <Clock className="w-5 h-5 text-orange-600 animate-pulse" />
+            <h2 className="text-lg font-extrabold text-neutral-900 uppercase tracking-wide">
+              Active Orders Requiring Action ({sortedActiveOrders.length})
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {sortedActiveOrders.map(order => {
+              const isProcessing = actionProcessing[order._id];
+              return (
+                <div key={order._id} className="bg-white border-2 border-blue-150 rounded-xl p-4 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-black uppercase rounded-md border border-blue-100">
+                        Order #{order._id?.slice(-6).toUpperCase()}
+                      </span>
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-black uppercase border ${getStatusBadgeClass(order.status)}`}>
+                        {formatStatus(order.status)}
+                      </span>
+                    </div>
+
+                    <p className="text-sm font-extrabold text-secondary-800">
+                      Customer: {order.customer?.name || 'Customer'}
+                    </p>
+                    <p className="text-xs text-secondary-500 mt-1">
+                      {order.items?.length || 0} Items • {formatCurrency(order.finalAmount || order.totalAmount || 0)}
+                    </p>
+
+                    {/* Specific Sub-status/workflow displays */}
+                    {order.status === 'pending' && (
+                      <p className="text-xs text-amber-600 font-bold bg-amber-50 p-1.5 rounded-lg border border-amber-100 mt-2">
+                        Waiting for business confirmation
+                      </p>
+                    )}
+                    {order.status === 'paid' && (
+                      <p className="text-xs text-blue-600 font-bold bg-blue-50 p-1.5 rounded-lg border border-blue-100 mt-2">
+                        Payment Paid • Prepared/Packed
+                      </p>
+                    )}
+                    {order.status === 'processing' && (
+                      <p className="text-xs text-purple-600 font-bold bg-purple-50 p-1.5 rounded-lg border border-purple-100 mt-2">
+                        Packed & Ready for delivery
+                      </p>
+                    )}
+                    {order.status === 'delivered' && (
+                      <p className="text-xs text-emerald-600 font-bold bg-emerald-50 p-1.5 rounded-lg border border-emerald-100 mt-2">
+                        Awaiting Customer Release (Escrow held)
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-neutral-100 flex gap-2">
+                    {order.status === 'pending' && (
+                      <>
+                        <button
+                          onClick={() => handleAcceptOrder(order._id)}
+                          disabled={isProcessing}
+                          className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white font-extrabold text-xs rounded-lg shadow-sm flex items-center gap-1"
+                        >
+                          <Check size={12} />
+                          Accept
+                        </button>
+                        <button
+                          onClick={() => handleRejectOrder(order._id)}
+                          disabled={isProcessing}
+                          className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 font-extrabold text-xs rounded-lg flex items-center gap-1"
+                        >
+                          <X size={12} />
+                          Decline
+                        </button>
+                      </>
+                    )}
+
+                    {(order.status === 'paid' || order.status === 'processing') && (
+                      <button
+                        onClick={() => handleMarkDelivered(order._id)}
+                        disabled={isProcessing}
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-lg shadow-sm flex items-center gap-1"
+                      >
+                        <CheckCircle size={12} />
+                        Mark Delivered
+                      </button>
+                    )}
+
+                    <Link
+                      to="/business/orders"
+                      className="px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold text-xs rounded-lg self-center ml-auto"
+                    >
+                      Detail
+                    </Link>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Product Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">

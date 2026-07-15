@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
-import { customerAPI } from '../services/api';
+import { customerAPI, rideAPI, orderAPI } from '../services/api';
 import LoadingSpinner from '../components/LoadingSpinner';
 import {
   ShoppingBag,
@@ -20,8 +20,11 @@ import {
   Layout,
   ShoppingCart,
   Wallet,
+  Clock,
+  CheckCircle,
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { useToast } from '../components/Toast';
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-KE', {
@@ -46,11 +49,17 @@ const CustomerDashboard = () => {
   const { unreadCount } = useSocket();
   const { cartItemCount } = useCart();
   const navigate = useNavigate();
+  const { success: toastSuccess, error: toastError } = useToast();
+
   const [dashboardData, setDashboardData] = useState(null);
   const [orders, setOrders] = useState([]);
+  const [activeOrders, setActiveOrders] = useState([]);
+  const [activeBookings, setActiveBookings] = useState([]);
+  const [activeRides, setActiveRides] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [actionProcessing, setActionProcessing] = useState({});
 
   // Navigation Tabs State
   const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'marketplace', 'services'
@@ -65,8 +74,25 @@ const CustomerDashboard = () => {
       setDashboardData(statsResponse.data?.data || {});
 
       // Fetch recent orders
-      const ordersResponse = await customerAPI.getMyOrders({ page: 1, limit: 5 });
-      setOrders(ordersResponse.data?.data || []);
+      const ordersResponse = await customerAPI.getMyOrders({ page: 1, limit: 10 });
+      const allOrders = ordersResponse.data?.data || [];
+      setOrders(allOrders);
+
+      // Filter active orders
+      const activeO = allOrders.filter(o => ['pending', 'paid', 'processing', 'delivered'].includes(o.status));
+      setActiveOrders(activeO);
+
+      // Fetch bookings & rides to discover active tasks
+      const bookingsResponse = await customerAPI.getMyBookings({ page: 1, limit: 50 });
+      const bookings = bookingsResponse.data?.data || [];
+      const activeB = bookings.filter(b => ['pending', 'confirmed', 'out_for_handover', 'active'].includes(b.booking?.status || b.status));
+      setActiveBookings(activeB);
+
+      const ridesResponse = await customerAPI.getMyRides({ page: 1, limit: 50 });
+      const rides = ridesResponse.data?.data || [];
+      const activeR = rides.filter(r => ['pending_payment', 'waiting_rider', 'accepted', 'in_progress', 'awaiting_customer_confirmation'].includes(r.status));
+      setActiveRides(activeR);
+
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
       setError(err.response?.data?.message || 'Failed to load dashboard data');
@@ -84,6 +110,34 @@ const CustomerDashboard = () => {
     await fetchDashboardData();
     await refreshProfile();
     setRefreshing(false);
+  };
+
+  const handleConfirmDelivery = async (orderId, event) => {
+    event.preventDefault();
+    setActionProcessing(prev => ({ ...prev, [orderId]: true }));
+    try {
+      await orderAPI.confirmDelivery(orderId);
+      toastSuccess('Delivery confirmed successfully. Escrow funds released!');
+      fetchDashboardData();
+    } catch (err) {
+      toastError(err.response?.data?.message || 'Failed to confirm delivery');
+    } finally {
+      setActionProcessing(prev => ({ ...prev, [orderId]: false }));
+    }
+  };
+
+  const handleCancelRide = async (rideId, event) => {
+    event.preventDefault();
+    setActionProcessing(prev => ({ ...prev, [rideId]: true }));
+    try {
+      await rideAPI.cancel(rideId);
+      toastSuccess('Ride cancelled successfully');
+      fetchDashboardData();
+    } catch (err) {
+      toastError(err.response?.data?.message || 'Failed to cancel ride');
+    } finally {
+      setActionProcessing(prev => ({ ...prev, [rideId]: false }));
+    }
   };
 
   if (loading) {
@@ -138,19 +192,8 @@ const CustomerDashboard = () => {
     ).join(' ');
   };
 
-  const quickActions = [
-    { title: 'Browse Marketplace', link: '/marketplace', icon: ShoppingBag, color: 'blue' },
-    { title: 'Find Rentals', link: '/rentals', icon: Home, color: 'green' },
-    { title: 'Book Bodaboda', link: '/transport', icon: Bike, color: 'yellow' },
-    { title: 'View Orders', link: '/customer/orders', icon: Package, color: 'purple' },
-  ];
-
-  const serviceCards = [
-    { title: 'Shop', description: 'Browse products from local businesses', link: '/marketplace', icon: ShoppingBag, color: 'blue' },
-    { title: 'Book Rentals', description: 'Find your perfect home', link: '/rentals', icon: Home, color: 'green' },
-    { title: 'Health Care', description: 'Order medicines and health products', link: '/healthcare', icon: Heart, color: 'red' },
-    { title: 'Bodaboda Services', description: 'Fast motorcycle transport', link: '/transport', icon: Bike, color: 'yellow' },
-  ];
+  // Check if there are active tasks
+  const hasActiveTasks = activeOrders.length > 0 || activeBookings.length > 0 || activeRides.length > 0;
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-8">
@@ -178,6 +221,148 @@ const CustomerDashboard = () => {
           </button>
         </div>
       </div>
+
+      {/* FEATURE 1: ACTIVE TASKS AT THE TOP OF EVERY DASHBOARD */}
+      {hasActiveTasks && (
+        <div className="space-y-4 bg-orange-50/40 p-5 rounded-2xl border border-orange-100">
+          <div className="flex items-center gap-2">
+            <Clock className="w-5 h-5 text-orange-600 animate-pulse" />
+            <h2 className="text-lg font-extrabold text-neutral-900 uppercase tracking-wide">
+              Active Tasks & Orders Requiring Attention
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+            {/* Active Ride Requests */}
+            {activeRides.map(ride => (
+              <div key={ride._id} className="bg-white border-2 border-purple-200 rounded-xl p-4 shadow-sm flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-purple-100 text-purple-800 text-[10px] font-black uppercase rounded-md border border-purple-200">
+                      <Bike className="w-3 h-3" />
+                      Active Ride
+                    </span>
+                    <span className="text-xs font-bold text-neutral-400">
+                      #{ride._id?.slice(-6).toUpperCase()}
+                    </span>
+                  </div>
+                  <p className="text-sm font-bold text-neutral-800 line-clamp-1">
+                    {ride.pickupLocation?.address} → {ride.dropoffLocation?.address}
+                  </p>
+                  <p className="text-xs text-neutral-500 mt-1">
+                    Status: <span className="font-extrabold capitalize text-purple-600">{ride.status?.replace('_', ' ')}</span>
+                  </p>
+                  {ride.status === 'awaiting_customer_confirmation' && (
+                    <p className="text-xs text-amber-600 font-extrabold bg-amber-50 p-1.5 rounded-lg border border-amber-100 mt-2">
+                      Rider has arrived. Please confirm completion on completion request.
+                    </p>
+                  )}
+                </div>
+                <div className="mt-4 pt-3 border-t border-neutral-100 flex gap-2">
+                  <button
+                    onClick={() => navigate('/customer/rides')}
+                    className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-lg shadow-sm"
+                  >
+                    Track Ride
+                  </button>
+                  {['pending_payment', 'waiting_rider', 'accepted'].includes(ride.status) && (
+                    <button
+                      onClick={(e) => handleCancelRide(ride._id, e)}
+                      disabled={actionProcessing[ride._id]}
+                      className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs rounded-lg"
+                    >
+                      {actionProcessing[ride._id] ? 'Cancelling...' : 'Cancel Ride'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {/* Active Rental Bookings */}
+            {activeBookings.map(b => {
+              const booking = b.booking || b;
+              const rental = b.rental || {};
+              const bookingId = booking._id;
+              const status = booking.status;
+              return (
+                <div key={bookingId} className="bg-white border-2 border-emerald-200 rounded-xl p-4 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase rounded-md border border-emerald-200">
+                        <Home className="w-3 h-3" />
+                        Active Rental
+                      </span>
+                      <span className="text-xs font-bold text-neutral-400">
+                        #{bookingId?.slice(-6).toUpperCase()}
+                      </span>
+                    </div>
+                    <p className="text-sm font-bold text-neutral-800 line-clamp-1">
+                      {rental.rentalName || 'Rental Property'}
+                    </p>
+                    <p className="text-xs text-neutral-500 mt-1">
+                      Status: <span className="font-extrabold capitalize text-emerald-600">{status?.replace('_', ' ')}</span>
+                    </p>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-neutral-100 flex gap-2">
+                    <button
+                      onClick={() => navigate('/customer/bookings')}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm"
+                    >
+                      View Booking
+                    </button>
+                    {status === 'confirmed' && (
+                      <span className="text-[11px] text-amber-600 font-bold self-center">
+                        Awaiting check-in
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Active Orders */}
+            {activeOrders.map(order => (
+              <div key={order._id} className="bg-white border-2 border-blue-200 rounded-xl p-4 shadow-sm flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-black uppercase rounded-md border border-blue-200">
+                      <ShoppingBag className="w-3 h-3" />
+                      Active Order
+                    </span>
+                    <span className="text-xs font-bold text-neutral-400">
+                      #{order._id?.slice(-6).toUpperCase()}
+                    </span>
+                  </div>
+                  <p className="text-sm font-bold text-neutral-800 truncate">
+                    {order.items?.[0]?.name} {order.items?.length > 1 ? `+ ${order.items.length - 1} more` : ''}
+                  </p>
+                  <p className="text-xs text-neutral-500 mt-1">
+                    Status: <span className="font-extrabold capitalize text-blue-600">{order.status}</span>
+                  </p>
+                </div>
+                <div className="mt-4 pt-3 border-t border-neutral-100 flex gap-2 flex-wrap">
+                  <button
+                    onClick={() => navigate(`/customer/order/${order._id}`)}
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-sm"
+                  >
+                    Track Order
+                  </button>
+                  {order.status === 'delivered' && (
+                    <button
+                      onClick={(e) => handleConfirmDelivery(order._id, e)}
+                      disabled={actionProcessing[order._id]}
+                      className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white font-bold text-xs rounded-lg shadow-sm"
+                    >
+                      {actionProcessing[order._id] ? 'Confirming...' : 'Confirm Delivery'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+
+          </div>
+        </div>
+      )}
 
       {/* THREE MAIN NAVIGATION CARDS/BUTTONS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

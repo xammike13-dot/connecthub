@@ -94,6 +94,7 @@ const RiderDashboard = () => {
   const [isOnline, setIsOnline] = useState(false);
   const [riderStatus, setRiderStatus] = useState('offline');
   const [activeRide, setActiveRide] = useState(null);
+  const [availableRequests, setAvailableRequests] = useState([]);
   const [recentRides, setRecentRides] = useState([]);
   const [riderLocation, setRiderLocation] = useState(null);
   const [locationWatchId, setLocationWatchId] = useState(null);
@@ -146,11 +147,24 @@ const RiderDashboard = () => {
         const activeRideResponse = await riderAPI.getActiveRide();
         if (activeRideResponse.data.data) {
           setActiveRide(activeRideResponse.data.data);
+        } else {
+          setActiveRide(null);
         }
       } catch (err) {
-        // No active ride
+        setActiveRide(null);
       }
       
+      // Fetch available ride requests if online
+      if (isOnlineRef.current) {
+        try {
+          const availResponse = await rideAPI.getAvailableRides({ limit: 10 });
+          setAvailableRequests(availResponse.data.data || []);
+        } catch (err) {
+          setAvailableRequests([]);
+        }
+      } else {
+        setAvailableRequests([]);
+      }
       
       // Fetch notifications
       try {
@@ -176,7 +190,9 @@ const RiderDashboard = () => {
       const profileResponse = await riderAPI.getProfile();
       const profileData = profileResponse.data.data.user;
       
-      setIsOnline(profileData.riderProfile?.isOnline || false);
+      const onlineState = profileData.riderProfile?.isOnline || false;
+      setIsOnline(onlineState);
+      isOnlineRef.current = onlineState;
       setRiderStatus(profileData.riderProfile?.status || 'offline');
     } catch (error) {
       console.error('Failed to fetch user status:', error);
@@ -257,11 +273,8 @@ const RiderDashboard = () => {
           
           setRiderLocation(location);
           
-          // Use ref to get current online status (avoids stale closure)
-          // Always update location when rider is online
           if (isOnlineRef.current) {
             try {
-              // Include rideId if there's an active ride
               const locationPayload = {
                 latitude: position.coords.latitude,
                 longitude: position.coords.longitude,
@@ -279,19 +292,6 @@ const RiderDashboard = () => {
         },
         (error) => {
           console.error('Error getting location:', error);
-          switch (error.code) {
-            case error.PERMISSION_DENIED:
-              addToast('Location permission denied', 'error');
-              break;
-            case error.POSITION_UNAVAILABLE:
-              addToast('Location information is unavailable', 'error');
-              break;
-            case error.TIMEOUT:
-              addToast('Location request timed out', 'error');
-              break;
-            default:
-              addToast('An error occurred while getting location', 'error');
-          }
         },
         { 
           enableHighAccuracy: true,
@@ -302,7 +302,7 @@ const RiderDashboard = () => {
       
       setLocationWatchId(watchId);
     });
-  }, [addToast]);
+  }, [addToast, activeRide]);
 
   // Handle toggle online/offline
   const toggleOnlineStatus = async () => {
@@ -315,13 +315,17 @@ const RiderDashboard = () => {
       });
       
       setIsOnline(newStatus);
+      isOnlineRef.current = newStatus;
       setRiderStatus(newStatus ? 'online' : 'offline');
       
       if (newStatus) {
         addToast('You are now online and receiving ride requests', 'success');
         setupLocationTracking();
+        // Fetch requests right away
+        fetchDashboardData();
       } else {
         addToast('You are now offline', 'info');
+        setAvailableRequests([]);
         if (locationWatchId !== null) {
           navigator.geolocation.clearWatch(locationWatchId);
           setLocationWatchId(null);
@@ -333,6 +337,25 @@ const RiderDashboard = () => {
     }
   };
 
+  const acceptRide = async (rideId) => {
+    try {
+      await rideAPI.accept(rideId);
+      addToast('Ride request accepted successfully!', 'success');
+      fetchDashboardData();
+    } catch (error) {
+      addToast(error.response?.data?.message || 'Failed to accept ride', 'error');
+    }
+  };
+
+  const declineRide = async (rideId) => {
+    try {
+      await rideAPI.decline(rideId, { reason: 'Unavailable' });
+      addToast('Ride request declined', 'info');
+      setAvailableRequests(prev => prev.filter(r => r._id !== rideId));
+    } catch (error) {
+      addToast('Failed to decline ride request', 'error');
+    }
+  };
 
   // Update ride status
   const updateRideStatus = async (newStatus) => {
@@ -343,7 +366,6 @@ const RiderDashboard = () => {
       
       await rideAPI.updateStatus(activeRide._id, newStatus);
       
-      // Add specific success messages based on status
       if (newStatus === 'completed') {
         addToast('Ride completed successfully!', 'success');
       } else if (newStatus === 'in_progress') {
@@ -354,10 +376,8 @@ const RiderDashboard = () => {
         addToast(`Ride status updated to ${newStatus}`, 'success');
       }
       
-      // Update active ride status
       setActiveRide(prev => prev ? { ...prev, status: newStatus } : null);
       
-      // If completed, clear active ride after a delay and refresh data
       if (newStatus === 'completed') {
         setTimeout(() => {
           setActiveRide(null);
@@ -421,15 +441,17 @@ const RiderDashboard = () => {
     };
 
     socket.on('new_ride_request', handleNewRideRequest);
+    socket.on('ride_request', handleNewRideRequest); // Handle both types just in case
     socket.on('ride_accepted', handleRideAccepted);
     socket.on('ride_status_update', handleRideStatusUpdate);
 
     return () => {
       socket.off('new_ride_request', handleNewRideRequest);
+      socket.off('ride_request', handleNewRideRequest);
       socket.off('ride_accepted', handleRideAccepted);
       socket.off('ride_status_update', handleRideStatusUpdate);
     };
-  }, [socket, addToast]);
+  }, [socket, addToast, fetchDashboardData]);
 
   // Initial data fetch
   useEffect(() => {
@@ -451,15 +473,15 @@ const RiderDashboard = () => {
         navigator.geolocation.clearWatch(locationWatchId);
       }
     };
-  }, [isOnline, setupLocationTracking]);
+  }, [isOnline, setupLocationTracking, user]);
 
-  // Auto-refresh dashboard every 30 seconds when online
+  // Auto-refresh dashboard every 20 seconds when online
   useEffect(() => {
     let interval;
     if (isOnline) {
       interval = setInterval(() => {
         fetchDashboardData();
-      }, 30000);
+      }, 20000);
     }
     
     return () => {
@@ -475,13 +497,16 @@ const RiderDashboard = () => {
     );
   }
 
+  // Check if there are active ride unassigned or current trip tasks
+  const hasActiveTasks = activeRide || (isOnline && availableRequests.length > 0);
+
   return (
     <div className="space-y-6">
       {/* Status Banner */}
       <div className={`card ${isOnline ? 'bg-gradient-to-r from-green-500 to-green-600 text-white' : 'bg-gradient-to-r from-red-500 to-red-600 text-white'}`}>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full overflow-hidden bg-white/20 flex items-center justify-center border-2 border-white/30">
+            <div className="w-16 h-16 rounded-full overflow-hidden bg-white/20 flex items-center justify-center border-2 border-white/30 flex-shrink-0">
               {user?.riderProfile?.profilePhoto || user?.avatar ? (
                 <img 
                   src={user?.riderProfile?.profilePhoto || user?.avatar} 
@@ -497,133 +522,173 @@ const RiderDashboard = () => {
               <p className="text-3xl font-bold mt-1">
                 {isOnline ? 'You are Online' : 'You are Offline'}
               </p>
-              <p className="mt-2 opacity-80">
+              <p className="mt-2 opacity-80 text-sm">
                 {isOnline 
-                  ? 'You are receiving ride requests' 
+                  ? 'You are actively receiving ride requests'
                   : 'Go online to start receiving ride requests'}
               </p>
             </div>
           </div>
-          <button
-            onClick={toggleOnlineStatus}
-            className={`px-6 py-3 rounded-lg font-semibold flex items-center gap-2 transition-all ${
-              isOnline 
-                ? 'bg-white text-green-600 hover:bg-green-50' 
-                : 'bg-white text-red-600 hover:bg-red-50'
-            }`}
-          >
-            <Power size={20} />
-            {isOnline ? 'Go Offline' : 'Go Online'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="p-3 bg-white/10 hover:bg-white/25 rounded-lg text-white font-bold transition-all disabled:opacity-50"
+              title="Refresh stats"
+            >
+              <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
+            </button>
+            <button
+              onClick={toggleOnlineStatus}
+              className={`px-6 py-3 rounded-lg font-semibold flex items-center gap-2 transition-all shadow-md ${
+                isOnline
+                  ? 'bg-white text-green-600 hover:bg-green-50'
+                  : 'bg-white text-red-600 hover:bg-red-50'
+              }`}
+            >
+              <Power size={20} />
+              {isOnline ? 'Go Offline' : 'Go Online'}
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Active Ride Section */}
-      {activeRide && (
-        <div className="card border-2 border-blue-400 bg-blue-50">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
-                <Bike className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h3 className="font-bold text-gray-900">Active Ride</h3>
-                <p className="text-sm text-gray-600">
-                  Status: <span className="font-medium capitalize">{activeRide.status}</span>
-                </p>
-              </div>
-            </div>
-            <span className="px-3 py-1 bg-blue-500 text-white rounded-full text-sm font-medium">
-              {activeRide.status === 'waiting_rider' && 'New Request'}
-              {activeRide.status === 'accepted' && 'Customer Pickup'}
-              {activeRide.status === 'in_progress' && 'In Transit'}
-              {activeRide.status === 'arrived' && 'Arrived'}
-            </span>
+      {/* FEATURE 1: ACTIVE TASKS AT THE TOP OF EVERY DASHBOARD (Rider Dashboard) */}
+      {hasActiveTasks && (
+        <div className="bg-orange-50/40 p-5 rounded-2xl border border-orange-100 space-y-4">
+          <div className="flex items-center gap-2">
+            <Clock className="w-5 h-5 text-orange-600 animate-pulse" />
+            <h2 className="text-lg font-extrabold text-neutral-900 uppercase tracking-wide">
+              Active Ride Actions & Trips
+            </h2>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div className="space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                  <MapPin className="w-4 h-4 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Pickup Location</p>
-                  <p className="font-medium text-gray-900">
-                    {activeRide.pickupLocation?.address || 'Unknown'}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                  <MapPin className="w-4 h-4 text-red-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Destination</p>
-                  <p className="font-medium text-gray-900">
-                    {activeRide.dropoffLocation?.address || 'Unknown'}
-                  </p>
-                </div>
-              </div>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 bg-white rounded-lg">
-                <span className="text-gray-600">Customer</span>
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">
-                    {activeRide.customer?.name || 'Unknown'}
-                  </span>
+            {/* 1. Active Trip (Assigned Ride) */}
+            {activeRide && (
+              <div className="bg-white border-2 border-blue-300 rounded-xl p-4 shadow-sm flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-black uppercase rounded-md border border-blue-200">
+                      <Bike className="w-3 h-3" />
+                      Current Trip
+                    </span>
+                    <span className="text-xs font-bold text-neutral-400">
+                      #{activeRide._id?.slice(-6).toUpperCase()}
+                    </span>
+                  </div>
+
+                  <p className="text-sm font-bold text-neutral-800 line-clamp-1">
+                    Route: {activeRide.pickupLocation?.address} → {activeRide.dropoffLocation?.address}
+                  </p>
+
+                  <div className="mt-2.5 space-y-1 bg-neutral-50 p-2 rounded-lg border border-neutral-100 text-xs">
+                    <p><span className="font-bold">Customer:</span> {activeRide.customer?.name || 'Passenger'}</p>
+                    <p><span className="font-bold">Fare:</span> {formatCurrency(activeRide.fare?.totalFare || activeRide.estimatedPrice || 0)}</p>
+                    <p><span className="font-bold">Status:</span> <span className="font-extrabold capitalize text-blue-600">{activeRide.status}</span></p>
+                  </div>
+
+                  {activeRide.status === 'accepted' && (
+                    <p className="text-[11px] text-amber-600 font-bold bg-amber-50 p-1.5 rounded-lg border border-amber-100 mt-2">
+                      Rider Accepted. Pickup pending. Navigate to customer to start trip.
+                    </p>
+                  )}
+                  {activeRide.status === 'in_progress' && (
+                    <p className="text-[11px] text-blue-600 font-bold bg-blue-50 p-1.5 rounded-lg border border-blue-100 mt-2">
+                      On Trip. Drive safely to destination.
+                    </p>
+                  )}
+                  {activeRide.status === 'awaiting_customer_confirmation' && (
+                    <p className="text-[11px] text-green-600 font-bold bg-green-50 p-1.5 rounded-lg border border-green-100 mt-2">
+                      Trip completed. Awaiting passenger payment release.
+                    </p>
+                  )}
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-neutral-100 flex gap-2 flex-wrap">
                   <button
-                    onClick={() => contactCustomer(activeRide.customer?.phone)}
-                    className="p-2 bg-green-100 text-green-600 rounded-full hover:bg-green-200"
+                    onClick={() => handleNavigate(activeRide.pickupLocation?.address, activeRide.pickupLocation?.coordinates)}
+                    className="px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold text-xs rounded-lg shadow-sm flex items-center gap-1"
                   >
-                    <Phone size={16} />
+                    <Navigation size={12} />
+                    Map
+                  </button>
+
+                  {activeRide.status === 'accepted' && (
+                    <button
+                      onClick={() => updateRideStatus('in_progress')}
+                      disabled={rideStatus === 'updating'}
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-lg shadow-sm"
+                    >
+                      Start Trip
+                    </button>
+                  )}
+
+                  {activeRide.status === 'in_progress' && (
+                    <button
+                      onClick={() => updateRideStatus('awaiting_customer_confirmation')}
+                      disabled={rideStatus === 'updating'}
+                      className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white font-extrabold text-xs rounded-lg shadow-sm"
+                    >
+                      Mark Arrived
+                    </button>
+                  )}
+
+                  {activeRide.customer?.phone && (
+                    <button
+                      onClick={() => contactCustomer(activeRide.customer?.phone)}
+                      className="px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold text-xs rounded-lg flex items-center gap-1"
+                    >
+                      <Phone size={11} className="stroke-[2.5]" />
+                      Call
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 2. Available/Unassigned Ride Requests */}
+            {isOnline && availableRequests.map(ride => (
+              <div key={ride._id} className="bg-white border-2 border-orange-200 rounded-xl p-4 shadow-sm flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-orange-100 text-orange-800 text-[10px] font-black uppercase rounded-md border border-orange-200 animate-pulse">
+                      <Bike className="w-3 h-3" />
+                      New Ride Request
+                    </span>
+                    <span className="text-xs font-bold text-neutral-400">
+                      #{ride._id?.slice(-6).toUpperCase()}
+                    </span>
+                  </div>
+
+                  <p className="text-sm font-bold text-neutral-800 line-clamp-1">
+                    {ride.pickupLocation?.address} → {ride.dropoffLocation?.address}
+                  </p>
+
+                  <div className="mt-2.5 space-y-1 bg-neutral-50 p-2 rounded-lg border border-neutral-100 text-xs">
+                    <p><span className="font-bold">Distance:</span> {ride.estimatedDistance ? `${ride.estimatedDistance.toFixed(1)} km` : 'N/A'}</p>
+                    <p><span className="font-bold">Fare:</span> <span className="text-green-600 font-extrabold">{formatCurrency(ride.fare?.totalFare || ride.estimatedPrice || 0)}</span></p>
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-neutral-100 flex gap-2">
+                  <button
+                    onClick={() => acceptRide(ride._id)}
+                    className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white font-extrabold text-xs rounded-lg shadow-sm"
+                  >
+                    Accept Ride
+                  </button>
+                  <button
+                    onClick={() => declineRide(ride._id)}
+                    className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs rounded-lg"
+                  >
+                    Decline
                   </button>
                 </div>
               </div>
-              <div className="flex items-center justify-between p-3 bg-white rounded-lg">
-                <span className="text-gray-600">Fare</span>
-                <span className="font-bold text-green-600 text-lg">
-                  {formatCurrency(activeRide.fare?.totalFare || activeRide.estimatedPrice || 0)}
-                </span>
-              </div>
-            </div>
-          </div>
+            ))}
 
-          <div className="flex gap-3">
-            <Button
-              variant="outline"
-              onClick={() => handleNavigate(activeRide.pickupLocation?.address, activeRide.pickupLocation?.coordinates)}
-              className="flex-1"
-            >
-              <Navigation size={18} />
-              Navigate to Pickup
-            </Button>
-            
-            {activeRide.status === 'accepted' && (
-              <Button
-                variant="primary"
-                onClick={() => updateRideStatus('in_progress')}
-                disabled={rideStatus === 'updating'}
-                className="flex-1"
-              >
-                <Navigation2 size={18} />
-                Start Trip
-              </Button>
-            )}
-
-            {activeRide.status === 'in_progress' && (
-              <Button
-                variant="primary"
-                onClick={() => updateRideStatus('awaiting_customer_confirmation')}
-                disabled={rideStatus === 'updating'}
-                className="flex-1 bg-green-600 hover:bg-green-700"
-              >
-                <CheckCircle size={18} />
-                Mark Passenger Arrived
-              </Button>
-            )}
           </div>
         </div>
       )}
@@ -739,7 +804,7 @@ const RiderDashboard = () => {
               <p className="text-sm text-secondary-500 mb-1">Pending Earnings</p>
               <p className="text-xl font-bold text-secondary-800">{formatCurrency(stats.pendingEarnings)}</p>
             </div>
-            <div className="w-10 h-10 bg-orange-50 rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-orange-55 rounded-lg flex items-center justify-center">
               <Clock className="w-5 h-5 text-orange-500" />
             </div>
           </div>
@@ -751,7 +816,7 @@ const RiderDashboard = () => {
               <p className="text-sm text-secondary-500 mb-1">Withdrawn Amount</p>
               <p className="text-xl font-bold text-secondary-800">{formatCurrency(stats.withdrawnAmount)}</p>
             </div>
-            <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-green-55 rounded-lg flex items-center justify-center">
               <DollarSign className="w-5 h-5 text-green-500" />
             </div>
           </div>
@@ -763,7 +828,7 @@ const RiderDashboard = () => {
               <p className="text-sm text-secondary-500 mb-1">Cancelled Trips</p>
               <p className="text-xl font-bold text-secondary-800">{stats.cancelledTrips}</p>
             </div>
-            <div className="w-10 h-10 bg-red-50 rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-red-55 rounded-lg flex items-center justify-center">
               <AlertTriangle className="w-5 h-5 text-red-500" />
             </div>
           </div>
