@@ -96,19 +96,17 @@ const ShopPage = () => {
 
   // Load viewed products from localStorage on mount
   useEffect(() => {
-    if (user) {
-      const viewed = new Set();
-      Object.keys(localStorage).forEach(key => {
-        if (key.startsWith('viewed_product_')) {
-          const productId = key.replace('viewed_product_', '');
-          if (localStorage.getItem(key) === 'true') {
-            viewed.add(productId);
-          }
+    const viewed = new Set();
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('viewed_product_')) {
+        const productId = key.replace('viewed_product_', '');
+        if (localStorage.getItem(key) === 'true') {
+          viewed.add(productId);
         }
-      });
-      setViewedProducts(viewed);
-    }
-  }, [user]);
+      }
+    });
+    setViewedProducts(viewed);
+  }, []);
 
   // Clear subcategory when category changes
   useEffect(() => {
@@ -195,30 +193,30 @@ const ShopPage = () => {
   };
 
   const handleViewProduct = async (productId) => {
-    if (user) {
-      const alreadyViewed = viewedProducts.has(productId);
+    const alreadyViewed = viewedProducts.has(productId);
 
-      if (!alreadyViewed) {
-        try {
+    if (!alreadyViewed) {
+      try {
+        if (user) {
           await productAPI.trackView(productId);
-          localStorage.setItem(`viewed_product_${productId}`, 'true');
-
-          // Update local viewed products state immediately
-          setViewedProducts(prev => new Set([...prev, productId]));
-
-          // Update local product state to reflect view count change
-          setProducts(prevProducts =>
-            prevProducts.map(product => {
-              if (product._id === productId) {
-                const newCount = (product.views || 0) + 1;
-                return { ...product, views: newCount };
-              }
-              return product;
-            })
-          );
-        } catch (error) {
-          console.error('Failed to track view:', error);
         }
+        localStorage.setItem(`viewed_product_${productId}`, 'true');
+
+        // Update local viewed products state immediately
+        setViewedProducts(prev => new Set([...prev, productId]));
+
+        // Update local product state to reflect view count change
+        setProducts(prevProducts =>
+          prevProducts.map(product => {
+            if (product._id === productId) {
+              const newCount = (product.views || 0) + 1;
+              return { ...product, views: newCount };
+            }
+            return product;
+          })
+        );
+      } catch (error) {
+        console.error('Failed to track view:', error);
       }
     }
     navigate(`/marketplace/${productId}`);
