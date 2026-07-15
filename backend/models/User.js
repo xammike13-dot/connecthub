@@ -254,6 +254,10 @@ const userSchema = new mongoose.Schema(
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Rental',
       }],
+      viewedProducts: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Product',
+      }],
     },
   },
   {

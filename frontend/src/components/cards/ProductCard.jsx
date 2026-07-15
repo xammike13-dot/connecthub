@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
+import { useToast } from '../Toast';
+import { productAPI } from '../../services/api';
 import Avatar from '../ui/Avatar';
 
 const ProductCard = ({
@@ -55,6 +57,46 @@ const ProductCard = ({
     : 0);
 
   const isOutOfStock = stock === 0;
+
+  const { isInCart, addToCart } = useCart();
+  const { success: toastSuccess, error: toastError } = useToast();
+  const [isAdding, setIsAdding] = useState(false);
+
+  const handleAddClick = async (e) => {
+    e.preventDefault();
+    if (isAdding) return;
+
+    setIsAdding(true);
+    try {
+      // Query backend to confirm the product exists and has stock
+      const response = await productAPI.getById(_id);
+      const fetchedProduct = response.data?.data;
+
+      if (!fetchedProduct) {
+        toastError('Failed to add product to cart. Product not found.');
+        return;
+      }
+
+      if (!fetchedProduct.isActive) {
+        toastError('Failed to add product to cart. Product is no longer active.');
+        return;
+      }
+
+      if (fetchedProduct.stock <= 0) {
+        toastError('Failed to add product to cart. Product is out of stock.');
+        return;
+      }
+
+      // Add to cart
+      addToCart(product);
+      toastSuccess('✓ Product added to cart successfully.');
+    } catch (err) {
+      console.error('[ADD TO CART ERROR]', err);
+      toastError('Failed to add product to cart. Please try again.');
+    } finally {
+      setIsAdding(false);
+    }
+  };
 
   return (
     <motion.div
@@ -202,15 +244,33 @@ const ProductCard = ({
             <Eye size={12} />
             <span>Detail</span>
           </button>
-          <button
-            disabled={isOutOfStock}
-            onClick={() => onAddToCart?.(product)}
-            className="py-2 px-1 sm:px-1.5 rounded-lg text-[10px] sm:text-xs font-bold flex items-center justify-center gap-1 bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100 hover:text-blue-700 transition-all disabled:opacity-50 disabled:pointer-events-none"
-            title="Add to cart"
-          >
-            <ShoppingCart size={12} />
-            <span>Add</span>
-          </button>
+          {isInCart(_id) ? (
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                navigate('/cart');
+              }}
+              className="py-2 px-1 sm:px-1.5 rounded-lg text-[10px] sm:text-xs font-bold flex items-center justify-center gap-1 bg-green-50 text-green-600 border border-green-200 hover:bg-green-100 hover:text-green-700 transition-all"
+              title="View Cart"
+            >
+              <ShoppingCart size={12} />
+              <span>View Cart</span>
+            </button>
+          ) : (
+            <button
+              disabled={isOutOfStock || isAdding}
+              onClick={handleAddClick}
+              className="py-2 px-1 sm:px-1.5 rounded-lg text-[10px] sm:text-xs font-bold flex items-center justify-center gap-1 bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100 hover:text-blue-700 transition-all disabled:opacity-50 disabled:pointer-events-none"
+              title="Add to cart"
+            >
+              {isAdding ? (
+                <div className="animate-spin rounded-full h-3 w-3 border-2 border-blue-600 border-t-transparent"></div>
+              ) : (
+                <ShoppingCart size={12} />
+              )}
+              <span>{isAdding ? 'Adding...' : 'Add'}</span>
+            </button>
+          )}
           <button
             disabled={isOutOfStock}
             onClick={() => {
@@ -218,7 +278,9 @@ const ProductCard = ({
                 navigate('/login', { state: { from: `/marketplace/${_id}` } });
                 return;
               }
-              onAddToCart?.(product);
+              if (!isInCart(_id)) {
+                addToCart(product);
+              }
               navigate('/checkout');
             }}
             className="py-2 px-1 sm:px-1.5 rounded-lg text-[10px] sm:text-xs font-bold flex items-center justify-center gap-1 bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition-all disabled:opacity-50 disabled:pointer-events-none"

@@ -188,7 +188,6 @@ const RentalCard = ({
             variant="outline"
             onClick={() => {
               onView?.(_id);
-              navigate(`/rentals/detail/${_id}`);
             }}
             className="flex-1 justify-center py-2"
           >

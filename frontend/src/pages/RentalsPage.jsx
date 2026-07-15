@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Search,
@@ -32,9 +32,10 @@ const rentalTypes = [
 
 const RentalsPage = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { isInWishlist, toggleWishlist } = useWishlist();
-  const { error: toastError } = useToast();
+  const { success: toastSuccess, error: toastError } = useToast();
 
   const [rentals, setRentals] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -204,27 +205,33 @@ const RentalsPage = () => {
 
   const handleViewRental = async (rentalId) => {
     if (!user) {
-      return; // RentalCard handles navigation to login
+      navigate('/login', { state: { from: location.pathname } });
+      return;
     }
 
     // Check if already viewed
     const rental = rentals.find(r => r._id === rentalId);
     if (rental?.hasViewed) {
-      return; // Already viewed, don't track again
+      toastSuccess('You have already viewed this property.');
+      return;
     }
 
     try {
       // Track view on backend
-      await rentalAPI.trackView(rentalId);
+      const response = await rentalAPI.trackView(rentalId);
+      const serverViews = response.data?.data?.views;
 
-      // Update local state optimistically
+      // Update local state
       setRentals(rentals.map(r =>
         r._id === rentalId
-          ? { ...r, hasViewed: true, views: (r.views || 0) + 1 }
+          ? { ...r, hasViewed: true, views: serverViews !== undefined ? serverViews : (r.views || 0) + 1 }
           : r
       ));
+
+      toastSuccess('✓ Property view registered.');
     } catch (error) {
       console.error('Failed to track view:', error);
+      toastError('Failed to register property view. Please try again.');
     }
   };
 

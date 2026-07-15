@@ -301,14 +301,45 @@ export const trackProductView = asyncHandler(async (req, res) => {
     });
   }
 
-  // Increment view count
-  console.log('[VIEW BACKEND] Incrementing views for product:', productId);
-  await Product.findByIdAndUpdate(productId, { $inc: { views: 1 } });
-  console.log('[VIEW BACKEND] Views incremented for product:', productId);
+  let hasViewed = false;
+  let viewCount = product.views || 0;
+
+  // Track view for authenticated customer users
+  if (userRole === 'customer') {
+    // Check if already viewed
+    const user = await User.findById(userId).select('customerProfile.viewedProducts');
+    const viewedProducts = user?.customerProfile?.viewedProducts || [];
+    hasViewed = viewedProducts.some(id => id.toString() === productId);
+
+    if (!hasViewed) {
+      // Add to viewed products
+      await User.findByIdAndUpdate(userId, {
+        $addToSet: { 'customerProfile.viewedProducts': productId }
+      });
+      hasViewed = true;
+
+      // Increment view count
+      product.views = (product.views || 0) + 1;
+      await product.save();
+      viewCount = product.views;
+      console.log('[VIEW BACKEND] Views incremented for product:', productId, 'New count:', viewCount);
+    } else {
+      console.log('[VIEW BACKEND] Already viewed by customer, ignoring increment:', productId);
+    }
+  } else {
+    // For other roles, just increment the view count (or ignore if not desired, let's increment)
+    product.views = (product.views || 0) + 1;
+    await product.save();
+    viewCount = product.views;
+  }
 
   res.status(200).json({
     success: true,
     message: 'View tracked',
+    data: {
+      hasViewed,
+      views: viewCount,
+    },
   });
 });
 
