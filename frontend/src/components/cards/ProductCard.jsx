@@ -48,7 +48,11 @@ const ProductCard = ({
     favoritesCount = 0,
   } = product;
 
-  const mainImage = images?.[0] || 'https://via.placeholder.com/300x300?text=No+Image';
+  const mainImage = (images?.[0] && typeof images[0] === 'string' && images[0].trim() !== '')
+    ? images[0]
+    : (images?.[0]?.url && typeof images[0].url === 'string' && images[0].url.trim() !== '')
+      ? images[0].url
+      : 'https://via.placeholder.com/300x300?text=No+Image';
   const discountPercent = discount || (originalPrice && originalPrice > price
     ? Math.round(((originalPrice - price) / originalPrice) * 100)
     : 0);

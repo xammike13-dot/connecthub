@@ -81,6 +81,7 @@ export const completeLandlordSetup = async (req, res) => {
         });
       }
       user.profilePhoto = profilePhoto;
+      user.avatar = profilePhoto;
     }
     if (businessLogo !== undefined && businessLogo !== null) {
       if (typeof businessLogo !== 'string') {
@@ -223,6 +224,9 @@ export const completeRiderSetup = async (req, res) => {
         });
       }
       user.profilePhoto = profilePhoto;
+      user.avatar = profilePhoto;
+      user.riderProfile = user.riderProfile || {};
+      user.riderProfile.profilePhoto = profilePhoto;
     }
     if (motorcyclePhoto !== undefined && motorcyclePhoto !== null && motorcyclePhoto !== '') {
       if (typeof motorcyclePhoto !== 'string') {

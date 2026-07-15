@@ -261,28 +261,16 @@ export const updateRiderProfile = asyncHandler(async (req, res) => {
     throw new ResponseError('Rider not found', 404);
   }
 
-  const allowedUpdates = [
-    'name', 'phone', 'avatar', 'email',
-    'riderProfile.vehicleType', 'riderProfile.vehicleNumber', 
-    'riderProfile.licenseNumber', 'riderProfile.nationalId',
-    'riderProfile.workingArea', 'riderProfile.workingHours',
-    'riderProfile.dayRatePerKm', 'riderProfile.nightRatePerKm',
-    'riderProfile.profilePhoto', 'riderProfile.profilePhotoPublicId',
-    'riderProfile.motorcycle',
-  ];
-
   const updates = {};
   
-  // Process each field from the request body
-  for (const key of allowedUpdates) {
-    if (req.body[key] !== undefined) {
-      updates[key] = req.body[key];
-    }
-  }
+  // Handlers for root-level fields
+  if (req.body.name !== undefined) updates.name = req.body.name;
+  if (req.body.email !== undefined) updates.email = req.body.email;
+  if (req.body.phone !== undefined) updates.phone = req.body.phone;
+  if (req.body.avatar !== undefined) updates.avatar = req.body.avatar;
 
-  // Handle nested riderProfile updates
+  // Process nested riderProfile updates using dot notation to prevent overwriting other fields
   if (req.body.riderProfile) {
-    const riderProfileUpdates = {};
     const profileFields = ['vehicleType', 'vehicleNumber', 'licenseNumber', 'nationalId', 
                           'workingArea', 'workingHours', 'dayRatePerKm', 'nightRatePerKm',
                           'profilePhoto', 'profilePhotoPublicId', 'motorcycle'];
@@ -291,12 +279,11 @@ export const updateRiderProfile = asyncHandler(async (req, res) => {
       if (req.body.riderProfile[field] !== undefined) {
         let value = req.body.riderProfile[field];
         
-        // Convert numeric fields to numbers (handle string-to-number conversion)
+        // Convert numeric fields to numbers
         if (field === 'dayRatePerKm' || field === 'nightRatePerKm') {
           if (typeof value === 'string') {
             value = parseFloat(value);
           }
-          // Validate the converted number
           if (isNaN(value) || value <= 0) {
             throw new ResponseError(`${field} must be a positive number`, 400);
           }
@@ -304,7 +291,6 @@ export const updateRiderProfile = asyncHandler(async (req, res) => {
         
         // Handle Cloudinary cleanup for profile photo replacement
         if (field === 'profilePhoto' && value && currentRider.riderProfile?.profilePhotoPublicId) {
-          // Delete old photo if it exists and is different
           if (value !== currentRider.riderProfile.profilePhoto) {
             try {
               await cloudinary.uploader.destroy(currentRider.riderProfile.profilePhotoPublicId);
@@ -317,8 +303,7 @@ export const updateRiderProfile = asyncHandler(async (req, res) => {
         
         // Handle Cloudinary cleanup for motorcycle photo replacement
         if (field === 'motorcycle' && value?.photo && currentRider.riderProfile?.motorcycle?.photoPublicId) {
-          // Delete old photo if it exists and is different
-          if (value.photo !== currentRider.riderProfile.motorcycle.photo) {
+          if (value.photo !== currentRider.riderProfile.motorcycle?.photo) {
             try {
               await cloudinary.uploader.destroy(currentRider.riderProfile.motorcycle.photoPublicId);
               console.log('[riderController] Deleted old motorcycle photo from Cloudinary:', currentRider.riderProfile.motorcycle.photoPublicId);
@@ -327,27 +312,56 @@ export const updateRiderProfile = asyncHandler(async (req, res) => {
             }
           }
         }
-        
-        riderProfileUpdates[field] = value;
+
+        // Apply using dot notation
+        if (field === 'motorcycle' && value && typeof value === 'object') {
+          const motorcycleFields = ['brand', 'model', 'plateNumber', 'color', 'year', 'photo', 'photoPublicId'];
+          for (const subField of motorcycleFields) {
+            if (value[subField] !== undefined) {
+              updates[`riderProfile.motorcycle.${subField}`] = value[subField];
+            }
+          }
+        } else if (field === 'workingArea' && value && typeof value === 'object') {
+          const areaFields = ['county', 'town', 'serviceRadius'];
+          for (const subField of areaFields) {
+            if (value[subField] !== undefined) {
+              updates[`riderProfile.workingArea.${subField}`] = value[subField];
+            }
+          }
+        } else if (field === 'workingHours' && value && typeof value === 'object') {
+          const hoursFields = ['start', 'end'];
+          for (const subField of hoursFields) {
+            if (value[subField] !== undefined) {
+              updates[`riderProfile.workingHours.${subField}`] = value[subField];
+            }
+          }
+        } else {
+          updates[`riderProfile.${field}`] = value;
+        }
+
+        // Sync profilePhoto to root fields
+        if (field === 'profilePhoto' && value) {
+          updates.avatar = value;
+          updates.profilePhoto = value;
+        }
+        if (field === 'profilePhotoPublicId' && value) {
+          updates.profilePhotoPublicId = value;
+        }
       }
-    }
-    
-    if (Object.keys(riderProfileUpdates).length > 0) {
-      updates.riderProfile = riderProfileUpdates;
     }
   }
 
   // Validate dayRatePerKm if provided
-  if (updates.riderProfile?.dayRatePerKm !== undefined) {
-    const dayRate = updates.riderProfile.dayRatePerKm;
+  if (updates['riderProfile.dayRatePerKm'] !== undefined) {
+    const dayRate = updates['riderProfile.dayRatePerKm'];
     if (dayRate === null || dayRate === undefined || isNaN(dayRate) || dayRate <= 0) {
       throw new ResponseError('Day rate must be a positive number greater than 0', 400);
     }
   }
 
   // Validate nightRatePerKm if provided
-  if (updates.riderProfile?.nightRatePerKm !== undefined) {
-    const nightRate = updates.riderProfile.nightRatePerKm;
+  if (updates['riderProfile.nightRatePerKm'] !== undefined) {
+    const nightRate = updates['riderProfile.nightRatePerKm'];
     if (nightRate === null || nightRate === undefined || isNaN(nightRate) || nightRate <= 0) {
       throw new ResponseError('Night rate must be a positive number greater than 0', 400);
     }
