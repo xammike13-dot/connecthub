@@ -65,18 +65,21 @@ const Navbar = () => {
 
           {/* Right Side */}
           <div className="flex items-center gap-2 md:gap-4">
+            {/* Unified Cart Icon & Badge */}
+            {cartItemCount > 0 && (
+              <Link
+                to="/cart"
+                className="flex items-center gap-1 p-2 text-neutral-700 hover:text-blue-600 transition-colors select-none whitespace-nowrap shrink-0"
+              >
+                <span className="text-xl sm:text-2xl" role="img" aria-label="cart">🛒</span>
+                <span className="bg-blue-600 text-white text-xs font-extrabold px-1.5 py-0.5 rounded-full flex items-center justify-center min-w-[18px] h-[18px]">
+                  {cartItemCount}
+                </span>
+              </Link>
+            )}
+
             {isAuthenticated ? (
               <div className="hidden md:flex items-center gap-4">
-                {/* Cart */}
-                <Link to="/cart" className="relative p-2 text-neutral-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                  <ShoppingCart size={22} />
-                  {cartItemCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-md">
-                      {cartItemCount}
-                    </span>
-                  )}
-                </Link>
-
                 {/* Dashboard Button */}
                 <Link to={getDashboardLink()} className="btn-primary px-5 py-2">
                   Dashboard
@@ -99,16 +102,6 @@ const Navbar = () => {
               </div>
             ) : (
               <>
-                {/* Cart */}
-                <Link to="/cart" className="relative p-2 text-neutral-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                  <ShoppingCart size={22} />
-                  {cartItemCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-md">
-                      {cartItemCount}
-                    </span>
-                  )}
-                </Link>
-
                 {/* Login */}
                 <Link to="/login" className="px-3 md:px-5 py-2 text-neutral-600 hover:text-blue-600 font-medium transition-colors text-sm md:text-base">
                   Login
@@ -151,15 +144,15 @@ const Navbar = () => {
             
             <div className="border-t border-neutral-200 my-2"></div>
             
-            <Link to="/cart" className="block px-4 py-3 text-neutral-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg font-medium transition-colors flex items-center gap-2">
-              <ShoppingCart size={18} />
-              Cart
-              {cartItemCount > 0 && (
-                <span className="bg-red-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+            {cartItemCount > 0 && (
+              <Link to="/cart" className="block px-4 py-3 text-neutral-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg font-medium transition-colors flex items-center gap-2">
+                <span className="text-xl" role="img" aria-label="cart">🛒</span>
+                Cart
+                <span className="bg-blue-600 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
                   {cartItemCount}
                 </span>
-              )}
-            </Link>
+              </Link>
+            )}
             
             {isAuthenticated ? (
               <>
