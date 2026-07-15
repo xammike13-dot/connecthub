@@ -166,45 +166,52 @@ const RentalCard = ({
           </div>
         )}
 
-        {/* Landlord and Actions */}
+        {/* Landlord Info */}
         {landlord && (
-          <div className="flex items-center gap-2 mt-4 pt-3 border-t border-neutral-200">
+          <div className="flex items-center gap-2 mt-4 pt-3 border-t border-neutral-100">
             <Avatar
               src={landlord.avatar}
               alt={landlord.name}
               size="sm"
             />
-
-            <div className="flex-1">
-              <p className="text-sm font-medium text-neutral-700">{landlord.name}</p>
-            </div>
-
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant={isViewed ? 'primary' : 'outline'}
-                onClick={() => onView?.(_id)}
-              >
-                <Eye size={14} /> {isViewed ? 'Viewed' : 'View'}
-              </Button>
-              {isAvailable && (
-                <Button
-                  size="sm"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    if (!user) {
-                      navigate('/login', { state: { from: `/rentals/${_id}` } });
-                      return;
-                    }
-                    navigate(`/checkout/rental/${_id}`);
-                  }}
-                >
-                  <Zap size={14} /> Book
-                </Button>
-              )}
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-neutral-400">Listed by</p>
+              <p className="text-sm font-semibold text-neutral-700 truncate">{landlord.name}</p>
             </div>
           </div>
         )}
+
+        {/* Action Buttons Bar */}
+        <div className="flex gap-2 mt-4 pt-3 border-t border-neutral-200">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              onView?.(_id);
+              navigate(`/rentals/detail/${_id}`);
+            }}
+            className="flex-1 justify-center py-2"
+          >
+            <Eye size={14} /> View Details
+          </Button>
+          {isAvailable && (
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={(e) => {
+                e.preventDefault();
+                if (!user) {
+                  navigate('/login', { state: { from: `/checkout/rental/${_id}` } });
+                  return;
+                }
+                navigate(`/checkout/rental/${_id}`);
+              }}
+              className="flex-1 justify-center bg-blue-600 text-white hover:bg-blue-700 py-2"
+            >
+              <Zap size={14} /> Book Now
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Photo Gallery */}
