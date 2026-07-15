@@ -46,7 +46,7 @@ const BusinessProductsPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { success: toastSuccess, error: toastError } = useToast();
-  const { stats, loading: dashboardLoading } = useBusinessDashboard();
+  const { stats, loading: dashboardLoading, refetch: refetchStats } = useBusinessDashboard();
 
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -170,6 +170,7 @@ const BusinessProductsPage = () => {
       setShowAddModal(false);
 
       toastSuccess('Product created successfully!');
+      refetchStats();
     } catch (error) {
       console.error('Failed to create product:', error);
       toastError(error.response?.data?.message || 'Failed to create product');
@@ -222,6 +223,7 @@ const BusinessProductsPage = () => {
       setShowEditModal(false);
 
       toastSuccess('Product updated successfully!');
+      refetchStats();
     } catch (error) {
       console.error('Failed to update product:', error);
       toastError(error.response?.data?.message || 'Failed to update product');
@@ -247,6 +249,7 @@ const BusinessProductsPage = () => {
       setSelectedProduct(null);
 
       toastSuccess('Product deleted successfully!');
+      refetchStats();
     } catch (error) {
       console.error('Failed to delete product:', error);
       toastError(error.response?.data?.message || 'Failed to delete product');
@@ -279,6 +282,7 @@ const BusinessProductsPage = () => {
       setSelectedProduct(null);
 
       toastSuccess('Stock updated successfully!');
+      refetchStats();
     } catch (error) {
       console.error('Failed to update stock:', error);
       toastError(error.response?.data?.message || 'Failed to update stock');

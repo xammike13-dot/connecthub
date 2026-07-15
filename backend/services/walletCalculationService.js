@@ -113,7 +113,8 @@ export const getDashboardWalletData = async (userId, role = null) => {
   return {
     availableBalance: balances.availableBalance,
     pendingBalance: balances.pendingBalance,
-    totalEarnings: balances.monthlyEarnings, // Dashboard shows monthly earnings
+    totalEarnings: balances.totalEarnings, // Return all-time earnings for consistent dashboard stats
+    totalWithdrawn: balances.totalWithdrawn,
     pendingEarnings: balances.pendingEarnings,
   };
 };

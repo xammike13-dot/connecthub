@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import GuidedWalkthrough from '../components/GuidedWalkthrough';
 import api from '../services/api';
 import { motion } from 'framer-motion';
+import { useSocket } from '../context/SocketContext';
 import {
   Package,
   CheckCircle,
@@ -20,7 +21,8 @@ import {
   Wallet,
   Bell,
   ArrowRight,
-  RefreshCw
+  RefreshCw,
+  Star
 } from 'lucide-react';
 
 const formatCurrency = (amount) => {
@@ -71,6 +73,7 @@ const BusinessDashboard = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [showWalkthrough, setShowWalkthrough] = useState(false);
   const location = useLocation();
+  const { socket } = useSocket();
 
   // Check if walkthrough should be shown
   useEffect(() => {
@@ -78,6 +81,36 @@ const BusinessDashboard = () => {
       setShowWalkthrough(true);
     }
   }, [location.state, user]);
+
+  // Listen for socket events to auto-refresh the dashboard
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleUpdate = () => {
+      console.log('[BusinessDashboard] Real-time event received, refetching dashboard stats...');
+      refetch();
+    };
+
+    socket.on('order_created', handleUpdate);
+    socket.on('order_completed', handleUpdate);
+    socket.on('order_cancelled', handleUpdate);
+    socket.on('order_delivered', handleUpdate);
+    socket.on('payment_confirmed', handleUpdate);
+    socket.on('payment_released', handleUpdate);
+    socket.on('new_order', handleUpdate);
+    socket.on('new_notification', handleUpdate);
+
+    return () => {
+      socket.off('order_created', handleUpdate);
+      socket.off('order_completed', handleUpdate);
+      socket.off('order_cancelled', handleUpdate);
+      socket.off('order_delivered', handleUpdate);
+      socket.off('payment_confirmed', handleUpdate);
+      socket.off('payment_released', handleUpdate);
+      socket.off('new_order', handleUpdate);
+      socket.off('new_notification', handleUpdate);
+    };
+  }, [socket, refetch]);
 
   const walkthroughSteps = [
     {
@@ -190,7 +223,7 @@ const BusinessDashboard = () => {
       </div>
 
       {/* Product Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
         <StatCard
           title="Total Products"
           value={stats?.totalProducts || 0}
@@ -211,7 +244,7 @@ const BusinessDashboard = () => {
           title="Out of Stock"
           value={stats?.outOfStockProducts || 0}
           subtitle="Restocking required"
-          color="warning"
+          color="danger"
           icon={<AlertCircle className="w-6 h-6" />}
         />
 
@@ -221,6 +254,14 @@ const BusinessDashboard = () => {
           subtitle="All-time client orders"
           color="info"
           icon={<ShoppingCart className="w-6 h-6" />}
+        />
+
+        <StatCard
+          title="Business Rating"
+          value={stats?.rating !== undefined ? `${stats.rating.toFixed(1)} / 5.0` : '0.0 / 5.0'}
+          subtitle="Customer feedback score"
+          color="warning"
+          icon={<Star className="w-6 h-6 fill-amber-400 text-amber-500" />}
         />
       </div>
 
@@ -252,7 +293,7 @@ const BusinessDashboard = () => {
       </div>
 
       {/* Financial Overview Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
         <div className="card p-5 bg-white border border-secondary-100 rounded-2xl shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
           <div>
             <p className="text-xs font-bold text-secondary-400 uppercase tracking-wider">Available Balance</p>
@@ -297,6 +338,17 @@ const BusinessDashboard = () => {
           </div>
           <div className="mt-4 text-xs text-secondary-400 font-semibold leading-normal">
             Cumulative business payout logs.
+          </div>
+        </div>
+
+        <div className="card p-5 bg-white border border-secondary-100 rounded-2xl shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+          <div>
+            <p className="text-xs font-bold text-secondary-400 uppercase tracking-wider">Withdrawn Amount</p>
+            <p className="text-2xl font-extrabold text-rose-600 mt-1">{formatCurrency(stats?.totalWithdrawn || 0)}</p>
+            <p className="text-xs text-secondary-500 font-medium mt-1">Transferred to M-Pesa</p>
+          </div>
+          <div className="mt-4 text-xs text-secondary-400 font-semibold leading-normal">
+            Successfully settled payouts.
           </div>
         </div>
       </div>
