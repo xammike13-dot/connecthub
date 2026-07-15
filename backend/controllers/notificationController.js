@@ -1,4 +1,5 @@
 import Notification from '../models/Notification.js';
+import User from '../models/User.js';
 import { asyncHandler, ResponseError } from '../middleware/error.js';
 
 /**
@@ -76,7 +77,7 @@ export const handleWhatsAppMessage = asyncHandler(async (req, res) => {
  */
 export const getNotifications = asyncHandler(async (req, res) => {
   const userId = req.user._id;
-  const { page = 1, limit = 20, type, read } = req.query;
+  const { page = 1, limit = 50, type, read } = req.query; // Increase default limit to display more
 
   let query = { user: userId };
   if (type) query.type = type;
@@ -132,7 +133,7 @@ export const markAsRead = asyncHandler(async (req, res) => {
 
   const notification = await Notification.findOneAndUpdate(
     { _id: notificationId, user: userId },
-    { read: true },
+    { read: true, status: 'read' },
     { new: true }
   );
 
@@ -154,7 +155,7 @@ export const markAllAsRead = asyncHandler(async (req, res) => {
 
   await Notification.updateMany(
     { user: userId, read: false },
-    { read: true }
+    { read: true, status: 'read' }
   );
 
   res.status(200).json({
@@ -234,9 +235,66 @@ export const cleanupOldNotifications = async () => {
  */
 export const createNotification = async (userId, type, title, message, data = {}, actionUrl = null, navigationTarget = null, req = null, userRole = 'customer') => {
   try {
+    // Derive fields for Feature 8 verification
+    let relatedEntityId = data?.orderId || data?.bookingId || data?.rideId || data?.paymentId || data?.transactionId || data?.healthcareOrderId || data?.productId || data?.propertyId || data?.rentalId || null;
+    let relatedEntityType = null;
+
+    if (data?.orderId || data?.healthcareOrderId) {
+      relatedEntityType = 'Order';
+    } else if (data?.bookingId || data?.rentalId || data?.propertyId) {
+      relatedEntityType = 'Rental';
+    } else if (data?.rideId) {
+      relatedEntityType = 'RideRequest';
+    } else if (data?.transactionId || data?.paymentId) {
+      relatedEntityType = 'Transaction';
+    }
+
+    let notificationType = 'general';
+    if (type === 'payment' || type?.includes('payment') || type?.includes('payout')) {
+      notificationType = 'payment';
+    } else if (type?.startsWith('ride') || type?.includes('ride')) {
+      notificationType = 'ride';
+    } else if (type?.includes('booking') || type?.includes('rental') || type?.includes('rent')) {
+      notificationType = 'rental';
+    } else if (type?.startsWith('order') || type === 'new_order' || type?.includes('delivery')) {
+      notificationType = 'order';
+    } else if (type === 'system') {
+      notificationType = 'system';
+    }
+
+    // Determine healthcare subtype
+    if (data?.orderType === 'healthcare' || data?.healthcareOrderId || message?.toLowerCase().includes('medicine') || message?.toLowerCase().includes('healthcare')) {
+      notificationType = 'healthcare';
+    }
+
+    // Allow overriding from parameters
+    if (data?.notificationType) notificationType = data.notificationType;
+    if (data?.relatedEntityId) relatedEntityId = data.relatedEntityId;
+    if (data?.relatedEntityType) relatedEntityType = data.relatedEntityType;
+
+    // Determine if user action is required
+    let actionRequired = false;
+    if (
+      type === 'new_booking' ||
+      type === 'booking_request' ||
+      type === 'new_order' ||
+      type === 'order_delivered' ||
+      type === 'ride_request' ||
+      type === 'ride_awaiting_customer_confirmation' ||
+      data?.actionRequired === true
+    ) {
+      actionRequired = true;
+    }
+
     const notification = await Notification.create({
       user: userId,
+      userId,
       type,
+      notificationType,
+      relatedEntityId,
+      relatedEntityType,
+      actionRequired,
+      status: 'unread',
       title,
       message,
       data,
@@ -245,7 +303,6 @@ export const createNotification = async (userId, type, title, message, data = {}
     });
 
     // Emit real-time notification via Socket.IO if available
-    // Use req.app.get('io') if req is provided, otherwise try global.io
     const io = req ? req.app.get('io') : global.io;
     
     // Use role-specific room targeting for proper notification delivery
@@ -281,7 +338,6 @@ export const createNotification = async (userId, type, title, message, data = {}
       message: typeof message === 'string' ? message.substring(0, 100) : '',
       error: error.message
     });
-    // Return null instead of throwing to prevent breaking business logic
     return null;
   }
 };
@@ -300,7 +356,7 @@ export const createPaymentNotification = async (userId, transaction, navigationT
     'payment',
     title,
     message,
-    { transactionId, amount, status: transaction?.status },
+    { transactionId, amount, status: transaction?.status, relatedEntityId: transactionId, relatedEntityType: 'Transaction' },
     `/payments/${transactionId}`,
     navigationTarget,
     req,
@@ -318,7 +374,7 @@ export const createRideNotification = async (userId, ride, status, userRole = 'c
   let title = 'Ride Update';
   let message = customMessage || `Your ride ${rideIdSuffix} has been updated.`;
   let notificationType = 'ride';
-  let navigationTarget = userRole === 'rider' ? '/rider/rides' : '/customer/rides';
+  let navigationTarget = userRole === 'rider' ? '/rider/dashboard' : '/customer/rides';
 
   switch (status) {
     case 'waiting_rider':
@@ -354,7 +410,7 @@ export const createRideNotification = async (userId, ride, status, userRole = 'c
     notificationType,
     title,
     message,
-    { rideId, status },
+    { rideId, status, relatedEntityId: rideId, relatedEntityType: 'RideRequest' },
     `/rides/${rideId}`,
     navigationTarget,
     req,
@@ -373,7 +429,7 @@ export const createRentalNotification = async (userId, rental, booking, status, 
   let title = 'Rental Update';
   let message = customMessage || `Your rental ${rentalIdSuffix} has been updated.`;
   let notificationType = 'rental';
-  let navigationTarget = userRole === 'landlord' ? '/landlord/rentals' : '/customer/bookings';
+  let navigationTarget = userRole === 'landlord' ? '/landlord/bookings' : '/customer/bookings';
 
   switch (status) {
     case 'booking_pending':
@@ -412,7 +468,7 @@ export const createRentalNotification = async (userId, rental, booking, status, 
     notificationType,
     title,
     message,
-    { rentalId, bookingId, status },
+    { rentalId, bookingId, status, relatedEntityId: bookingId, relatedEntityType: 'Rental' },
     `/rentals/${rentalId}`,
     navigationTarget,
     req,
@@ -435,7 +491,6 @@ export const createOrderNotification = async (userId, order, status, userRole = 
     title = 'Order Placed';
     message = `Your order #${orderIdStr.slice(-6).toUpperCase()} has been placed successfully.`;
   } else if (status === 'new_order') {
-    // Special notification for business when they receive a new order
     notificationType = 'new_order';
     title = 'New Order';
     message = 'New order received from customer.';
@@ -485,15 +540,22 @@ export const createOrderNotification = async (userId, order, status, userRole = 
     navigationTarget = '/customer/orders';
   }
 
+  // If orderType is healthcare, override notificationType to healthcare
+  let finalNotificationType = notificationType;
+  if (order.orderType === 'healthcare') {
+    finalNotificationType = 'healthcare';
+  }
+
   return createNotification(
     userId,
-    notificationType,
+    finalNotificationType,
     title,
     message,
-    { orderId: orderIdStr, status },
+    { orderId: orderIdStr, status, orderType: order.orderType, relatedEntityId: orderIdStr, relatedEntityType: 'Order' },
     `/orders/${orderIdStr}`,
     navigationTarget,
-    req
+    req,
+    userRole
   );
 };
 

@@ -4,9 +4,10 @@ import { useLandlordDashboard } from '../hooks/useDashboardData';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
-import api from '../services/api';
+import api, { rentalAPI } from '../services/api';
 import Modal from '../components/ui/Modal';
 import GuidedWalkthrough from '../components/GuidedWalkthrough';
+import { Check, X, Clock, MessageSquare, Calendar, Home, ArrowRight, User } from 'lucide-react';
 
 const StatCard = ({ title, value, subtitle, icon, color = 'primary' }) => {
   const colorClasses = {
@@ -41,7 +42,7 @@ const LandlordDashboard = () => {
   const { user } = useAuth();
   const { success: toastSuccess, error: toastError } = useToast();
   const [refreshing, setRefreshing] = useState(false);
-  const [newBookings, setNewBookings] = useState([]);
+  const [activeBookings, setActiveBookings] = useState([]);
   const [bookingsLoading, setBookingsLoading] = useState(true);
   const [declineModalOpen, setDeclineModalOpen] = useState(false);
   const [declineReason, setDeclineReason] = useState('');
@@ -90,45 +91,47 @@ const LandlordDashboard = () => {
     }
   };
 
-  // Fetch new bookings
-  useEffect(() => {
-    const fetchNewBookings = async () => {
-      try {
-        setBookingsLoading(true);
-        const response = await api.get('/landlord/new-bookings');
-        setNewBookings(response.data.data || []);
-        console.log('[NEW BOOKINGS]', response.data.data);
-      } catch (err) {
-        console.error('Failed to fetch new bookings:', err);
-      } finally {
-        setBookingsLoading(false);
-      }
-    };
+  // Fetch all active bookings
+  const fetchActiveBookings = async () => {
+    try {
+      setBookingsLoading(true);
+      const response = await api.get('/landlord/bookings');
+      const allB = response.data.data || [];
+      // Filter active statuses (pending, confirmed, out_for_handover, active)
+      const filtered = allB.filter(b => ['pending', 'confirmed', 'out_for_handover', 'active'].includes(b.status));
+      // Sort priority: pending > confirmed > out_for_handover > active
+      const priority = { 'pending': 1, 'confirmed': 2, 'out_for_handover': 3, 'active': 4 };
+      filtered.sort((a, b) => (priority[a.status] || 9) - (priority[b.status] || 9));
 
-    fetchNewBookings();
+      setActiveBookings(filtered);
+    } catch (err) {
+      console.error('Failed to fetch bookings:', err);
+    } finally {
+      setBookingsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchActiveBookings();
   }, []);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     await refetch();
-    // Also refresh bookings
-    const response = await api.get('/landlord/new-bookings');
-    setNewBookings(response.data.data || []);
+    await fetchActiveBookings();
     setRefreshing(false);
   };
 
   const handleAcceptBooking = async (booking) => {
     try {
       setProcessing(true);
-      console.log('[ACCEPT BOOKING]', booking);
       await api.put(`/rentals/${booking.rentalId}/bookings/${booking.bookingId}/status`, {
         status: 'confirmed',
         paymentStatus: 'paid'
       });
       toastSuccess('Booking accepted successfully');
-      // Refresh bookings
-      const response = await api.get('/landlord/new-bookings');
-      setNewBookings(response.data.data || []);
+      fetchActiveBookings();
+      refetch();
     } catch (error) {
       console.error('[ACCEPT BOOKING ERROR]', error);
       toastError(error.response?.data?.message || 'Failed to accept booking');
@@ -151,7 +154,6 @@ const LandlordDashboard = () => {
 
     try {
       setProcessing(true);
-      console.log('[DECLINE BOOKING]', selectedBooking, 'Reason:', declineReason);
       await api.put(`/rentals/${selectedBooking.rentalId}/bookings/${selectedBooking.bookingId}/status`, {
         status: 'cancelled',
         declineReason
@@ -160,9 +162,8 @@ const LandlordDashboard = () => {
       setDeclineModalOpen(false);
       setSelectedBooking(null);
       setDeclineReason('');
-      // Refresh bookings
-      const response = await api.get('/landlord/new-bookings');
-      setNewBookings(response.data.data || []);
+      fetchActiveBookings();
+      refetch();
     } catch (error) {
       console.error('[DECLINE BOOKING ERROR]', error);
       toastError(error.response?.data?.message || 'Failed to decline booking');
@@ -216,14 +217,116 @@ const LandlordDashboard = () => {
         <button
           onClick={handleRefresh}
           disabled={refreshing}
-          className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 flex items-center gap-2"
+          className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 flex items-center gap-2 font-bold text-sm shadow-sm"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
+          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
           {refreshing ? 'Refreshing...' : 'Refresh'}
         </button>
       </div>
+
+      {/* FEATURE 1: ACTIVE TASKS AT THE TOP OF EVERY DASHBOARD (Landlord Dashboard) */}
+      {activeBookings.length > 0 && (
+        <div className="bg-orange-50/40 p-5 rounded-2xl border border-orange-100 space-y-4">
+          <div className="flex items-center gap-2">
+            <Clock className="w-5 h-5 text-orange-600 animate-pulse" />
+            <h2 className="text-lg font-extrabold text-neutral-900 uppercase tracking-wide">
+              Active Rental Bookings ({activeBookings.length})
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {activeBookings.map((booking) => {
+              const bookingId = booking.bookingId;
+              const status = booking.status;
+              return (
+                <div key={bookingId} className="bg-white border-2 border-emerald-150 rounded-xl p-4 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 text-emerald-800 text-[10px] font-black uppercase rounded-md border border-emerald-100">
+                        <Home className="w-3 h-3" />
+                        {status === 'pending' ? 'Booking Request' : 'Active Tenancy'}
+                      </span>
+                      <span className="text-[10px] font-black uppercase text-secondary-400">
+                        #{bookingId?.slice(-6).toUpperCase()}
+                      </span>
+                    </div>
+
+                    <h3 className="font-extrabold text-secondary-800 text-sm line-clamp-1">{booking.rentalName}</h3>
+                    <p className="text-xs text-secondary-500 capitalize">{booking.rentalType?.replace('-', ' ')} • {booking.location}</p>
+
+                    <div className="mt-2.5 space-y-1 bg-neutral-50 p-2 rounded-lg border border-neutral-100 text-xs">
+                      <p><span className="font-bold">Tenant:</span> {booking.customer?.name || 'Guest'}</p>
+                      <p><span className="font-bold">Rent:</span> KSh {booking.monthlyPrice?.toLocaleString()}</p>
+                      <p>
+                        <span className="font-bold">Status:</span>
+                        <span className="inline-block ml-2 px-1.5 py-0.5 bg-emerald-100 text-emerald-800 font-extrabold uppercase rounded text-[9px]">
+                          {status}
+                        </span>
+                      </p>
+                    </div>
+
+                    {status === 'pending' && (
+                      <p className="text-[11px] text-amber-600 font-bold bg-amber-50 p-1.5 rounded-lg border border-amber-100 mt-2">
+                        Awaiting landlord approval to secure reservation
+                      </p>
+                    )}
+                    {status === 'confirmed' && (
+                      <p className="text-[11px] text-blue-600 font-bold bg-blue-50 p-1.5 rounded-lg border border-blue-100 mt-2">
+                        Tenant awaiting move-in/check-in confirmation
+                      </p>
+                    )}
+                    {status === 'active' && (
+                      <p className="text-[11px] text-emerald-600 font-bold bg-emerald-50 p-1.5 rounded-lg border border-emerald-100 mt-2">
+                        Active Tenancy
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-neutral-100 flex gap-2 flex-wrap">
+                    {status === 'pending' && (
+                      <>
+                        <button
+                          onClick={() => handleAcceptBooking(booking)}
+                          disabled={processing}
+                          className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white font-extrabold text-xs rounded-lg shadow-sm"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => handleDeclineClick(booking)}
+                          disabled={processing}
+                          className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs rounded-lg"
+                        >
+                          Decline
+                        </button>
+                      </>
+                    )}
+
+                    {status === 'confirmed' && (
+                      <button
+                        onClick={() => navigate('/landlord/bookings')}
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-lg shadow-sm flex items-center gap-1"
+                      >
+                        <Calendar size={12} />
+                        Manage Handover
+                      </button>
+                    )}
+
+                    {booking.customer?.phone && (
+                      <a
+                        href={`tel:${booking.customer.phone}`}
+                        className="px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold text-xs rounded-lg flex items-center gap-1 self-center"
+                      >
+                        <MessageSquare size={12} />
+                        Call Tenant
+                      </a>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -341,7 +444,7 @@ const LandlordDashboard = () => {
             </div>
             <button
               onClick={() => navigate('/landlord/wallet')}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-bold shadow-sm"
             >
               Withdraw
             </button>
@@ -367,69 +470,6 @@ const LandlordDashboard = () => {
             <p className="text-sm text-secondary-500 mt-1">From recent bookings</p>
           </div>
         </div>
-      </div>
-
-      {/* New Bookings Section */}
-      <div className="card p-6">
-        <h2 className="text-xl font-semibold text-secondary-800 mb-4">
-          New Bookings
-        </h2>
-        {bookingsLoading ? (
-          <div className="flex justify-center py-8">
-            <LoadingSpinner size="sm" />
-          </div>
-        ) : newBookings.length === 0 ? (
-          <div className="text-center py-8 text-secondary-500">
-            <p>No new bookings</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {newBookings.map((booking) => (
-              <div key={booking.bookingId} className="border border-secondary-200 rounded-lg p-4 hover:border-primary-500 transition-colors">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div>
-                    <h3 className="font-semibold text-secondary-800">{booking.rentalName}</h3>
-                    <p className="text-sm text-secondary-500 capitalize">{booking.rentalType?.replace('-', ' ')}</p>
-                    <p className="text-sm text-secondary-600 mt-1">{booking.location}</p>
-                    <div className="mt-2 space-y-1">
-                      <p className="text-sm">
-                        <span className="font-medium">Customer:</span> {booking.customer?.name}
-                      </p>
-                      <p className="text-sm">
-                        <span className="font-medium">Phone:</span> {booking.customer?.phone}
-                      </p>
-                      <p className="text-sm">
-                        <span className="font-medium">Monthly Rent:</span> KSh {booking.monthlyPrice?.toLocaleString()}
-                      </p>
-                      <p className="text-sm">
-                        <span className="font-medium">Status:</span>
-                        <span className="inline-block ml-2 px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-semibold rounded">
-                          {booking.status}
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleAcceptBooking(booking)}
-                      disabled={processing}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Accept Booking
-                    </button>
-                    <button
-                      onClick={() => handleDeclineClick(booking)}
-                      disabled={processing}
-                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Decline Booking
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Property Performance */}
