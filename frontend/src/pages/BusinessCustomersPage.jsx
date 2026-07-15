@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
-import { useBusinessDashboard } from '../hooks/useDashboardData';
-import { Search, User, Mail, Phone, ShoppingBag, ArrowUpRight, Award, Wallet } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { businessAPI } from '../services/api';
+import { Search, User, Mail, Phone, ShoppingBag, Award, Wallet, ArrowLeft } from 'lucide-react';
 import Input from '../components/ui/Input';
 import LoadingSpinner from '../components/LoadingSpinner';
+import Button from '../components/ui/Button';
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-KE', {
@@ -14,98 +15,71 @@ const formatCurrency = (amount) => {
 };
 
 const BusinessCustomersPage = () => {
-  const { orders, stats, loading, error } = useBusinessDashboard();
   const [searchQuery, setSearchQuery] = useState('');
   const [customers, setCustomers] = useState([]);
+  const [stats, setStats] = useState({
+    totalCustomers: 0,
+    repeatCustomers: 0,
+    totalSales: 0,
+    averageSpending: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
-  useEffect(() => {
-    if (orders && orders.length > 0) {
-      // Map orders to unique customers with aggregated metrics
-      const customerMap = {};
+  const fetchCustomersData = useCallback(async (search = '', pageNumber = 1) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const params = {
+        search: search || undefined,
+        page: pageNumber,
+        limit: 10,
+      };
 
-      orders.forEach((order) => {
-        const cust = order.customer;
-        if (!cust) return;
+      const response = await businessAPI.getCustomers(params);
 
-        const customerId = cust._id || cust.id || order.customerPhone || 'unknown';
-        const orderAmount = order.finalAmount || order.totalAmount || 0;
-
-        if (!customerMap[customerId]) {
-          customerMap[customerId] = {
-            id: customerId,
-            name: cust.name || 'Anonymous Customer',
-            email: cust.email || 'N/A',
-            phone: order.deliveryAddress?.phone || cust.phone || 'N/A',
-            address: order.deliveryAddress?.address || 'N/A',
-            orderCount: 1,
-            totalSpent: orderAmount,
-            lastOrderDate: new Date(order.createdAt),
-            status: order.status,
-          };
-        } else {
-          customerMap[customerId].orderCount += 1;
-          customerMap[customerId].totalSpent += orderAmount;
-          const currentOrderDate = new Date(order.createdAt);
-          if (currentOrderDate > customerMap[customerId].lastOrderDate) {
-            customerMap[customerId].lastOrderDate = currentOrderDate;
-            customerMap[customerId].status = order.status;
-          }
+      if (response.data?.success) {
+        setCustomers(response.data.data || []);
+        if (response.data.stats) {
+          setStats(response.data.stats);
         }
-      });
-
-      setCustomers(Object.values(customerMap));
-    } else {
-      // Modern interactive fallback demo customers so the page always looks complete
-      setCustomers([
-        {
-          id: 'cust-1',
-          name: 'Jane Wanjiku',
-          email: 'jane.wanjiku@gmail.com',
-          phone: '+254 712 345678',
-          address: 'Apartment 4B, Kilimani, Nairobi',
-          orderCount: 8,
-          totalSpent: 12400,
-          lastOrderDate: new Date(Date.now() - 3600000 * 4), // 4h ago
-          status: 'completed',
-        },
-        {
-          id: 'cust-2',
-          name: 'David Omondi',
-          email: 'david.omondi@yahoo.com',
-          phone: '+254 722 987654',
-          address: 'House 12, Westlands, Nairobi',
-          orderCount: 3,
-          totalSpent: 4500,
-          lastOrderDate: new Date(Date.now() - 3600000 * 25), // 25h ago
-          status: 'processing',
-        },
-        {
-          id: 'cust-3',
-          name: 'Mercy Chepngetich',
-          email: 'mercy.chep@outlook.com',
-          phone: '+254 733 112233',
-          address: 'Ruaka Ridge, Suite 10, Ruaka',
-          orderCount: 12,
-          totalSpent: 28500,
-          lastOrderDate: new Date(Date.now() - 3600000 * 48), // 2 days ago
-          status: 'completed',
-        },
-        {
-          id: 'cust-4',
-          name: 'Michael Mwangi',
-          email: 'm.mwangi@connecthub.co.ke',
-          phone: '+254 701 556677',
-          address: 'Block C, Thika Road Mall, Nairobi',
-          orderCount: 1,
-          totalSpent: 1800,
-          lastOrderDate: new Date(Date.now() - 3600000 * 72), // 3 days ago
-          status: 'cancelled',
+        if (response.data.pagination) {
+          setTotalPages(response.data.pagination.pages || 1);
+          setPage(response.data.pagination.currentPage || 1);
         }
-      ]);
+      } else {
+        throw new Error('Invalid response structure');
+      }
+    } catch (err) {
+      console.error('Error fetching customers:', err);
+      setError(err.response?.data?.message || 'Failed to load customers data');
+    } finally {
+      setLoading(false);
     }
-  }, [orders]);
+  }, []);
 
-  if (loading) {
+  // Debounce search input or fetch when search query changes
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      fetchCustomersData(searchQuery, 1);
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery, fetchCustomersData]);
+
+  const handleRefresh = () => {
+    fetchCustomersData(searchQuery, page);
+  };
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      fetchCustomersData(searchQuery, newPage);
+    }
+  };
+
+  if (loading && customers.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <LoadingSpinner size="lg" />
@@ -113,42 +87,53 @@ const BusinessCustomersPage = () => {
     );
   }
 
-  // Calculate high-level metrics
-  const totalUniqueCustomers = customers.length;
-  const repeatCustomers = customers.filter(c => c.orderCount > 1).length;
-  const totalRevenue = customers.reduce((sum, c) => sum + c.totalSpent, 0);
-  const averageSpent = totalUniqueCustomers > 0 ? totalRevenue / totalUniqueCustomers : 0;
-
-  // Filter customers by search query
-  const filteredCustomers = customers.filter((cust) => {
-    const searchLower = searchQuery.toLowerCase();
-    return (
-      cust.name.toLowerCase().includes(searchLower) ||
-      cust.email.toLowerCase().includes(searchLower) ||
-      cust.phone.toLowerCase().includes(searchLower) ||
-      cust.address.toLowerCase().includes(searchLower)
-    );
-  });
-
   return (
     <div className="space-y-6">
       {/* Title */}
-      <div>
-        <h1 className="text-2xl font-bold text-secondary-800 flex items-center gap-2">
-          <User className="w-6 h-6 text-primary-600" />
-          Customers
-        </h1>
-        <p className="text-secondary-500 mt-1">
-          Monitor your customer list, order count, and purchase histories.
-        </p>
+      <div className="flex items-center justify-between flex-wrap gap-4 bg-white p-5 border border-secondary-100 rounded-2xl shadow-sm">
+        <div>
+          <h1 className="text-2xl font-bold text-secondary-800 flex items-center gap-2">
+            <User className="w-6 h-6 text-primary-650" />
+            Customers
+          </h1>
+          <p className="text-secondary-500 mt-1 text-sm font-medium">
+            Monitor your customer list, order count, and purchase histories directly from the database.
+          </p>
+        </div>
+        <button
+          onClick={handleRefresh}
+          className="px-4 py-2 bg-primary-600 hover:bg-primary-705 text-white rounded-xl font-semibold text-sm shadow-sm transition-colors"
+        >
+          Refresh Data
+        </button>
       </div>
+
+      {/* Error state */}
+      {error && (
+        <div className="card bg-red-50 border border-red-200 p-6 rounded-2xl">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <h3 className="text-lg font-bold text-red-800">Error Loading Customers</h3>
+              <p className="text-red-600 text-sm mt-1">{error}</p>
+            </div>
+            <button
+              onClick={handleRefresh}
+              className="px-4 py-2 bg-red-650 text-white rounded-xl hover:bg-red-700 transition-colors font-semibold"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Metrics Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="card p-5 bg-white shadow-sm border border-secondary-100 rounded-xl flex items-center justify-between">
           <div>
-            <p className="text-sm text-secondary-500 font-medium">Total Customers</p>
-            <p className="text-2xl font-bold text-secondary-800 mt-1">{totalUniqueCustomers}</p>
+            <p className="text-xs font-bold text-secondary-400 uppercase tracking-wider">Total Customers</p>
+            <p className="text-2xl font-extrabold text-secondary-800 mt-1">
+              {stats.totalCustomers}
+            </p>
           </div>
           <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600 shadow-inner">
             <User className="w-6 h-6" />
@@ -157,8 +142,10 @@ const BusinessCustomersPage = () => {
 
         <div className="card p-5 bg-white shadow-sm border border-secondary-100 rounded-xl flex items-center justify-between">
           <div>
-            <p className="text-sm text-secondary-500 font-medium">Repeat Customers</p>
-            <p className="text-2xl font-bold text-green-600 mt-1">{repeatCustomers}</p>
+            <p className="text-xs font-bold text-secondary-400 uppercase tracking-wider">Repeat Customers</p>
+            <p className="text-2xl font-extrabold text-green-600 mt-1">
+              {stats.repeatCustomers}
+            </p>
           </div>
           <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center text-green-600 shadow-inner">
             <Award className="w-6 h-6" />
@@ -167,8 +154,10 @@ const BusinessCustomersPage = () => {
 
         <div className="card p-5 bg-white shadow-sm border border-secondary-100 rounded-xl flex items-center justify-between">
           <div>
-            <p className="text-sm text-secondary-500 font-medium">Total Sales Revenue</p>
-            <p className="text-2xl font-bold text-secondary-800 mt-1">{formatCurrency(totalRevenue)}</p>
+            <p className="text-xs font-bold text-secondary-400 uppercase tracking-wider">Total Sales Revenue</p>
+            <p className="text-2xl font-extrabold text-secondary-800 mt-1">
+              {formatCurrency(stats.totalSales)}
+            </p>
           </div>
           <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center text-purple-600 shadow-inner">
             <Wallet className="w-6 h-6" />
@@ -177,8 +166,10 @@ const BusinessCustomersPage = () => {
 
         <div className="card p-5 bg-white shadow-sm border border-secondary-100 rounded-xl flex items-center justify-between">
           <div>
-            <p className="text-sm text-secondary-500 font-medium">Average Customer Spend</p>
-            <p className="text-2xl font-bold text-blue-600 mt-1">{formatCurrency(averageSpent)}</p>
+            <p className="text-xs font-bold text-secondary-400 uppercase tracking-wider">Average Customer Spend</p>
+            <p className="text-2xl font-extrabold text-blue-600 mt-1">
+              {formatCurrency(stats.averageSpending)}
+            </p>
           </div>
           <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600 shadow-inner">
             <ShoppingBag className="w-6 h-6" />
@@ -199,10 +190,13 @@ const BusinessCustomersPage = () => {
       </div>
 
       {/* Main content table/list */}
-      {filteredCustomers.length === 0 ? (
-        <div className="card bg-white p-12 text-center rounded-xl border border-secondary-100 shadow-sm">
-          <User className="w-12 h-12 mx-auto text-secondary-300 mb-3" />
-          <p className="text-secondary-500 font-medium">No customers found matching your search</p>
+      {customers.length === 0 ? (
+        <div className="card bg-white p-12 text-center rounded-xl border border-secondary-100 shadow-sm flex flex-col items-center justify-center">
+          <User className="w-12 h-12 text-secondary-300 mb-3" />
+          <p className="text-secondary-700 font-semibold text-base">No customers found</p>
+          <p className="text-secondary-400 text-sm mt-1 max-w-sm">
+            {searchQuery ? "Try refining your search query to find your registered users." : "Once customers place orders with your business, they will appear here."}
+          </p>
         </div>
       ) : (
         <>
@@ -220,7 +214,7 @@ const BusinessCustomersPage = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-secondary-100">
-                  {filteredCustomers.map((cust) => (
+                  {customers.map((cust) => (
                     <tr key={cust.id} className="hover:bg-secondary-50/50 transition-colors">
                       <td className="py-4 px-6">
                         <div className="flex items-center gap-3">
@@ -259,10 +253,10 @@ const BusinessCustomersPage = () => {
                       </td>
                       <td className="py-4 px-6 text-right">
                         <p className="text-sm text-secondary-700 font-medium">
-                          {cust.lastOrderDate.toLocaleDateString()}
+                          {new Date(cust.lastOrderDate).toLocaleDateString()}
                         </p>
                         <p className="text-xs text-secondary-400 mt-0.5">
-                          {cust.lastOrderDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(cust.lastOrderDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </td>
                     </tr>
@@ -274,7 +268,7 @@ const BusinessCustomersPage = () => {
 
           {/* Mobile/Tablet Card Grid View */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:hidden gap-4">
-            {filteredCustomers.map((cust) => (
+            {customers.map((cust) => (
               <div key={cust.id} className="card p-5 bg-white border border-secondary-100 rounded-xl shadow-sm hover:shadow-md transition-shadow relative overflow-hidden flex flex-col justify-between">
                 <div className="space-y-4">
                   {/* Top line with Avatar */}
@@ -310,13 +304,36 @@ const BusinessCustomersPage = () => {
                   <div className="text-right">
                     <span className="text-xs text-secondary-400 font-medium block">{cust.orderCount} Orders</span>
                     <span className="text-xs text-secondary-500 font-semibold bg-secondary-100 px-2.5 py-1 rounded-full inline-block mt-1">
-                      {cust.lastOrderDate.toLocaleDateString()}
+                      {new Date(cust.lastOrderDate).toLocaleDateString()}
                     </span>
                   </div>
                 </div>
               </div>
             ))}
           </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between p-4 bg-white border border-secondary-100 rounded-xl shadow-sm">
+              <button
+                onClick={() => handlePageChange(page - 1)}
+                disabled={page === 1}
+                className="px-4 py-2 border rounded-xl text-sm font-medium hover:bg-secondary-50 disabled:opacity-50 transition-colors"
+              >
+                Previous
+              </button>
+              <span className="text-sm font-semibold text-secondary-600">
+                Page {page} of {totalPages}
+              </span>
+              <button
+                onClick={() => handlePageChange(page + 1)}
+                disabled={page === totalPages}
+                className="px-4 py-2 border rounded-xl text-sm font-medium hover:bg-secondary-50 disabled:opacity-50 transition-colors"
+              >
+                Next
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>

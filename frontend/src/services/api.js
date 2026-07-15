@@ -196,6 +196,7 @@ export const businessAPI = {
   getProductsByBusiness: (businessId, params) => api.get(`/products/business/${businessId}`, { params }),
   getOrders: (params) => api.get('/business/orders', { params }),
   getDashboardStats: () => api.get('/business/dashboard/stats'),
+  getCustomers: (params) => api.get('/business/customers', { params }),
 };
 
 // Wishlist APIs
