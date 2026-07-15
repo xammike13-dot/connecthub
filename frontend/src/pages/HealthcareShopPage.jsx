@@ -29,7 +29,7 @@ const sortOptions = [
 
 const HealthcareShopPage = () => {
   const navigate = useNavigate();
-  const { addToCart } = useCart();
+  const { addToCart, cartItemCount, cartTotal } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
   const { user } = useAuth();
 
@@ -326,6 +326,32 @@ const HealthcareShopPage = () => {
           </motion.div>
         )}
       </div>
+
+      {/* Sticky Cart Summary */}
+      {cartItemCount > 0 && (
+        <div className="sticky top-[140px] md:top-[144px] z-25 bg-blue-600 text-white shadow-md transition-all duration-300">
+          <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <span className="text-xl sm:text-2xl" role="img" aria-label="cart">🛒</span>
+              <div>
+                <p className="text-xs sm:text-sm font-extrabold tracking-tight">
+                  Cart ({cartItemCount} {cartItemCount === 1 ? 'Item' : 'Items'})
+                </p>
+                <p className="text-[10px] sm:text-xs font-bold text-blue-100">
+                  KSh {cartTotal?.toLocaleString()}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => navigate('/cart')}
+              className="bg-white text-blue-600 hover:bg-blue-50 transition-colors font-extrabold py-1.5 px-3 sm:px-4 rounded-lg text-xs sm:text-sm shadow-sm flex items-center gap-1 sm:gap-1.5"
+            >
+              <span>View Cart</span>
+              <span className="font-bold">→</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Product Grid */}
       <div className="max-w-7xl mx-auto px-4 py-6">
