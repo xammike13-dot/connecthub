@@ -73,17 +73,22 @@ export const getProducts = asyncHandler(async (req, res) => {
 
   let query = {};
 
-  if (category) query.category = category;
   if (business) query.business = business;
 
-  // Exclude healthcare products from marketplace by default (case-insensitive, with or without space)
-  if (excludeHealthcare === 'true' || excludeHealthcare === true) {
+  if (category) {
+    const categoryLower = category.toLowerCase();
+    if (categoryLower === 'healthcare' || categoryLower === 'health care') {
+      query.category = /health ?care/i;
+    } else if (categoryLower === 'food' || categoryLower === 'food-stuffs' || categoryLower === 'food stuffs') {
+      query.category = { $in: ['Food', 'Food Stuffs', 'food-stuffs', 'food'] };
+    } else if (categoryLower === 'household' || categoryLower === 'households' || categoryLower === 'house-shopping' || categoryLower === 'house shopping') {
+      query.category = { $in: ['Household', 'Households', 'households', 'House Shopping', 'house-shopping', 'household'] };
+    } else {
+      query.category = new RegExp(`^${category}$`, 'i');
+    }
+  } else if (excludeHealthcare === 'true' || excludeHealthcare === true) {
+    // Exclude healthcare products from marketplace by default (case-insensitive, with or without space)
     query.category = { $not: /health ?care/i };
-  }
-
-  // If category is specifically 'healthcare', allow it (for healthcare page) - case-insensitive, with or without space
-  if (category && (category.toLowerCase() === 'healthcare' || category.toLowerCase() === 'health care')) {
-    query.category = /health ?care/i;
   }
 
   if (search) {
