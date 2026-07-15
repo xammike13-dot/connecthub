@@ -1,6 +1,9 @@
 import Order from '../models/Order.js';
 import Rental from '../models/Rental.js';
 import RideRequest from '../models/RideRequest.js';
+import Wallet from '../models/Wallet.js';
+import Wishlist from '../models/Wishlist.js';
+import Notification from '../models/Notification.js';
 import { asyncHandler, ResponseError } from '../middleware/error.js';
 
 /**
@@ -34,6 +37,19 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
     .filter(o => o.status === 'delivered' || o.paymentStatus === 'paid')
     .reduce((sum, o) => sum + (o.finalAmount || 0), 0);
 
+  // Get Wishlist count
+  const wishlist = await Wishlist.findOne({ customer: customerId });
+  const wishlistCount = wishlist ? (wishlist.products?.length || 0) + (wishlist.rentals?.length || 0) : 0;
+
+  // Get customer unread notifications count
+  const unreadNotificationsCount = await Notification.countDocuments({ user: customerId, read: false });
+
+  // Get customer Wallet
+  let wallet = await Wallet.findOne({ user: customerId });
+  if (!wallet) {
+    wallet = await Wallet.create({ user: customerId });
+  }
+
   // Get recent orders (last 5)
   const recentOrders = orders
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
@@ -56,6 +72,10 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
       rides: totalRides,
       healthcareOrders,
       totalSpent,
+      wishlistCount,
+      unreadNotificationsCount,
+      walletBalance: wallet.balance,
+      walletPending: wallet.pendingBalance,
       recentOrders,
     },
   });

@@ -18,7 +18,10 @@ import {
   Phone,
   Mail,
   Layout,
+  ShoppingCart,
+  Wallet,
 } from 'lucide-react';
+import { useCart } from '../context/CartContext';
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-KE', {
@@ -41,6 +44,7 @@ const formatDate = (dateString) => {
 const CustomerDashboard = () => {
   const { user, refreshProfile } = useAuth();
   const { unreadCount } = useSocket();
+  const { cartItemCount } = useCart();
   const navigate = useNavigate();
   const [dashboardData, setDashboardData] = useState(null);
   const [orders, setOrders] = useState([]);
@@ -247,7 +251,7 @@ const CustomerDashboard = () => {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="card bg-white p-5 rounded-xl border border-neutral-200 shadow-sm flex items-center justify-between">
               <div>
-                <p className="text-sm text-neutral-500 mb-1">Total Orders</p>
+                <p className="text-sm text-neutral-500 mb-1">Orders</p>
                 <p className="text-2xl font-bold text-neutral-800">
                   {dashboardData?.orders || 0}
                 </p>
@@ -259,7 +263,7 @@ const CustomerDashboard = () => {
 
             <div className="card bg-white p-5 rounded-xl border border-neutral-200 shadow-sm flex items-center justify-between">
               <div>
-                <p className="text-sm text-neutral-500 mb-1">Active Rentals</p>
+                <p className="text-sm text-neutral-500 mb-1">Rentals</p>
                 <p className="text-2xl font-bold text-neutral-800">
                   {dashboardData?.rentals || 0}
                 </p>
@@ -271,28 +275,67 @@ const CustomerDashboard = () => {
 
             <div className="card bg-white p-5 rounded-xl border border-neutral-200 shadow-sm flex items-center justify-between">
               <div>
-                <p className="text-sm text-neutral-500 mb-1">Total Rides</p>
+                <p className="text-sm text-neutral-500 mb-1">Wishlist</p>
                 <p className="text-2xl font-bold text-neutral-800">
-                  {dashboardData?.rides || 0}
+                  {dashboardData?.wishlistCount || 0}
                 </p>
               </div>
-              <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
-                <Bike className="w-6 h-6 text-yellow-600" />
+              <div className="w-12 h-12 bg-pink-100 rounded-xl flex items-center justify-center">
+                <Heart className="w-6 h-6 text-pink-600 fill-current" />
               </div>
             </div>
 
             <div className="card bg-white p-5 rounded-xl border border-neutral-200 shadow-sm flex items-center justify-between">
               <div>
-                <p className="text-sm text-neutral-500 mb-1">Notifications</p>
+                <p className="text-sm text-neutral-500 mb-1">Cart Items</p>
                 <p className="text-2xl font-bold text-neutral-800">
-                  {unreadCount}
+                  {cartItemCount || 0}
+                </p>
+              </div>
+              <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
+                <ShoppingCart className="w-6 h-6 text-yellow-600" />
+              </div>
+            </div>
+          </div>
+
+          {/* Wallet and Notifications Row */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+            <div className="card bg-white p-5 rounded-xl border border-neutral-200 shadow-sm flex items-center justify-between">
+              <div>
+                <p className="text-sm text-neutral-500 mb-1">Wallet Balance</p>
+                <p className="text-2xl font-bold text-green-600">
+                  {formatCurrency(dashboardData?.walletBalance || 0)}
+                </p>
+              </div>
+              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                <Wallet className="w-6 h-6 text-green-600" />
+              </div>
+            </div>
+
+            <div className="card bg-white p-5 rounded-xl border border-neutral-200 shadow-sm flex items-center justify-between">
+              <div>
+                <p className="text-sm text-neutral-500 mb-1">Pending Wallet Funds</p>
+                <p className="text-2xl font-bold text-amber-600">
+                  {formatCurrency(dashboardData?.walletPending || 0)}
+                </p>
+              </div>
+              <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
+                <Wallet className="w-6 h-6 text-amber-600" />
+              </div>
+            </div>
+
+            <div className="card bg-white p-5 rounded-xl border border-neutral-200 shadow-sm flex items-center justify-between">
+              <div>
+                <p className="text-sm text-neutral-500 mb-1">Unread Notifications</p>
+                <p className="text-2xl font-bold text-red-600">
+                  {dashboardData?.unreadNotificationsCount || unreadCount || 0}
                 </p>
               </div>
               <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center relative">
                 <Bell className="w-6 h-6 text-red-600" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                    {unreadCount}
+                {(dashboardData?.unreadNotificationsCount || unreadCount || 0) > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center animate-pulse">
+                    {dashboardData?.unreadNotificationsCount || unreadCount}
                   </span>
                 )}
               </div>

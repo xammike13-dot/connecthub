@@ -85,6 +85,10 @@ const RiderDashboard = () => {
     pendingEarnings: 0,
     claimableBalance: 0,
     withdrawnAmount: 0,
+    rating: 5.0,
+    reviewsCount: 0,
+    rideRequestsCount: 0,
+    distanceTravelled: 0,
   });
   
   const [isOnline, setIsOnline] = useState(false);
@@ -129,6 +133,10 @@ const RiderDashboard = () => {
         pendingEarnings: statsData.pendingEarnings || 0,
         claimableBalance: statsData.claimableBalance || 0,
         withdrawnAmount: statsData.withdrawnAmount || 0,
+        rating: statsData.rating || 5.0,
+        reviewsCount: statsData.reviewsCount || 0,
+        rideRequestsCount: statsData.rideRequestsCount || 0,
+        distanceTravelled: statsData.distanceTravelled || 0,
       });
       
       setRecentRides(statsData.recentRides || []);
@@ -673,15 +681,66 @@ const RiderDashboard = () => {
       </div>
 
       {/* Additional Stats Row */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="card">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-secondary-500 mb-1">Rating</p>
+              <p className="text-2xl font-bold text-secondary-800">{stats.rating} / 5.0</p>
+            </div>
+            <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
+              <Star className="w-5 h-5 text-yellow-500 fill-current" />
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-secondary-500 mb-1">Reviews</p>
+              <p className="text-2xl font-bold text-secondary-800">{stats.reviewsCount}</p>
+            </div>
+            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+              <MessageCircle className="w-5 h-5 text-blue-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-secondary-500 mb-1">Ride Requests Waiting</p>
+              <p className="text-2xl font-bold text-secondary-800">{stats.rideRequestsCount}</p>
+            </div>
+            <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+              <AlertCircle className="w-5 h-5 text-orange-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-secondary-500 mb-1">Distance Travelled</p>
+              <p className="text-2xl font-bold text-secondary-800">{formatRideDistance(stats.distanceTravelled)}</p>
+            </div>
+            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+              <Navigation className="w-5 h-5 text-green-600" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Financial Breakdown Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-secondary-500 mb-1">Pending Earnings</p>
-              <p className="text-2xl font-bold text-secondary-800">{formatCurrency(stats.pendingEarnings)}</p>
+              <p className="text-xl font-bold text-secondary-800">{formatCurrency(stats.pendingEarnings)}</p>
             </div>
-            <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-              <Clock className="w-5 h-5 text-orange-600" />
+            <div className="w-10 h-10 bg-orange-50 rounded-lg flex items-center justify-center">
+              <Clock className="w-5 h-5 text-orange-500" />
             </div>
           </div>
         </div>
@@ -690,10 +749,10 @@ const RiderDashboard = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-secondary-500 mb-1">Withdrawn Amount</p>
-              <p className="text-2xl font-bold text-secondary-800">{formatCurrency(stats.withdrawnAmount)}</p>
+              <p className="text-xl font-bold text-secondary-800">{formatCurrency(stats.withdrawnAmount)}</p>
             </div>
-            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-              <DollarSign className="w-5 h-5 text-green-600" />
+            <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center">
+              <DollarSign className="w-5 h-5 text-green-500" />
             </div>
           </div>
         </div>
@@ -702,10 +761,10 @@ const RiderDashboard = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-secondary-500 mb-1">Cancelled Trips</p>
-              <p className="text-2xl font-bold text-secondary-800">{stats.cancelledTrips}</p>
+              <p className="text-xl font-bold text-secondary-800">{stats.cancelledTrips}</p>
             </div>
-            <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-              <AlertTriangle className="w-5 h-5 text-red-600" />
+            <div className="w-10 h-10 bg-red-50 rounded-lg flex items-center justify-center">
+              <AlertTriangle className="w-5 h-5 text-red-500" />
             </div>
           </div>
         </div>

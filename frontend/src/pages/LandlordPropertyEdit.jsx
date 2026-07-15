@@ -19,6 +19,9 @@ const ROOM_TYPES = [
   { value: 'one-bedroom', label: 'One Bedroom' },
   { value: 'two-bedroom', label: 'Two Bedroom' },
   { value: 'three-bedroom', label: 'Three Bedroom' },
+  { value: 'apartment', label: 'Apartment' },
+  { value: 'hostel', label: 'Hostel' },
+  { value: 'commercial', label: 'Commercial Space' },
 ];
 
 const AMENITIES = [

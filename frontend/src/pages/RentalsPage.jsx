@@ -21,11 +21,13 @@ import { useToast } from '../components/Toast';
 
 const rentalTypes = [
   { id: 'all', name: 'All Types', icon: Home },
-  { id: 'single', name: 'Single Room', icon: Home },
-  { id: 'bedsitter', name: 'Bedsitter', icon: Building },
-  { id: 'one bedroom', name: 'One Bedroom', icon: Building },
-  { id: 'two bedroom', name: 'Two Bedroom', icon: Building },
-  { id: 'three bedroom', name: 'Three Bedroom', icon: Building },
+  { id: 'bedsitter', name: 'Bedsitters', icon: Building },
+  { id: 'single', name: 'Single Rooms', icon: Home },
+  { id: 'one-bedroom', name: 'One Bedroom', icon: Building },
+  { id: 'two-bedroom', name: 'Two Bedroom', icon: Building },
+  { id: 'apartment', name: 'Apartments', icon: Building },
+  { id: 'hostel', name: 'Hostels', icon: Home },
+  { id: 'commercial', name: 'Commercial Spaces', icon: Building },
 ];
 
 const RentalsPage = () => {
