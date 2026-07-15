@@ -34,11 +34,14 @@ const formatCurrency = (amount) => {
 
 // Category and subcategory structure as per requirements
 const categories = {
-  'Food Stuffs': ['Snacks', 'Beverages', 'Fries'],
-  'Households': ['New', 'Second Hand'],
+  'Food': ['Snacks', 'Beverages', 'Fries', 'Rice', 'Unga', 'Cooking Oil', 'Salt', 'Sugar', 'Flour', 'Soap', 'Other Essentials'],
+  'Household': ['New', 'Second Hand', 'Kitchenware', 'Cleaning', 'Furniture'],
+  'Electronics': ['Phones', 'Accessories', 'Home Appliances', 'Computers'],
+  'Fashion': ['Men', 'Women', 'Kids', 'Shoes', 'Bags'],
   'Gas': [],
   'Wines & Spirits': [],
-  'House Shopping': ['Rice', 'Unga', 'Cooking Oil', 'Salt', 'Sugar', 'Flour', 'Soap', 'Other Essentials'],
+  'Second Hand': [],
+  'Test': [],
   'Health Care': ['Medicines', 'Medical Supplies', 'Pharmacy Products'],
 };
 
