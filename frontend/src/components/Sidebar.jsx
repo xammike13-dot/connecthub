@@ -23,6 +23,7 @@ const Sidebar = ({ isOpen, onClose }) => {
           { path: '/customer/healthcare', label: 'Healthcare', icon: 'medical' },
           { path: '/customer/rides', label: 'My Rides', icon: 'transport' },
           { path: '/customer/settings', label: 'Settings', icon: 'settings' },
+          { path: '/customer/help', label: 'Help Center', icon: 'help' },
         ];
       case 'landlord':
         return [
@@ -33,6 +34,7 @@ const Sidebar = ({ isOpen, onClose }) => {
           { path: '/landlord/notifications', label: 'Notifications', icon: 'calendar' },
           { path: '/landlord/profile', label: 'Profile', icon: 'user' },
           { path: '/landlord/settings', label: 'Settings', icon: 'settings' },
+          { path: '/landlord/help', label: 'Help Center', icon: 'help' },
         ];
       case 'business':
         return [
@@ -43,6 +45,7 @@ const Sidebar = ({ isOpen, onClose }) => {
           { path: '/business/analytics', label: 'Analytics', icon: 'chart' },
           { path: '/business/profile', label: 'Profile', icon: 'user' },
           { path: '/business/settings', label: 'Settings', icon: 'settings' },
+          { path: '/business/help', label: 'Help Center', icon: 'help' },
         ];
       case 'rider':
         return [
@@ -52,6 +55,7 @@ const Sidebar = ({ isOpen, onClose }) => {
           { path: '/rider/earnings', label: 'Earnings', icon: 'money' },
           { path: '/rider/profile', label: 'Profile', icon: 'user' },
           { path: '/rider/settings', label: 'Settings', icon: 'settings' },
+          { path: '/rider/help', label: 'Help Center', icon: 'help' },
         ];
       case 'admin':
         return [
@@ -141,6 +145,11 @@ const Sidebar = ({ isOpen, onClose }) => {
       user: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+        </svg>
+      ),
+      help: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       ),
     };

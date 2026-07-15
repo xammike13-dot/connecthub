@@ -48,20 +48,18 @@ const HealthcareShopPage = () => {
 
   // Load viewed products from localStorage on mount
   useEffect(() => {
-    if (user) {
-      const viewed = new Set();
-      Object.keys(localStorage).forEach(key => {
-        if (key.startsWith('viewed_product_')) {
-          const productId = key.replace('viewed_product_', '');
-          if (localStorage.getItem(key) === 'true') {
-            viewed.add(productId);
-          }
+    const viewed = new Set();
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('viewed_product_')) {
+        const productId = key.replace('viewed_product_', '');
+        if (localStorage.getItem(key) === 'true') {
+          viewed.add(productId);
         }
-      });
-      setViewedProducts(viewed);
-      console.log('[VIEWED PRODUCTS LOADED]', viewed.size, 'products');
-    }
-  }, [user]);
+      }
+    });
+    setViewedProducts(viewed);
+    console.log('[VIEWED PRODUCTS LOADED]', viewed.size, 'products');
+  }, []);
 
   // Fetch healthcare products only
   const fetchProducts = async (pageNumber = 1, append = false) => {
@@ -143,37 +141,37 @@ const HealthcareShopPage = () => {
 
   const handleViewProduct = async (productId) => {
     console.log('[VIEW CLICK] Product:', productId);
-    if (user) {
-      // Check if already viewed using local state
-      const alreadyViewed = viewedProducts.has(productId);
+    // Check if already viewed using local state
+    const alreadyViewed = viewedProducts.has(productId);
 
-      if (!alreadyViewed) {
-        try {
-          console.log('[TRACKING VIEW] Product:', productId);
+    if (!alreadyViewed) {
+      try {
+        console.log('[TRACKING VIEW] Product:', productId);
+        if (user) {
           await productAPI.trackView(productId);
-          localStorage.setItem(`viewed_product_${productId}`, 'true');
-
-          // Update local viewed products state immediately
-          setViewedProducts(prev => new Set([...prev, productId]));
-          console.log('[VIEW STATE UPDATED] Product:', productId, 'added to viewed set');
-
-          // Update local product state to reflect view count change
-          setProducts(prevProducts =>
-            prevProducts.map(product => {
-              if (product._id === productId) {
-                const newCount = (product.views || 0) + 1;
-                console.log('[VIEW COUNT UPDATED] Product:', productId, 'Old:', product.views, 'New:', newCount);
-                return { ...product, views: newCount };
-              }
-              return product;
-            })
-          );
-        } catch (error) {
-          console.error('Failed to track view:', error);
         }
-      } else {
-        console.log('[VIEW ALREADY TRACKED] Product:', productId);
+        localStorage.setItem(`viewed_product_${productId}`, 'true');
+
+        // Update local viewed products state immediately
+        setViewedProducts(prev => new Set([...prev, productId]));
+        console.log('[VIEW STATE UPDATED] Product:', productId, 'added to viewed set');
+
+        // Update local product state to reflect view count change
+        setProducts(prevProducts =>
+          prevProducts.map(product => {
+            if (product._id === productId) {
+              const newCount = (product.views || 0) + 1;
+              console.log('[VIEW COUNT UPDATED] Product:', productId, 'Old:', product.views, 'New:', newCount);
+              return { ...product, views: newCount };
+            }
+            return product;
+          })
+        );
+      } catch (error) {
+        console.error('Failed to track view:', error);
       }
+    } else {
+      console.log('[VIEW ALREADY TRACKED] Product:', productId);
     }
     navigate(`/marketplace/${productId}`);
   };

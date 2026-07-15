@@ -236,13 +236,13 @@ const ProductCard = ({
             onClick={() => onView?.(_id)}
             className={`py-2 px-1 sm:px-1.5 rounded-lg text-[10px] sm:text-xs font-bold flex items-center justify-center gap-1 border transition-all ${
               isViewed
-                ? 'bg-blue-50 text-blue-600 border-blue-200'
+                ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
                 : 'bg-neutral-50 text-neutral-600 border-neutral-200 hover:bg-neutral-100 hover:text-neutral-800'
             }`}
             title="View details"
           >
             <Eye size={12} />
-            <span>Detail</span>
+            <span>View</span>
           </button>
           {isInCart(_id) ? (
             <button
