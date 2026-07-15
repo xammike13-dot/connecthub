@@ -175,8 +175,8 @@ transactionSchema.index({ provider: 1, status: 1 });
 transactionSchema.index({ status: 1, createdAt: -1 });
 transactionSchema.index({ mpesaReceiptNumber: 1 });
 transactionSchema.index({ checkoutRequestID: 1 });
-// Unique index on relatedEntity to prevent multiple transactions linking to same entity
-transactionSchema.index({ relatedEntity: 1 }, { unique: true, sparse: true });
+// Non-unique index on relatedEntity to support multiple transactions referencing different or same optional entities (e.g., monthly rent, retry payments, or multiple pending payments with null relatedEntity)
+transactionSchema.index({ relatedEntity: 1 });
 // Index on relatedEntity + relatedEntityType for efficient queries
 transactionSchema.index({ relatedEntity: 1, relatedEntityType: 1 });
 

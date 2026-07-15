@@ -6,6 +6,7 @@
 import mongoose from 'mongoose';
 import Transaction from './models/Transaction.js';
 import { config } from 'dotenv';
+import { MongoMemoryServer } from 'mongodb-memory-server';
 
 config();
 
@@ -16,16 +17,24 @@ async function runPaymentFlowTest() {
   console.log('  PAYMENT FLOW RUNTIME TEST');
   console.log('═══════════════════════════════════════════════════════════\n');
 
+  let mongoServer;
   try {
     // Connect to MongoDB
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/connecthub');
-    console.log('[TEST] ✓ Connected to MongoDB\n');
+    let uri = process.env.MONGODB_URI;
+    if (!uri) {
+      console.log('[TEST] MONGODB_URI not set. Starting MongoMemoryServer...');
+      mongoServer = await MongoMemoryServer.create();
+      uri = mongoServer.getUri();
+    }
+    await mongoose.connect(uri);
+    console.log('[TEST] ✓ Connected to MongoDB at', uri, '\n');
 
     // STEP 1: Create a pending transaction (simulates initiatePayment)
     console.log('[TEST] STEP 1: Creating pending transaction...');
     const transaction = await Transaction.create({
       transactionRef: TEST_TRANSACTION_REF,
       type: 'order',
+      relatedEntityType: 'order',
       customer: '60f1b1a1b1b1b1b1b1b1b1b1', // Test customer ID
       provider: '60f1b1a1b1b1b1b1b1b1b1b2', // Test provider ID
       status: 'pending',
@@ -194,11 +203,21 @@ async function runPaymentFlowTest() {
     console.log('but polling ensures redirect even if sockets fail.');
 
     await mongoose.connection.close();
+    if (mongoServer) {
+      await mongoServer.stop();
+    }
     process.exit(0);
   } catch (error) {
     console.error('\n❌ TEST FAILED:', error.message);
     console.error(error);
-    await mongoose.connection.close();
+    try {
+      await mongoose.connection.close();
+    } catch (e) {}
+    if (mongoServer) {
+      try {
+        await mongoServer.stop();
+      } catch (e) {}
+    }
     process.exit(1);
   }
 }

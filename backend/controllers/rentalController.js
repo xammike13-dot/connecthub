@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid';
 import Rental from '../models/Rental.js';
 import Transaction from '../models/Transaction.js';
 import { calculateRentalPayment } from '../utils/paymentCalculator.js';
@@ -1188,25 +1189,37 @@ export const payMonthlyRent = asyncHandler(async (req, res) => {
   const basePrice = rental.monthlyPrice * months;
   const paymentBreakdown = calculateRentalPayment(rental.monthlyPrice, months);
 
+  const transactionRef = `TXN-${uuidv4().slice(0, 8).toUpperCase()}`;
+
   // Create a pending transaction for rent payment
   const transaction = await Transaction.create({
+    transactionRef,
     customer: customerId,
     provider: rental.landlord._id,
-    providerType: 'landlord',
     type: 'rental',
+    status: 'pending',
+    paymentMethod: 'mpesa',
     amount: {
       baseAmount: basePrice,
+      deliveryFee: 0,
       platformFee: paymentBreakdown.platformFee,
       customerShare: paymentBreakdown.customerShare,
       providerShare: paymentBreakdown.providerShare,
+      customerPays: paymentBreakdown.customerPays,
+      providerReceives: paymentBreakdown.providerReceives,
+      platformReceives: paymentBreakdown.platformReceives,
       totalAmount: paymentBreakdown.customerPays,
     },
+    commission: {
+      totalCommission: paymentBreakdown.platformFee,
+      customerShare: paymentBreakdown.customerShare,
+      providerShare: paymentBreakdown.providerShare,
+      providerReceives: paymentBreakdown.providerReceives,
+    },
+    customerPaid: paymentBreakdown.customerPays,
     providerReceives: paymentBreakdown.providerReceives,
-    status: 'pending',
     relatedEntity: rental._id,
     relatedEntityType: 'rental',
-    entityType: 'rental',
-    entityId: rental._id,
     description: `Monthly rent payment for ${rental.rentalName}`,
     metadata: {
       bookingId: booking._id,
@@ -1219,7 +1232,7 @@ export const payMonthlyRent = asyncHandler(async (req, res) => {
     },
   });
 
-  console.log('[PAY MONTHLY RENT] Transaction created:', transaction._id);
+  console.log('[PAY MONTHLY RENT] Transaction created:', transaction._id, 'Ref:', transactionRef);
 
   // Initiate M-Pesa payment
   const phone = req.user.phone;
