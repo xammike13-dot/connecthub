@@ -793,7 +793,7 @@ const RiderDashboard = () => {
 
         {/* Summary Stats */}
         {!loadingTrend && stats.completedTrips > 0 && (
-          <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
             <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200">
               <p className="text-xs text-green-600 font-medium mb-1">Highest</p>
               <p className="text-lg font-bold text-green-700">{formatCurrency(earningsSummary.highest)}</p>
