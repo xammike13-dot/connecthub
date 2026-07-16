@@ -105,6 +105,53 @@ const CustomerDashboard = () => {
     fetchDashboardData();
   }, []);
 
+  // Listen for real-time socket events to update the dashboard automatically
+  const { socket } = useSocket();
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleUpdate = () => {
+      console.log('[CustomerDashboard] Real-time event received, refetching customer data...');
+      fetchDashboardData();
+    };
+
+    socket.on('order_created', handleUpdate);
+    socket.on('order_accepted', handleUpdate);
+    socket.on('order_cancelled', handleUpdate);
+    socket.on('order_delivered', handleUpdate);
+    socket.on('order_completed', handleUpdate);
+    socket.on('payment_confirmed', handleUpdate);
+    socket.on('payment_released', handleUpdate);
+    socket.on('new_notification', handleUpdate);
+    socket.on('ride_request', handleUpdate);
+    socket.on('ride_accepted', handleUpdate);
+    socket.on('ride_status_update', handleUpdate);
+    socket.on('ride_completed_confirmed', handleUpdate);
+    socket.on('booking_accepted', handleUpdate);
+    socket.on('booking_declined', handleUpdate);
+    socket.on('rental_out_for_handover', handleUpdate);
+    socket.on('move_in_confirmed', handleUpdate);
+
+    return () => {
+      socket.off('order_created', handleUpdate);
+      socket.off('order_accepted', handleUpdate);
+      socket.off('order_cancelled', handleUpdate);
+      socket.off('order_delivered', handleUpdate);
+      socket.off('order_completed', handleUpdate);
+      socket.off('payment_confirmed', handleUpdate);
+      socket.off('payment_released', handleUpdate);
+      socket.off('new_notification', handleUpdate);
+      socket.off('ride_request', handleUpdate);
+      socket.off('ride_accepted', handleUpdate);
+      socket.off('ride_status_update', handleUpdate);
+      socket.off('ride_completed_confirmed', handleUpdate);
+      socket.off('booking_accepted', handleUpdate);
+      socket.off('booking_declined', handleUpdate);
+      socket.off('rental_out_for_handover', handleUpdate);
+      socket.off('move_in_confirmed', handleUpdate);
+    };
+  }, [socket]);
+
   const handleRefresh = async () => {
     setRefreshing(true);
     await fetchDashboardData();

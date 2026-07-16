@@ -4,6 +4,7 @@ import { useLandlordDashboard } from '../hooks/useDashboardData';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
+import { useSocket } from '../context/SocketContext';
 import api, { rentalAPI } from '../services/api';
 import Modal from '../components/ui/Modal';
 import GuidedWalkthrough from '../components/GuidedWalkthrough';
@@ -114,6 +115,32 @@ const LandlordDashboard = () => {
   useEffect(() => {
     fetchActiveBookings();
   }, []);
+
+  // Listen for socket events to update Landlord dashboard automatically
+  const { socket } = useSocket();
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleUpdate = () => {
+      console.log('[LandlordDashboard] Real-time event received, refetching landlord stats and bookings...');
+      refetch();
+      fetchActiveBookings();
+    };
+
+    socket.on('new_booking', handleUpdate);
+    socket.on('booking_accepted', handleUpdate);
+    socket.on('booking_declined', handleUpdate);
+    socket.on('move_in_confirmed', handleUpdate);
+    socket.on('new_notification', handleUpdate);
+
+    return () => {
+      socket.off('new_booking', handleUpdate);
+      socket.off('booking_accepted', handleUpdate);
+      socket.off('booking_declined', handleUpdate);
+      socket.off('move_in_confirmed', handleUpdate);
+      socket.off('new_notification', handleUpdate);
+    };
+  }, [socket, refetch]);
 
   const handleRefresh = async () => {
     setRefreshing(true);

@@ -50,6 +50,12 @@ export const createRental = asyncHandler(async (req, res) => {
     images: images || [],
   });
 
+  // Emit real-time socket event
+  const io = req.app.get('io');
+  if (io) {
+    io.emit('rental_created', rental);
+  }
+
   res.status(201).json({
     success: true,
     message: 'Rental created successfully',
@@ -277,6 +283,12 @@ export const updateRental = asyncHandler(async (req, res) => {
     }
   );
 
+  // Emit real-time socket event
+  const io = req.app.get('io');
+  if (io) {
+    io.emit('rental_updated', updatedRental);
+  }
+
   res.status(200).json({
     success: true,
     message: 'Rental updated successfully',
@@ -304,7 +316,14 @@ export const deleteRental = asyncHandler(async (req, res) => {
     );
   }
 
+  const rentalId = rental._id;
   await rental.deleteOne();
+
+  // Emit real-time socket event
+  const io = req.app.get('io');
+  if (io) {
+    io.emit('rental_deleted', { rentalId });
+  }
 
   res.status(200).json({
     success: true,
@@ -386,6 +405,12 @@ export const toggleAvailability = asyncHandler(async (req, res) => {
   rental.isAvailable = !rental.isAvailable;
 
   await rental.save();
+
+  // Emit real-time socket event
+  const io = req.app.get('io');
+  if (io) {
+    io.emit('rental_updated', rental);
+  }
 
   res.status(200).json({
     success: true,
