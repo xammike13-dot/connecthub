@@ -163,6 +163,10 @@ const userSchema = new mongoose.Schema(
           type: String,
           default: '',
         },
+        selectedWorkingAreas: {
+          type: [String],
+          default: [],
+        },
       },
       workingHours: {
         start: String,
@@ -195,6 +199,7 @@ const userSchema = new mongoose.Schema(
       businessCategory: String,
       businessLocation: String,
       businessLogo: String,
+      businessContact: String,
       totalProducts: {
         type: Number,
         default: 0,
@@ -212,6 +217,11 @@ const userSchema = new mongoose.Schema(
     },
     // Landlord specific fields
     landlordProfile: {
+      propertyName: String,
+      propertyDescription: String,
+      propertyLocation: String,
+      propertyLogo: String,
+      contactDetails: String,
       totalProperties: {
         type: Number,
         default: 0,

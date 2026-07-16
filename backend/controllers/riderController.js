@@ -705,8 +705,72 @@ export const getNearbyRiders = asyncHandler(async (req, res) => {
 
   console.log(`[getNearbyRiders] Available riders after filtering:`, availableRiders.length);
 
+  // Helper functions for matching working hours and working areas
+  const getClosestWorkingArea = (lat, lng) => {
+    const areas = [
+      { name: 'Chebaiywa (Cheba)', lat: 0.2800, lng: 35.3000 },
+      { name: 'Stage', lat: 0.2850, lng: 35.2900 },
+      { name: 'Kesses', lat: 0.2900, lng: 35.3100 },
+      { name: 'Mabs', lat: 0.2750, lng: 35.2850 },
+    ];
+    let closestArea = areas[0].name;
+    let minDistance = Infinity;
+    for (const area of areas) {
+      const d = Math.sqrt(Math.pow(lat - area.lat, 2) + Math.pow(lng - area.lng, 2));
+      if (d < minDistance) {
+        minDistance = d;
+        closestArea = area.name;
+      }
+    }
+    return closestArea;
+  };
+
+  const isTimeWithinHours = (current, start, end) => {
+    if (!start || !end) return true;
+    if (start <= end) {
+      return current >= start && current <= end;
+    } else {
+      return current >= start || current <= end;
+    }
+  };
+
+  const now = new Date();
+  const options = { timeZone: 'Africa/Nairobi', hour: '2-digit', minute: '2-digit', hour12: false };
+  const currentTimeStr = now.toLocaleTimeString('en-US', options);
+  const closestArea = getClosestWorkingArea(parseFloat(latitude), parseFloat(longitude));
+
+  console.log(`[getNearbyRiders] Current Kenyan time: ${currentTimeStr}, Closest area to request: ${closestArea}`);
+
+  // Respect selected working areas and working hours
+  const activeMatchingRiders = availableRiders.filter(rider => {
+    const profile = rider.riderProfile || {};
+
+    // Check working hours
+    if (profile.workingHours && profile.workingHours.start && profile.workingHours.end) {
+      const { start, end } = profile.workingHours;
+      const isWithinTime = isTimeWithinHours(currentTimeStr, start, end);
+      if (!isWithinTime) {
+        console.log(`[getNearbyRiders] Filtering out rider ${rider.name} because current time ${currentTimeStr} is outside hours ${start}-${end}`);
+        return false;
+      }
+    }
+
+    // Check selected working areas
+    if (profile.workingArea && Array.isArray(profile.workingArea.selectedWorkingAreas) && profile.workingArea.selectedWorkingAreas.length > 0) {
+      const isAreaSupported = profile.workingArea.selectedWorkingAreas.includes(closestArea);
+      if (!isAreaSupported) {
+        console.log(`[getNearbyRiders] Filtering out rider ${rider.name} because closest area ${closestArea} is not in selected working areas ${JSON.stringify(profile.workingArea.selectedWorkingAreas)}`);
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+  console.log(`[getNearbyRiders] Riders matching area/time constraints:`, activeMatchingRiders.length);
+
   // Calculate distance for each rider
-  const ridersWithDistance = availableRiders.map(rider => {
+  const ridersWithDistance = activeMatchingRiders.map(rider => {
     const riderLoc = rider.riderProfile.currentLocation;
     if (!riderLoc) return null;
 

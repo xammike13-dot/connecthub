@@ -6,11 +6,24 @@ import GuidedWalkthrough from '../components/GuidedWalkthrough';
 import api from '../services/apiClient';
 
 const BusinessSetupPage = () => {
-  const [businessLogo, setBusinessLogo] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [showWalkthrough, setShowWalkthrough] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (user && user.onboardingCompleted) {
+      navigate('/business/dashboard', { replace: true });
+    }
+  }, [user, navigate]);
+
+  const [businessLogo, setBusinessLogo] = useState('');
+  const [businessName, setBusinessName] = useState('');
+  const [businessDescription, setBusinessDescription] = useState('');
+  const [businessCategory, setBusinessCategory] = useState('');
+  const [businessLocation, setBusinessLocation] = useState('');
+  const [businessContact, setBusinessContact] = useState('');
+
+  const [loading, setLoading] = useState(false);
+  const [showWalkthrough, setShowWalkthrough] = useState(false);
   const { refreshProfile } = useAuth();
 
   const handleSubmit = async () => {
@@ -18,10 +31,36 @@ const BusinessSetupPage = () => {
       alert('Please upload your Business Logo.');
       return;
     }
+    if (!businessName.trim()) {
+      alert('Please enter your Business Name.');
+      return;
+    }
+    if (!businessDescription.trim()) {
+      alert('Please enter your Business Description.');
+      return;
+    }
+    if (!businessCategory) {
+      alert('Please select your Business Category.');
+      return;
+    }
+    if (!businessLocation.trim()) {
+      alert('Please enter your Business Location.');
+      return;
+    }
+    if (!businessContact.trim()) {
+      alert('Please enter your Business Contact Details.');
+      return;
+    }
+
     setLoading(true);
     try {
       await api.post('/setup/business', {
         businessLogo,
+        businessName,
+        businessDescription,
+        businessCategory,
+        businessLocation,
+        businessContact,
       });
 
       // Refresh the user profile to sync setupCompleted: true in context
@@ -44,38 +83,83 @@ const BusinessSetupPage = () => {
 
   const walkthroughSteps = [
     {
-      title: 'Welcome',
-      heading: 'Add Your First Product',
-      description: 'Start by adding products to your inventory. This is how customers will discover and purchase from you.',
+      title: 'Products',
+      heading: 'Add Products to Your Store',
+      description: 'Go to your Products page to create new listings. Upload clear images, specify quantities, and set pricing to showcase what you offer.',
       actionItems: [
-        'Click "Add Product" in your dashboard',
-        'Upload high-quality product images',
-        'Set competitive prices',
-        'Publish your product to go live'
+        'Navigate to Products',
+        'Add details (name, price, stock)',
+        'Upload product images',
+        'Publish your item'
       ]
     },
     {
       title: 'Inventory',
-      heading: 'Manage Your Products',
-      description: 'Keep your inventory updated and monitor your product performance through the dashboard.',
+      heading: 'Manage Your Inventory',
+      description: 'Track stock levels, modify details, and hide or activate items directly from the Business Dashboard.',
       actionItems: [
-        'Track product views and orders',
-        'Update product details anytime',
-        'Manage stock levels',
-        'Analyze sales trends'
+        'Monitor active stock counts',
+        'Adjust prices or quantities easily',
+        'Mark items out of stock',
+        'Analyze sales performance'
       ]
     },
     {
       title: 'Orders',
-      heading: 'Fulfill Orders',
-      description: 'When customers place orders, you\'ll receive notifications. Process them quickly to build your reputation.',
+      heading: 'Receive Customer Orders',
+      description: 'Get notified in real-time when customers order your products. Accept orders promptly to keep customers happy.',
       actionItems: [
-        'Review incoming orders',
-        'Confirm order acceptance',
-        'Prepare products for delivery',
-        'Track order status'
+        'View incoming order requests',
+        'Check ordered items and quantities',
+        'Accept and prepare orders',
+        'Keep customers updated on preparation'
+      ]
+    },
+    {
+      title: 'Payments',
+      heading: 'Receive Payments Securely',
+      description: 'ConnectHub holds payments securely in escrow when orders are placed and releases them directly to your wallet once delivered.',
+      actionItems: [
+        'Secure customer deposits',
+        'Automatic escrow tracking',
+        'Direct payouts to your Wallet',
+        'Safe balance withdrawals'
+      ]
+    },
+    {
+      title: 'Deliveries',
+      heading: 'Manage Deliveries',
+      description: 'Prepare packages and coordinate with our trusted delivery riders to deliver items to the customer\'s address.',
+      actionItems: [
+        'Package prepared orders securely',
+        'Hand over to designated delivery riders',
+        'Track active transit status',
+        'Confirm successful handovers'
+      ]
+    },
+    {
+      title: 'Profile',
+      heading: 'Edit Profile & Settings',
+      description: 'Keep your business details, contacts, and operational address up to date through Profile Settings.',
+      actionItems: [
+        'Edit business contacts',
+        'Update operational addresses',
+        'Renew logos and descriptions',
+        'Configure system preferences'
       ]
     }
+  ];
+
+  const categories = [
+    'Food',
+    'Household',
+    'Electronics',
+    'Fashion',
+    'Gas',
+    'Wines & Spirits',
+    'Second Hand',
+    'Health Care',
+    'Test'
   ];
 
   return (
@@ -92,18 +176,94 @@ const BusinessSetupPage = () => {
 
         {/* Form Card */}
         <div className="bg-white rounded-2xl shadow-xl p-8 border border-neutral-200">
-          <h2 className="text-2xl font-bold text-neutral-900 mb-2 text-center">
-            Upload Business Logo
+          <h2 className="text-2xl font-bold text-neutral-900 mb-6 text-center">
+            Business Information
           </h2>
-          <p className="text-neutral-500 mb-6 text-center">Add your business logo to appear on your products and marketplace store</p>
 
-          <div className="space-y-4">
-            <ImageUpload
-              onUpload={(img) => setBusinessLogo(typeof img === 'string' ? img : img?.url || '')}
-              currentImage={businessLogo}
-              aspectRatio="square"
-              label="Business Logo"
-            />
+          <div className="space-y-6">
+            <div>
+              <label className="block text-sm font-semibold text-neutral-800 mb-2">
+                Business Logo *
+              </label>
+              <ImageUpload
+                onUpload={(img) => setBusinessLogo(typeof img === 'string' ? img : img?.url || '')}
+                currentImage={businessLogo}
+                aspectRatio="square"
+                label="Business Logo"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-neutral-800 mb-2">
+                Business Name *
+              </label>
+              <input
+                type="text"
+                value={businessName}
+                onChange={(e) => setBusinessName(e.target.value)}
+                className="input-field"
+                placeholder="e.g. Eldoret Fast Foods"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-neutral-800 mb-2">
+                Business Description *
+              </label>
+              <textarea
+                value={businessDescription}
+                onChange={(e) => setBusinessDescription(e.target.value)}
+                className="input-field min-h-[100px]"
+                placeholder="Describe your products and services..."
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-neutral-800 mb-2">
+                Business Category *
+              </label>
+              <select
+                value={businessCategory}
+                onChange={(e) => setBusinessCategory(e.target.value)}
+                className="input-field"
+                required
+              >
+                <option value="">Select Category</option>
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-neutral-800 mb-2">
+                Business Location *
+              </label>
+              <input
+                type="text"
+                value={businessLocation}
+                onChange={(e) => setBusinessLocation(e.target.value)}
+                className="input-field"
+                placeholder="e.g. Moi University Main Stage, Eldoret"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-neutral-800 mb-2">
+                Business Contact Details *
+              </label>
+              <input
+                type="text"
+                value={businessContact}
+                onChange={(e) => setBusinessContact(e.target.value)}
+                className="input-field"
+                placeholder="e.g. Phone: +254712345678, Email: contact@store.com"
+                required
+              />
+            </div>
           </div>
 
           <div className="mt-8 flex justify-end">

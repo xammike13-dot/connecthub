@@ -103,8 +103,8 @@ const LoginPage = () => {
     }
 
     if (result.success) {
-      // Check if user needs setup
-      if (!result.user.setupCompleted && result.user.role !== 'customer') {
+      // Check if user needs setup / onboarding
+      if (result.user.role !== 'customer' && (!result.user.setupCompleted || !result.user.onboardingCompleted)) {
         const setupPages = {
           landlord: '/setup/landlord',
           business: '/setup/business',

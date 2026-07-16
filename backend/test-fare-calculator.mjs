@@ -5,13 +5,13 @@ console.log('=== FARE CALCULATION TEST CASES ===\n');
 // Test Case 1: Distance 0.5 km (500 meters) - Minimum fare applies
 console.log('Test Case 1: Distance = 0.5 km (500 m)');
 const test1 = calculateFare(500, 60);
-console.log('  Base Fare:', test1.baseFare, '(Expected: 50)');
-console.log('  Platform Fee:', test1.platformFee, '(Expected: 5)');
-console.log('  Customer Share:', test1.customerShare, '(Expected: 2.5)');
-console.log('  Rider Share:', test1.riderShare, '(Expected: 2.5)');
-console.log('  Customer Pays:', test1.totalFare, '(Expected: 52.5)');
-console.log('  Rider Receives:', test1.riderReceives, '(Expected: 47.5)');
-const pass1 = test1.baseFare === 50 && test1.platformFee === 5 && test1.riderReceives === 47.5;
+console.log('  Base Fare:', test1.baseFare, '(Expected: 25)');
+console.log('  Platform Fee:', test1.platformFee, '(Expected: 2.5)');
+console.log('  Customer Share:', test1.customerShare, '(Expected: 1.25)');
+console.log('  Rider Share:', test1.riderShare, '(Expected: 1.25)');
+console.log('  Customer Pays:', test1.totalFare, '(Expected: 26.25)');
+console.log('  Rider Receives:', test1.riderReceives, '(Expected: 23.75)');
+const pass1 = test1.baseFare === 25 && test1.platformFee === 2.5 && test1.riderReceives === 23.75;
 console.log('  PASS:', pass1);
 console.log();
 

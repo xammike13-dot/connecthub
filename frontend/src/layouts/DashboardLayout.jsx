@@ -24,6 +24,19 @@ const DashboardLayout = ({ allowedRoles }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  // Prevent users from bypassing onboarding
+  if (user && user.role !== 'customer' && !user.onboardingCompleted) {
+    const setupPages = {
+      landlord: '/setup/landlord',
+      business: '/setup/business',
+      rider: '/setup/rider',
+    };
+    const targetSetupPage = setupPages[user.role];
+    if (targetSetupPage) {
+      return <Navigate to={targetSetupPage} replace />;
+    }
+  }
+
   // If user's role is not in allowedRoles, redirect to their appropriate dashboard
   if (allowedRoles && !allowedRoles.includes(user?.role)) {
     // Map of roles to their respective dashboards
