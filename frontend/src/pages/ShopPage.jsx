@@ -19,6 +19,7 @@ import { useWishlist } from '../context/WishlistContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { productAPI } from '../services/api';
+import { useSocket } from '../context/SocketContext';
 
 // Updated categories based on requirements
 const categories = [
@@ -162,6 +163,59 @@ const ShopPage = () => {
   useEffect(() => {
     fetchProducts(1, false);
   }, [selectedCategory, selectedSubcategory, sortBy, searchQuery, priceRange]);
+
+  // Real-time Marketplace synchronization (Feature 7)
+  const { socket } = useSocket();
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleProductCreated = (newProduct) => {
+      console.log('[ShopPage] Real-time product_created received:', newProduct);
+      if (newProduct && newProduct.isActive) {
+        setProducts(prev => {
+          if (prev.some(p => p._id === newProduct._id)) return prev;
+          return [newProduct, ...prev];
+        });
+      }
+    };
+
+    const handleProductUpdated = (updatedProduct) => {
+      console.log('[ShopPage] Real-time product_updated received:', updatedProduct);
+      if (updatedProduct) {
+        setProducts(prev =>
+          prev.map(p => p._id === updatedProduct._id ? { ...p, ...updatedProduct } : p)
+        );
+      }
+    };
+
+    const handleProductDeleted = ({ productId }) => {
+      console.log('[ShopPage] Real-time product_deleted received:', productId);
+      if (productId) {
+        setProducts(prev => prev.filter(p => p._id !== productId));
+      }
+    };
+
+    const handleProductStockUpdated = ({ productId, stock, isActive }) => {
+      console.log('[ShopPage] Real-time product_stock_updated received:', { productId, stock, isActive });
+      if (productId) {
+        setProducts(prev =>
+          prev.map(p => p._id === productId ? { ...p, stock, isActive } : p)
+        );
+      }
+    };
+
+    socket.on('product_created', handleProductCreated);
+    socket.on('product_updated', handleProductUpdated);
+    socket.on('product_deleted', handleProductDeleted);
+    socket.on('product_stock_updated', handleProductStockUpdated);
+
+    return () => {
+      socket.off('product_created', handleProductCreated);
+      socket.off('product_updated', handleProductUpdated);
+      socket.off('product_deleted', handleProductDeleted);
+      socket.off('product_stock_updated', handleProductStockUpdated);
+    };
+  }, [socket]);
 
   const handleSearch = (e) => {
     e.preventDefault();

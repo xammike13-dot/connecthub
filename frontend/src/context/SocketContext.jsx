@@ -229,9 +229,19 @@ export const SocketProvider = ({ children }) => {
       fetchNotifications();
       fetchUnreadCount();
 
-      return () => {
+      const handleUnload = () => {
+        console.log('[SocketContext] Handling beforeunload, closing socket');
         newSocket.close();
       };
+      window.addEventListener('beforeunload', handleUnload);
+
+      return () => {
+        window.removeEventListener('beforeunload', handleUnload);
+        newSocket.close();
+      };
+    } else {
+      setSocket(null);
+      setIsConnected(false);
     }
   }, [token, user, fetchNotifications, fetchUnreadCount]);
 

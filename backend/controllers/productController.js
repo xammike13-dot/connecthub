@@ -58,6 +58,12 @@ export const createProduct = asyncHandler(async (req, res) => {
     { new: true }
   );
 
+  // Emit real-time socket event
+  const io = req.app.get('io');
+  if (io) {
+    io.emit('product_created', product);
+  }
+
   res.status(201).json({
     success: true,
     message: 'Product created successfully',
@@ -169,6 +175,12 @@ export const updateProduct = asyncHandler(async (req, res) => {
     { new: true, runValidators: true }
   );
 
+  // Emit real-time socket event
+  const io = req.app.get('io');
+  if (io) {
+    io.emit('product_updated', updatedProduct);
+  }
+
   res.status(200).json({
     success: true,
     message: 'Product updated successfully',
@@ -200,6 +212,12 @@ export const deleteProduct = asyncHandler(async (req, res) => {
     businessId,
     { $inc: { 'businessProfile.totalProducts': -1 } }
   );
+
+  // Emit real-time socket event
+  const io = req.app.get('io');
+  if (io) {
+    io.emit('product_deleted', { productId });
+  }
 
   res.status(200).json({
     success: true,
@@ -241,6 +259,18 @@ export const updateProductStock = asyncHandler(async (req, res) => {
     updateData,
     { new: true, runValidators: true }
   );
+
+  // Emit real-time socket events
+  const io = req.app.get('io');
+  if (io) {
+    io.emit('product_stock_updated', {
+      productId,
+      stock: updatedProduct.stock,
+      isActive: updatedProduct.isActive,
+      product: updatedProduct,
+    });
+    io.emit('product_updated', updatedProduct);
+  }
 
   res.status(200).json({
     success: true,

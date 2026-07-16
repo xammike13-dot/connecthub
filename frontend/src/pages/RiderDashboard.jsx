@@ -444,12 +444,22 @@ const RiderDashboard = () => {
     socket.on('ride_request', handleNewRideRequest); // Handle both types just in case
     socket.on('ride_accepted', handleRideAccepted);
     socket.on('ride_status_update', handleRideStatusUpdate);
+    socket.on('ride_cancelled', handleRideStatusUpdate);
+    socket.on('payment_released', handleRideStatusUpdate);
+    socket.on('payment_confirmed', handleRideStatusUpdate);
+    socket.on('ride_completed_confirmed', handleRideStatusUpdate);
+    socket.on('new_notification', handleRideStatusUpdate);
 
     return () => {
       socket.off('new_ride_request', handleNewRideRequest);
       socket.off('ride_request', handleNewRideRequest);
       socket.off('ride_accepted', handleRideAccepted);
       socket.off('ride_status_update', handleRideStatusUpdate);
+      socket.off('ride_cancelled', handleRideStatusUpdate);
+      socket.off('payment_released', handleRideStatusUpdate);
+      socket.off('payment_confirmed', handleRideStatusUpdate);
+      socket.off('ride_completed_confirmed', handleRideStatusUpdate);
+      socket.off('new_notification', handleRideStatusUpdate);
     };
   }, [socket, addToast, fetchDashboardData]);
 

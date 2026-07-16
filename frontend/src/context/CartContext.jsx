@@ -22,6 +22,25 @@ export const CartProvider = ({ children }) => {
     localStorage.setItem('cart', JSON.stringify(cartItems));
   }, [cartItems]);
 
+  // Handle multi-tab cart synchronization
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'cart') {
+        try {
+          const newCart = e.newValue ? JSON.parse(e.newValue) : [];
+          // Simple deep equality check to avoid redundant state updates
+          if (JSON.stringify(newCart) !== JSON.stringify(cartItems)) {
+            setCartItems(newCart);
+          }
+        } catch (error) {
+          console.error('[CartContext] Error parsing synced cart data:', error);
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [cartItems]);
+
   // Calculate cart totals
   const cartTotal = cartItems.reduce(
     (total, item) => total + item.price * item.quantity,

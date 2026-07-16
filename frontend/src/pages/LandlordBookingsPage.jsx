@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Home, Calendar, Phone, User, CheckCircle, XCircle, AlertCircle, Clock, DollarSign } from 'lucide-react';
 import { landlordAPI, rentalAPI } from '../services/api';
+import { useSocket } from '../context/SocketContext';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -73,6 +74,29 @@ const LandlordBookingsPage = () => {
   useEffect(() => {
     fetchBookings();
   }, []);
+
+  // Real-time socket updates (Feature 5)
+  const { socket } = useSocket();
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleUpdate = () => {
+      console.log('[LandlordBookingsPage] Real-time booking event received, refetching...');
+      fetchBookings();
+    };
+
+    socket.on('new_booking', handleUpdate);
+    socket.on('booking_accepted', handleUpdate);
+    socket.on('booking_declined', handleUpdate);
+    socket.on('move_in_confirmed', handleUpdate);
+
+    return () => {
+      socket.off('new_booking', handleUpdate);
+      socket.off('booking_accepted', handleUpdate);
+      socket.off('booking_declined', handleUpdate);
+      socket.off('move_in_confirmed', handleUpdate);
+    };
+  }, [socket]);
 
   const handleAccept = async (booking) => {
     try {

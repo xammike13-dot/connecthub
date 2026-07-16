@@ -18,6 +18,7 @@ import { rentalAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useToast } from '../components/Toast';
+import { useSocket } from '../context/SocketContext';
 
 const rentalTypes = [
   { id: 'all', name: 'All Types', icon: Home },
@@ -159,6 +160,48 @@ const RentalsPage = () => {
     searchQuery,
     location, // Refetch when location changes (navigation back from detail page)
   ]);
+
+  // Real-time rentals synchronization (Feature 5)
+  const { socket } = useSocket();
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleRentalCreated = (newRental) => {
+      console.log('[RentalsPage] Real-time rental_created received:', newRental);
+      if (newRental) {
+        setRentals(prev => {
+          if (prev.some(r => r._id === newRental._id)) return prev;
+          return [newRental, ...prev];
+        });
+      }
+    };
+
+    const handleRentalUpdated = (updatedRental) => {
+      console.log('[RentalsPage] Real-time rental_updated received:', updatedRental);
+      if (updatedRental) {
+        setRentals(prev =>
+          prev.map(r => r._id === updatedRental._id ? { ...r, ...updatedRental } : r)
+        );
+      }
+    };
+
+    const handleRentalDeleted = ({ rentalId }) => {
+      console.log('[RentalsPage] Real-time rental_deleted received:', rentalId);
+      if (rentalId) {
+        setRentals(prev => prev.filter(r => r._id !== rentalId));
+      }
+    };
+
+    socket.on('rental_created', handleRentalCreated);
+    socket.on('rental_updated', handleRentalUpdated);
+    socket.on('rental_deleted', handleRentalDeleted);
+
+    return () => {
+      socket.off('rental_created', handleRentalCreated);
+      socket.off('rental_updated', handleRentalUpdated);
+      socket.off('rental_deleted', handleRentalDeleted);
+    };
+  }, [socket]);
 
   const handleSearch = (e) => {
     e.preventDefault();
