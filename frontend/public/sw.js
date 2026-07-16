@@ -1,8 +1,11 @@
-const CACHE_NAME = "connecthub-cache-v1";
+const CACHE_NAME = "connecthub-cache-v2";
 const ASSETS_TO_CACHE = [
   "/",
   "/index.html",
-  "/manifest.json"
+  "/manifest.json",
+  "/icon-192.png",
+  "/icon-512.png",
+  "/icon-maskable.png"
 ];
 
 // Install Event
@@ -13,7 +16,6 @@ self.addEventListener("install", (event) => {
       return cache.addAll(ASSETS_TO_CACHE);
     })
   );
-  // Force active service worker to take control immediately
   self.skipWaiting();
 });
 
@@ -38,16 +40,13 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const requestUrl = new URL(event.request.url);
 
-  // Exclude API requests and uploads from PWA caching to avoid session/stale state bugs
   if (requestUrl.pathname.startsWith("/api") || requestUrl.pathname.startsWith("/uploads")) {
     return;
   }
 
-  // Network-first falling back to cache for standard pages/assets
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        // Cache valid static responses
         if (response.status === 200 && event.request.method === "GET") {
           const responseClone = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
@@ -57,16 +56,91 @@ self.addEventListener("fetch", (event) => {
         return response;
       })
       .catch(() => {
-        // Fallback to cache if network is down
         return caches.match(event.request).then((cachedResponse) => {
           if (cachedResponse) {
             return cachedResponse;
           }
-          // If a page route, fallback to index.html
           if (event.request.mode === "navigate") {
             return caches.match("/index.html");
           }
         });
       })
+  );
+});
+
+// Handle Push Notifications
+self.addEventListener("push", (event) => {
+  console.log("[Service Worker] Push event received");
+
+  let data = {
+    title: "ConnectHub",
+    body: "You have a new update",
+    icon: "/icon-192.png",
+    badge: "/icon-192.png",
+    data: { url: "/" }
+  };
+
+  if (event.data) {
+    try {
+      data = event.data.json();
+    } catch (e) {
+      console.log("[Service Worker] Push data is text, not JSON:", event.data.text());
+      data = {
+        title: "ConnectHub",
+        body: event.data.text(),
+        icon: "/icon-192.png",
+        badge: "/icon-192.png",
+        data: { url: "/" }
+      };
+    }
+  }
+
+  const options = {
+    body: data.body || data.message || "",
+    icon: data.icon || "/icon-192.png",
+    badge: data.badge || "/icon-192.png",
+    vibrate: [100, 50, 100],
+    data: data.data || { url: "/" },
+    actions: [
+      { action: "open", title: "Open" },
+      { action: "close", title: "Dismiss" }
+    ]
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, options)
+  );
+});
+
+// Handle Notification Clicks (Deep Linking)
+self.addEventListener("notificationclick", (event) => {
+  console.log("[Service Worker] Notification click received. Action:", event.action);
+
+  event.notification.close();
+
+  if (event.action === "close") {
+    return;
+  }
+
+  const targetUrl = event.notification.data && event.notification.data.url
+    ? event.notification.data.url
+    : "/";
+
+  const absoluteUrl = new URL(targetUrl, self.location.origin).href;
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
+      for (let client of windowClients) {
+        if (client.url.startsWith(self.location.origin) && "focus" in client) {
+          if ("navigate" in client) {
+            client.navigate(absoluteUrl);
+          }
+          return client.focus();
+        }
+      }
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(absoluteUrl);
+      }
+    })
   );
 });

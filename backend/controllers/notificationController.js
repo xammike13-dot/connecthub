@@ -328,6 +328,20 @@ export const createNotification = async (userId, type, title, message, data = {}
       console.log('[NOTIFICATION] Emitted to room:', targetRoom, 'for user:', userId, 'role:', userRole);
     }
 
+    // Deliver Web Push Notification in background
+    sendPushToUser(userId, {
+      title,
+      body: message,
+      navigationTarget: navigationTarget || actionUrl,
+      data: {
+        ...data,
+        notificationId: notification._id,
+        type,
+      },
+    }).catch((err) => {
+      console.error('[NOTIFICATION] Push service delivery failed:', err);
+    });
+
     return notification;
   } catch (error) {
     console.error('[Notification Failed]', error);

@@ -8,6 +8,8 @@ import {
   deleteAllNotifications,
   verifyWhatsAppWebhook,
   handleWhatsAppMessage,
+  subscribePush,
+  unsubscribePush,
 } from '../controllers/notificationController.js';
 import { protect } from '../middleware/auth.js';
 
@@ -23,6 +25,10 @@ router.post('/webhook', handleWhatsAppMessage);
 
 // All routes below require authentication
 router.use(protect);
+
+// Subscribe/unsubscribe from Push Notifications
+router.post('/subscribe', subscribePush);
+router.post('/unsubscribe', unsubscribePush);
 
 // Get all notifications
 router.get('/', getNotifications);
