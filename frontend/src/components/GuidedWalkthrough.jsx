@@ -122,19 +122,19 @@ const GuidedWalkthrough = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 bg-neutral-50 border-t border-neutral-200 flex items-center justify-between">
+        <div className="px-6 py-4 bg-neutral-50 border-t border-neutral-200 flex flex-col sm:flex-row items-center justify-between gap-4">
           <button
             onClick={handleSkip}
-            className="text-neutral-600 hover:text-neutral-900 text-sm font-medium"
+            className="w-full sm:w-auto px-4 py-2.5 text-sm font-semibold text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-all min-h-[44px] flex items-center justify-center border border-transparent hover:border-neutral-200"
           >
             Skip Tour
           </button>
 
-          <div className="flex gap-2">
+          <div className="flex w-full sm:w-auto gap-2 justify-end">
             {currentStep > 0 && (
               <button
                 onClick={handlePrevious}
-                className="px-4 py-2 border border-neutral-300 rounded-lg bg-white hover:bg-neutral-50 transition-colors text-neutral-700 font-medium flex items-center gap-1"
+                className="flex-1 sm:flex-initial px-4 py-2.5 border border-neutral-300 rounded-lg bg-white hover:bg-neutral-50 transition-colors text-neutral-700 font-semibold text-sm min-h-[44px] flex items-center justify-center gap-1"
               >
                 <ChevronLeft className="w-4 h-4" />
                 Previous
@@ -143,7 +143,7 @@ const GuidedWalkthrough = ({
             
             <button
               onClick={handleNext}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 transition-colors text-white font-medium rounded-lg flex items-center gap-1"
+              className="flex-1 sm:flex-initial px-4 py-2.5 bg-blue-600 hover:bg-blue-700 transition-colors text-white font-semibold text-sm rounded-lg min-h-[44px] flex items-center justify-center gap-1 shadow-sm"
             >
               {currentStep === steps.length - 1 ? 'Finish' : 'Next'}
               {currentStep < steps.length - 1 && <ChevronRight className="w-4 h-4" />}

@@ -6,25 +6,41 @@ import GuidedWalkthrough from '../components/GuidedWalkthrough';
 import api from '../services/apiClient';
 
 const BusinessSetupPage = () => {
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    if (user && user.onboardingCompleted) {
-      navigate('/business/dashboard', { replace: true });
-    }
-  }, [user, navigate]);
 
   const [businessLogo, setBusinessLogo] = useState('');
   const [businessName, setBusinessName] = useState('');
-  const [businessDescription, setBusinessDescription] = useState('');
-  const [businessCategory, setBusinessCategory] = useState('');
   const [businessLocation, setBusinessLocation] = useState('');
   const [businessContact, setBusinessContact] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [showWalkthrough, setShowWalkthrough] = useState(false);
-  const { refreshProfile } = useAuth();
+  const [initializedData, setInitializedData] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      if (user.onboardingCompleted) {
+        navigate('/business/dashboard', { replace: true });
+        return;
+      }
+      if (!initializedData) {
+        if (user.businessLogo || user.businessProfile?.businessLogo) {
+          setBusinessLogo(user.businessLogo || user.businessProfile?.businessLogo);
+        }
+        if (user.businessProfile?.businessName) {
+          setBusinessName(user.businessProfile.businessName);
+        }
+        if (user.businessProfile?.businessLocation) {
+          setBusinessLocation(user.businessProfile.businessLocation);
+        }
+        if (user.businessProfile?.businessContact) {
+          setBusinessContact(user.businessProfile.businessContact);
+        }
+        setInitializedData(true);
+      }
+    }
+  }, [user, navigate, initializedData]);
 
   const handleSubmit = async () => {
     if (!businessLogo) {
@@ -33,14 +49,6 @@ const BusinessSetupPage = () => {
     }
     if (!businessName.trim()) {
       alert('Please enter your Business Name.');
-      return;
-    }
-    if (!businessDescription.trim()) {
-      alert('Please enter your Business Description.');
-      return;
-    }
-    if (!businessCategory) {
-      alert('Please select your Business Category.');
       return;
     }
     if (!businessLocation.trim()) {
@@ -57,8 +65,6 @@ const BusinessSetupPage = () => {
       await api.post('/setup/business', {
         businessLogo,
         businessName,
-        businessDescription,
-        businessCategory,
         businessLocation,
         businessContact,
       });
@@ -150,18 +156,6 @@ const BusinessSetupPage = () => {
     }
   ];
 
-  const categories = [
-    'Food',
-    'Household',
-    'Electronics',
-    'Fashion',
-    'Gas',
-    'Wines & Spirits',
-    'Second Hand',
-    'Health Care',
-    'Test'
-  ];
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-neutral-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-2xl w-full">
@@ -205,36 +199,6 @@ const BusinessSetupPage = () => {
                 placeholder="e.g. Eldoret Fast Foods"
                 required
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-neutral-800 mb-2">
-                Business Description *
-              </label>
-              <textarea
-                value={businessDescription}
-                onChange={(e) => setBusinessDescription(e.target.value)}
-                className="input-field min-h-[100px]"
-                placeholder="Describe your products and services..."
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-neutral-800 mb-2">
-                Business Category *
-              </label>
-              <select
-                value={businessCategory}
-                onChange={(e) => setBusinessCategory(e.target.value)}
-                className="input-field"
-                required
-              >
-                <option value="">Select Category</option>
-                {categories.map((cat) => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
             </div>
 
             <div>
