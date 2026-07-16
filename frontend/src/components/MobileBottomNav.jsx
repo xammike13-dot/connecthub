@@ -48,11 +48,6 @@ const MobileBottomNav = () => {
 
     const customerItems = [
       ...commonItems,
-      {
-        path: '/customer/wallet',
-        icon: <Wallet size={20} />,
-        label: 'Wallet',
-      },
     ];
 
     const landlordItems = [
