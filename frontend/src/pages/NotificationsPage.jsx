@@ -260,30 +260,30 @@ const NotificationsPage = () => {
     }
 
     const role = user?.role || 'customer';
-    const entityId = notif.relatedEntityId || notif.data?.orderId || notif.data?.bookingId || notif.data?.rideId || notif.data?.paymentId || notif.data?.healthcareOrderId;
+    const entityId = notif.relatedEntityId || notif.data?.orderId || notif.data?.bookingId || notif.data?.rentalId || notif.data?.rideId || notif.data?.paymentId || notif.data?.healthcareOrderId || notif.data?.transactionId || notif.data?.transactionRef;
 
     if (notif.notificationType === 'order') {
       if (role === 'business') {
-        navigate('/business/orders');
+        navigate(`/business/orders?orderId=${entityId || ''}`);
       } else {
         navigate(`/customer/order/${entityId || ''}`);
       }
     } else if (notif.notificationType === 'healthcare') {
-      navigate('/customer/healthcare');
+      navigate(`/customer/healthcare?healthcareOrderId=${entityId || ''}`);
     } else if (notif.notificationType === 'rental') {
       if (role === 'landlord') {
-        navigate('/landlord/bookings');
+        navigate(`/landlord/bookings?bookingId=${entityId || ''}`);
       } else {
-        navigate('/customer/bookings');
+        navigate(`/customer/bookings?bookingId=${entityId || ''}`);
       }
     } else if (notif.notificationType === 'ride') {
       if (role === 'rider') {
-        navigate('/rider/dashboard');
+        navigate(`/rider/requests?rideId=${entityId || ''}`);
       } else {
-        navigate('/customer/rides');
+        navigate(`/customer/rides?rideId=${entityId || ''}`);
       }
     } else if (notif.notificationType === 'payment') {
-      navigate(`/${role}/wallet`);
+      navigate(`/${role}/transactions?transactionId=${entityId || ''}`);
     } else if (notif.navigationTarget) {
       navigate(notif.navigationTarget);
     } else if (notif.actionUrl) {
@@ -429,9 +429,9 @@ const NotificationsPage = () => {
                     exit={{ opacity: 0, scale: 0.95 }}
                     whileHover={{ y: -2 }}
                     onClick={() => handleCardClick(notif)}
-                    className={`bg-white rounded-2xl border p-5 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer ${!notif.read
-                      ? 'border-l-4 border-l-blue-500 border-neutral-200 bg-gradient-to-r from-blue-50/50 to-white'
-                      : 'border-neutral-200 bg-white opacity-85'
+                    className={`rounded-2xl border p-5 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer ${!notif.read
+                      ? 'border-l-4 border-l-blue-600 border-blue-300 bg-blue-50/70 hover:bg-blue-50'
+                      : 'border-neutral-200 bg-white hover:bg-neutral-50/50 opacity-85'
                       }`}
                   >
                     <div className="flex flex-col sm:flex-row sm:items-start gap-4">
@@ -443,7 +443,7 @@ const NotificationsPage = () => {
                       {/* Middle: Title, message, timestamp, action required flag */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className={`text-sm ${!notif.read ? 'font-extrabold text-neutral-900' : 'font-bold text-neutral-700'}`}>
+                          <h3 className={`text-sm ${!notif.read ? 'text-base font-extrabold text-blue-900' : 'font-normal text-neutral-500'}`}>
                             {notif.title || 'Notification Update'}
                           </h3>
                           {notif.actionRequired && !notif.read && (
@@ -453,7 +453,7 @@ const NotificationsPage = () => {
                             </span>
                           )}
                         </div>
-                        <p className={`text-sm mt-1 leading-relaxed ${!notif.read ? 'text-neutral-800 font-medium' : 'text-neutral-500'}`}>
+                        <p className={`text-sm mt-1 leading-relaxed ${!notif.read ? 'text-blue-950 font-semibold' : 'text-neutral-400 font-normal'}`}>
                           {notif.message}
                         </p>
                         <p className="text-[11px] text-neutral-400 mt-2 font-bold flex items-center gap-2">

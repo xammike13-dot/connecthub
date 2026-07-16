@@ -9,79 +9,10 @@ import Button from './ui/Button';
 
 const DashboardHeader = ({ onMenuClick }) => {
   const { user } = useAuth();
-  const { notifications, unreadCount, markNotificationsRead } = useSocket();
+  const { unreadCount } = useSocket();
   const navigate = useNavigate();
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
-  const notificationsRef = useRef(null);
-
-  useEffect(() => {
-    const handleOutsideClick = (event) => {
-      if (notificationsRef.current && !notificationsRef.current.contains(event.target)) {
-        setNotificationsOpen(false);
-      }
-    };
-    const handleEscape = (event) => {
-      if (event.key === 'Escape') {
-        setNotificationsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutsideClick);
-    document.addEventListener('keydown', handleEscape);
-    return () => {
-      document.removeEventListener('mousedown', handleOutsideClick);
-      document.removeEventListener('keydown', handleEscape);
-    };
-  }, []);
-
-  const visibleNotifications = notifications?.slice(0, 4) || [];
-
-  const handleMarkAsRead = async (notificationId) => {
-    try {
-      await notificationAPI.markAsRead(notificationId);
-      markNotificationsRead([notificationId]);
-    } catch (error) {
-      console.error('Failed to mark as read:', error);
-    }
-  };
-
-  const handleDelete = async (notificationId) => {
-    try {
-      await notificationAPI.delete(notificationId);
-    } catch (error) {
-      console.error('Failed to delete:', error);
-    }
-  };
-
-  const handleMarkAllAsRead = async () => {
-    try {
-      await notificationAPI.markAllAsRead();
-      const unreadIds = notifications.filter(n => !n.read).map(n => n._id || n.id);
-      markNotificationsRead(unreadIds);
-    } catch (error) {
-      console.error('Failed to mark all as read:', error);
-    }
-  };
-
-  const handleNotificationClick = (notification) => {
-    if (!notification.read) {
-      handleMarkAsRead(notification._id || notification.id);
-    }
-  };
-
-  const formatTime = (timestamp) => {
-    if (!timestamp) return '';
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diff = now - date;
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    if (minutes < 1) return 'Just now';
-    if (minutes < 60) return `${minutes}m ago`;
-    if (hours < 24) return `${hours}h ago`;
-    return date.toLocaleDateString();
-  };
 
   return (
     <>
@@ -139,98 +70,19 @@ const DashboardHeader = ({ onMenuClick }) => {
               <span className="hidden sm:inline">Support</span>
             </button>
 
-            {/* Notifications Dropdown */}
-            <div className="relative" ref={notificationsRef}>
-              <button
-                onClick={() => setNotificationsOpen(!notificationsOpen)}
-                className="relative p-2 text-neutral-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors focus:outline-none"
-                aria-expanded={notificationsOpen}
-                aria-haspopup="true"
-                aria-label="Notifications"
-              >
-                <Bell size={19} />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-sm">
-                    {unreadCount}
-                  </span>
-                )}
-              </button>
-
-              {notificationsOpen && (
-                <div className="absolute right-0 mt-2.5 w-80 bg-white rounded-xl shadow-xl border border-neutral-200 overflow-hidden z-[9999]">
-                  <div className="p-4 border-b border-neutral-200 flex items-center justify-between bg-neutral-50/50">
-                    <h3 className="font-bold text-neutral-900 text-sm">Notifications</h3>
-                    {unreadCount > 0 && (
-                      <button
-                        onClick={handleMarkAllAsRead}
-                        className="text-xs text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1"
-                      >
-                        <CheckCheck size={14} />
-                        Mark all read
-                      </button>
-                    )}
-                  </div>
-                  <div className="max-h-64 overflow-y-auto">
-                    {visibleNotifications.length === 0 ? (
-                      <div className="p-6 text-center text-neutral-400 text-sm">
-                        No notifications available.
-                      </div>
-                    ) : (
-                      visibleNotifications.map((notification) => (
-                        <div
-                          key={notification._id || notification.id}
-                          className={`p-4 border-b border-neutral-100 hover:bg-neutral-50/50 cursor-pointer transition-colors ${notification.read ? 'bg-white' : 'bg-blue-50/40 border-l-3 border-l-blue-500'
-                            }`}
-                        >
-                          <div className="flex items-start gap-3">
-                            <div className="flex-1 min-w-0" onClick={() => handleNotificationClick(notification)}>
-                              <p className={`text-xs ${notification.read ? 'text-neutral-600' : 'font-bold text-neutral-900'} truncate`}>
-                                {notification.title || notification.message}
-                              </p>
-                              <p className="text-neutral-500 text-[11px] mt-0.5 line-clamp-2 leading-relaxed">{notification.message}</p>
-                              <p className="text-neutral-400 text-[10px] mt-1 font-semibold">{formatTime(notification.createdAt)}</p>
-                            </div>
-                            <div className="flex flex-col gap-1.5">
-                              {!notification.read && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleMarkAsRead(notification._id || notification.id);
-                                  }}
-                                  className="p-1 text-neutral-400 hover:text-blue-600 hover:bg-blue-100/50 rounded transition-colors"
-                                  title="Mark as read"
-                                >
-                                  <Check size={13} />
-                                </button>
-                              )}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDelete(notification._id || notification.id);
-                                }}
-                                className="p-1 text-neutral-400 hover:text-red-600 hover:bg-red-100/50 rounded transition-colors"
-                                title="Delete"
-                              >
-                                <Trash2 size={13} />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                  <div className="p-3 border-t border-neutral-200 bg-neutral-50 text-center">
-                    <Link
-                      to={`/${user?.role}/notifications`}
-                      className="text-blue-600 text-xs font-bold hover:text-blue-700 inline-block"
-                      onClick={() => setNotificationsOpen(false)}
-                    >
-                      View all notifications
-                    </Link>
-                  </div>
-                </div>
+            {/* Notifications Shortcut (Direct Navigation) */}
+            <button
+              onClick={() => navigate(`/${user?.role || 'customer'}/notifications`)}
+              className="relative p-2 text-neutral-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors focus:outline-none"
+              aria-label="Notifications"
+            >
+              <Bell size={19} />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-sm">
+                  {unreadCount}
+                </span>
               )}
-            </div>
+            </button>
 
             {/* Divider */}
             <span className="w-[1px] h-5 bg-neutral-200 mx-1"></span>

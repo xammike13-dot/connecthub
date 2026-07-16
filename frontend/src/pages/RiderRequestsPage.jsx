@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   Bike, 
   MapPin, 
@@ -61,6 +61,8 @@ const RiderRequestsPage = () => {
   const { addToast } = useToast();
   const { socket } = useSocket();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const rideIdParam = searchParams.get('rideId') || searchParams.get('id');
   
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -190,6 +192,17 @@ const RiderRequestsPage = () => {
     fetchUserStatus();
   }, [fetchRequests, fetchUserStatus]);
 
+  useEffect(() => {
+    if (rideIdParam && pendingRequests.length > 0) {
+      setTimeout(() => {
+        const element = document.getElementById(`ride-${rideIdParam}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 300);
+    }
+  }, [rideIdParam, pendingRequests]);
+
   // Auto-refresh every 15 seconds when online
   useEffect(() => {
     let interval;
@@ -274,9 +287,20 @@ const RiderRequestsPage = () => {
             )}
           </div>
           
-          {pendingRequests.map((ride) => (
-            <div key={ride._id} className="card border-2 border-blue-200 bg-blue-50 hover:bg-blue-100 transition-colors">
-              <div className="flex items-center justify-between mb-4">
+          {pendingRequests.map((ride) => {
+            const isHighlighted = ride._id === rideIdParam;
+
+            return (
+              <div
+                key={ride._id}
+                id={`ride-${ride._id}`}
+                className={`card border-2 transition-all duration-200 ${
+                  isHighlighted
+                    ? 'border-blue-500 bg-blue-100/70 shadow-md ring-2 ring-blue-200 border-l-4 border-l-blue-600'
+                    : 'border-blue-200 bg-blue-50 hover:bg-blue-100'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center">
                     <Bike className="w-6 h-6 text-white" />
@@ -364,7 +388,7 @@ const RiderRequestsPage = () => {
                 </Button>
               </div>
             </div>
-          ))}
+          )})}
         </div>
       )}
 

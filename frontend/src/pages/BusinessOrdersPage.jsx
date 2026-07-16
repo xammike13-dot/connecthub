@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Package,
@@ -40,6 +41,9 @@ const formatCurrency = (amount) => {
 const BusinessOrdersPage = () => {
   const { success: toastSuccess, error: toastError } = useToast();
   const { socket } = useSocket();
+  const [searchParams] = useSearchParams();
+  const orderIdParam = searchParams.get('orderId') || searchParams.get('id');
+
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -61,6 +65,30 @@ const BusinessOrdersPage = () => {
   useEffect(() => {
     fetchOrders();
   }, [statusFilter, pagination.currentPage]);
+
+  useEffect(() => {
+    if (orderIdParam && orders.length > 0) {
+      const matchedOrder = orders.find(o => o._id === orderIdParam);
+      if (matchedOrder) {
+        setSelectedOrder(matchedOrder);
+        setShowModal(true);
+      } else {
+        const fetchAndSelectOrder = async () => {
+          try {
+            const { data } = await orderAPI.getById(orderIdParam);
+            const ord = data.data || data;
+            if (ord) {
+              setSelectedOrder(ord);
+              setShowModal(true);
+            }
+          } catch (err) {
+            console.error('[BusinessOrdersPage] Failed to fetch specific orderParam:', err);
+          }
+        };
+        fetchAndSelectOrder();
+      }
+    }
+  }, [orderIdParam, orders]);
 
   // Real-time order updates via socket
   useEffect(() => {

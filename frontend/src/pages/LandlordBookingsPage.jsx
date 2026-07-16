@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Home, Calendar, Phone, User, CheckCircle, XCircle, AlertCircle, Clock, DollarSign } from 'lucide-react';
 import { landlordAPI, rentalAPI } from '../services/api';
@@ -34,12 +35,26 @@ const escrowLabels = {
 
 const LandlordBookingsPage = () => {
   const { success: toastSuccess, error: toastError } = useToast();
+  const [searchParams] = useSearchParams();
+  const bookingIdParam = searchParams.get('bookingId') || searchParams.get('id');
+
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [showDeclineModal, setShowDeclineModal] = useState(false);
   const [declineReason, setDeclineReason] = useState('');
   const [processing, setProcessing] = useState(false);
+
+  useEffect(() => {
+    if (bookingIdParam && bookings.length > 0) {
+      setTimeout(() => {
+        const element = document.getElementById(`booking-${bookingIdParam}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 300);
+    }
+  }, [bookingIdParam, bookings]);
 
   const fetchBookings = async () => {
     try {
@@ -127,13 +142,21 @@ const LandlordBookingsPage = () => {
           />
         ) : (
           <div className="space-y-4">
-            {bookings.map((booking) => (
-              <motion.div
-                key={booking.bookingId}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-white rounded-xl shadow-sm p-6"
-              >
+            {bookings.map((booking) => {
+              const isHighlighted = booking.bookingId === bookingIdParam || booking._id === bookingIdParam;
+
+              return (
+                <motion.div
+                  key={booking.bookingId}
+                  id={`booking-${booking.bookingId || booking._id}`}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`rounded-xl shadow-sm p-6 transition-all duration-200 ${
+                    isHighlighted
+                      ? 'bg-blue-50/40 border-2 border-blue-500 ring-2 ring-blue-100 shadow-md'
+                      : 'bg-white'
+                  }`}
+                >
                 <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
@@ -230,7 +253,7 @@ const LandlordBookingsPage = () => {
                   )}
                 </div>
               </motion.div>
-            ))}
+            )})}
           </div>
         )}
       </div>

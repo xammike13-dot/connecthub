@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Home, Eye, CheckCircle, Trash2, AlertCircle, Calendar, DollarSign } from 'lucide-react';
 import { customerAPI, rentalAPI } from '../services/api';
@@ -29,6 +29,9 @@ const CustomerBookingsPage = () => {
   const { success: toastSuccess, error: toastError } = useToast();
   const { socket } = useSocket();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const bookingIdParam = searchParams.get('bookingId') || searchParams.get('id');
+
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState(null);
@@ -65,6 +68,17 @@ const CustomerBookingsPage = () => {
   useEffect(() => {
     fetchBookings();
   }, []);
+
+  useEffect(() => {
+    if (bookingIdParam && bookings.length > 0) {
+      setTimeout(() => {
+        const element = document.getElementById(`booking-${bookingIdParam}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 300);
+    }
+  }, [bookingIdParam, bookings]);
 
   useEffect(() => {
     if (!socket) return;
@@ -233,12 +247,19 @@ const CustomerBookingsPage = () => {
                 escrowStatus: booking.escrowStatus,
               });
 
+              const isHighlighted = booking._id === bookingIdParam;
+
               return (
                 <motion.div
                   key={booking._id}
+                  id={`booking-${booking._id}`}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-white rounded-xl shadow-sm p-6"
+                  className={`rounded-xl shadow-sm p-6 transition-all duration-200 ${
+                    isHighlighted
+                      ? 'bg-blue-50/40 border-2 border-blue-500 ring-2 ring-blue-100 shadow-md'
+                      : 'bg-white'
+                  }`}
                 >
                   <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                     <div className="flex-1">

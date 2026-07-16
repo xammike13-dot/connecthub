@@ -82,6 +82,24 @@ const OrdersPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
+  useEffect(() => {
+    if (orderId) {
+      const fetchSpecificOrder = async () => {
+        try {
+          setLoading(true);
+          const { data } = await orderAPI.getById(orderId);
+          setSelectedOrder(data.data || data);
+        } catch (error) {
+          console.error('[OrdersPage] Failed to fetch specific order:', error);
+          toastError('Failed to fetch order details.');
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchSpecificOrder();
+    }
+  }, [orderId]);
+
   // Real-time order updates via socket
   useEffect(() => {
     if (!socket) return;
@@ -234,7 +252,7 @@ const OrdersPage = () => {
     setShowOrderModal(true);
   };
 
-  // If viewing a specific order (legacy route)
+  // If viewing a specific order (detailed deep-linked route)
   if (orderId) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -251,10 +269,199 @@ const OrdersPage = () => {
             <div className="flex justify-center py-12">
               <LoadingSpinner size="lg" />
             </div>
+          ) : selectedOrder ? (
+            <div className="bg-white rounded-xl shadow-md p-6 space-y-6">
+              <h1 className="text-2xl font-bold mb-4 flex items-center gap-2 text-neutral-900">
+                <Package className="text-blue-600 w-7 h-7" />
+                Order Details
+              </h1>
+
+              {/* Order Info */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl">
+                <div>
+                  <p className="text-sm text-gray-500 font-bold">Order ID</p>
+                  <p className="font-mono font-bold text-neutral-800">#{selectedOrder._id}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 font-bold">Date</p>
+                  <p className="font-medium text-neutral-800">{new Date(selectedOrder.createdAt).toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 font-bold">Status</p>
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-bold inline-block mt-1 ${statusConfig[selectedOrder.status]?.color || 'bg-gray-100 text-gray-800'}`}>
+                    {statusConfig[selectedOrder.status]?.label || selectedOrder.status}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 font-bold">Total Amount</p>
+                  <p className="font-extrabold text-lg text-blue-600">
+                    {formatCurrency(selectedOrder.finalAmount || selectedOrder.totalAmount || 0)}
+                  </p>
+                </div>
+                {selectedOrder.orderType && (
+                  <div>
+                    <p className="text-sm text-gray-500 font-bold">Order Type</p>
+                    <p className="font-medium capitalize text-neutral-800">{selectedOrder.orderType}</p>
+                  </div>
+                )}
+                {selectedOrder.deliveryConfirmedAt && (
+                  <div>
+                    <p className="text-sm text-gray-500 font-bold">Delivery Confirmed At</p>
+                    <p className="font-medium text-green-600">
+                      {new Date(selectedOrder.deliveryConfirmedAt).toLocaleString()}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Products */}
+              <div>
+                <h3 className="font-bold text-gray-900 mb-3 border-b pb-2 text-base">Items Ordered</h3>
+                <div className="space-y-3">
+                  {selectedOrder.items?.map((item, index) => (
+                    <div key={index} className="flex gap-4 items-center p-3 bg-neutral-50 rounded-xl border border-neutral-100">
+                      <img
+                        src={item.image || item.product?.images?.[0] || 'https://via.placeholder.com/60'}
+                        alt={item.name}
+                        className="w-16 h-16 rounded-xl object-cover border border-neutral-200"
+                      />
+                      <div className="flex-1">
+                        <p className="font-bold text-gray-900">{item.name}</p>
+                        <p className="text-xs text-gray-500 font-semibold">Qty: {item.quantity || 1}</p>
+                      </div>
+                      <p className="font-bold text-neutral-800">
+                        {formatCurrency(item.price || item.product?.price || 0)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Customer Delivery Information */}
+              <div>
+                <h3 className="font-bold text-gray-900 mb-3 border-b pb-2 text-base">Delivery Information</h3>
+                <div className="bg-neutral-50 rounded-xl p-4 space-y-2 border border-neutral-100 text-sm">
+                  <div>
+                    <span className="text-gray-500 font-medium">Phone: </span>
+                    <span className="text-gray-900 font-bold">{selectedOrder?.deliveryAddress?.phone || 'Not provided'}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 font-medium">Address: </span>
+                    <span className="text-gray-900 font-semibold">{selectedOrder?.deliveryAddress?.address || 'Not provided'}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 font-medium">Neighborhood: </span>
+                    <span className="text-gray-900 font-medium">{selectedOrder?.deliveryAddress?.neighborhood || 'Not provided'}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 font-medium">Landmark: </span>
+                    <span className="text-gray-900 font-medium">{selectedOrder?.deliveryAddress?.landmark || 'Not provided'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Status */}
+              <div>
+                <h3 className="font-bold text-gray-900 mb-2 text-base">Payment Status</h3>
+                <span
+                  className={`px-3 py-1 rounded-full text-xs font-bold ${selectedOrder.paymentStatus === 'paid'
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-yellow-100 text-yellow-700'
+                    }`}
+                >
+                  {selectedOrder.paymentStatus || 'Pending'}
+                </span>
+              </div>
+
+              {/* Complete Delivery Timeline */}
+              {selectedOrder.trackingHistory && selectedOrder.trackingHistory.length > 0 && (
+                <div>
+                  <h3 className="font-bold text-gray-900 mb-3 border-b pb-2 text-base">Delivery Timeline</h3>
+                  <div className="space-y-4">
+                    {selectedOrder.trackingHistory.map((event, index) => (
+                      <div key={index} className="flex gap-3 items-start">
+                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center border border-blue-200 mt-0.5">
+                          <Clock size={14} className="text-blue-600" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-bold text-gray-900">{event.status}</p>
+                          <p className="text-[11px] text-gray-400 font-bold">
+                            {new Date(event.timestamp).toLocaleString()}
+                          </p>
+                          {event.note && (
+                            <p className="text-xs text-gray-600 mt-1 font-medium bg-neutral-50 p-2 rounded-lg border border-neutral-100">{event.note}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Estimated Delivery Time */}
+              {selectedOrder.estimatedDeliveryTime && (
+                <div>
+                  <h3 className="font-bold text-gray-900 mb-2 text-base">Estimated Delivery Time</h3>
+                  <p className="text-sm text-neutral-600 font-semibold bg-blue-50 p-3 rounded-xl border border-blue-100 inline-block">{selectedOrder.estimatedDeliveryTime}</p>
+                </div>
+              )}
+
+              {/* Business Response */}
+              {selectedOrder.businessResponse === 'accepted' && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                  <h4 className="font-bold text-blue-800 mb-1">Business Response</h4>
+                  <p className="text-sm text-blue-700 font-medium">
+                    Business accepted your order.
+                    {selectedOrder.estimatedDeliveryTime && (
+                      <>
+                        {' '}Estimated delivery time: <span className="font-bold">{selectedOrder.estimatedDeliveryTime}</span>.
+                      </>
+                    )}
+                  </p>
+                </div>
+              )}
+
+              {/* Cancellation Reason */}
+              {selectedOrder.businessResponse === 'cancelled' && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                  <h4 className="font-bold text-red-800 mb-1">Order Cancelled</h4>
+                  <p className="text-sm text-red-700 font-semibold">
+                    Business cancelled this order.
+                    {selectedOrder.cancellationReason && (
+                      <>
+                        <br />
+                        Reason: <span className="font-extrabold">{selectedOrder.cancellationReason}</span>.
+                      </>
+                    )}
+                  </p>
+                </div>
+              )}
+
+              {/* Confirm Delivery Action */}
+              {canConfirmDelivered(selectedOrder) && (
+                <div className="bg-green-50 border border-green-200 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h4 className="font-bold text-green-800 text-base">Confirm Receipt</h4>
+                    <p className="text-sm text-green-700 mt-1">
+                      Your order has been delivered. Please confirm that you have received your items in good condition.
+                    </p>
+                  </div>
+                  <Button
+                    variant="success"
+                    onClick={() => handleConfirmDelivery(selectedOrder._id)}
+                    leftIcon={<CheckCircle2 size={16} />}
+                    className="font-bold shrink-0 shadow-sm"
+                  >
+                    Confirm Delivery
+                  </Button>
+                </div>
+              )}
+            </div>
           ) : (
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h1 className="text-2xl font-bold mb-6">Order Details</h1>
-              <p className="text-gray-500">Order ID: {orderId}</p>
+            <div className="bg-white rounded-xl shadow-md p-12 text-center border border-neutral-100">
+              <AlertCircle className="w-16 h-16 text-neutral-300 mx-auto mb-4" />
+              <h2 className="text-lg font-bold text-neutral-800">Order not found</h2>
+              <p className="text-neutral-500 text-sm mt-1">The order with ID {orderId} could not be located or you don't have access to it.</p>
             </div>
           )}
         </div>

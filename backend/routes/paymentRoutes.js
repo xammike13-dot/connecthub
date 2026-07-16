@@ -8,6 +8,8 @@ import {
   calculateRideFareEstimate,
   initiatePayment,
   completeTransaction,
+  getTransactionHistory,
+  getTransaction,
 } from '../controllers/paymentController.js';
 import { protect } from '../middleware/auth.js';
 
@@ -40,5 +42,9 @@ router.get('/verify/:transactionRef', verifyMpesaPayment);
 
 // Complete transaction (confirm receipt/completion)
 router.post('/complete/:transactionRef', completeTransaction);
+
+// Transaction history routes
+router.get('/transactions', getTransactionHistory);
+router.get('/transactions/:transactionRef', getTransaction);
 
 export default router;
