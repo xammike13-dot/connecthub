@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Bike, Eye, Trash2, AlertCircle, CheckCircle, Clock, X } from 'lucide-react';
 import { rideAPI } from '../services/api';
@@ -33,6 +33,9 @@ const formatCurrency = (amount) => {
 const CustomerRidesPage = () => {
   const { success: toastSuccess, error: toastError } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const rideIdParam = searchParams.get('rideId') || searchParams.get('id');
+
   const [rides, setRides] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedRide, setSelectedRide] = useState(null);
@@ -66,6 +69,30 @@ const CustomerRidesPage = () => {
   useEffect(() => {
     fetchRides();
   }, [page]);
+
+  useEffect(() => {
+    if (rideIdParam && rides.length > 0) {
+      const matched = rides.find(r => r._id === rideIdParam);
+      if (matched) {
+        setSelectedRide(matched);
+        setShowModal(true);
+      } else {
+        const fetchAndSelectRide = async () => {
+          try {
+            const { data } = await rideAPI.getById(rideIdParam);
+            const rd = data.data || data;
+            if (rd) {
+              setSelectedRide(rd);
+              setShowModal(true);
+            }
+          } catch (err) {
+            console.error('[CustomerRidesPage] Failed to fetch specific rideIdParam:', err);
+          }
+        };
+        fetchAndSelectRide();
+      }
+    }
+  }, [rideIdParam, rides]);
 
   const handleArchiveClick = (ride) => {
     setRideToDelete(ride);

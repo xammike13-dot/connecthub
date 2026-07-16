@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { Search, Filter, Download, Eye, CheckCircle, Clock, AlertCircle, XCircle } from 'lucide-react';
 
 const TransactionHistoryPage = () => {
   const { token, user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const transactionIdParam = searchParams.get('transactionId') || searchParams.get('id');
+
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState([]);
   const [filteredTransactions, setFilteredTransactions] = useState([]);
@@ -16,6 +20,37 @@ const TransactionHistoryPage = () => {
   useEffect(() => {
     fetchTransactions();
   }, [pagination.currentPage, filters]);
+
+  useEffect(() => {
+    if (transactionIdParam && filteredTransactions.length > 0) {
+      const matched = filteredTransactions.find(
+        (t) => t._id === transactionIdParam || t.transactionRef === transactionIdParam
+      );
+      if (matched) {
+        setSelectedTransaction(matched);
+        setShowModal(true);
+      } else {
+        const fetchAndSelectTransaction = async () => {
+          try {
+            const response = await axios.get(
+              `${import.meta.env.VITE_API_URL || ''}/payments/transactions/${transactionIdParam}`,
+              {
+                headers: { Authorization: `Bearer ${token}` },
+              }
+            );
+            const tx = response.data?.data || response.data;
+            if (tx) {
+              setSelectedTransaction(tx);
+              setShowModal(true);
+            }
+          } catch (err) {
+            console.error('[TransactionHistoryPage] Failed to fetch specific transaction:', err);
+          }
+        };
+        fetchAndSelectTransaction();
+      }
+    }
+  }, [transactionIdParam, filteredTransactions, token]);
 
   const fetchTransactions = async () => {
     setLoading(true);

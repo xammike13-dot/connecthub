@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Heart, Eye, Trash2, AlertCircle, Clock, CheckCircle, X } from 'lucide-react';
 import { customerAPI } from '../services/api';
@@ -30,6 +30,9 @@ const formatCurrency = (amount) => {
 const CustomerHealthcarePage = () => {
   const { success: toastSuccess, error: toastError } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const healthcareOrderIdParam = searchParams.get('healthcareOrderId') || searchParams.get('id');
+
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -60,6 +63,30 @@ const CustomerHealthcarePage = () => {
   useEffect(() => {
     fetchOrders();
   }, [page]);
+
+  useEffect(() => {
+    if (healthcareOrderIdParam && orders.length > 0) {
+      const matched = orders.find(o => o._id === healthcareOrderIdParam);
+      if (matched) {
+        setSelectedOrder(matched);
+        setShowModal(true);
+      } else {
+        const fetchAndSelectOrder = async () => {
+          try {
+            const { data } = await orderAPI.getById(healthcareOrderIdParam);
+            const ord = data.data || data;
+            if (ord) {
+              setSelectedOrder(ord);
+              setShowModal(true);
+            }
+          } catch (err) {
+            console.error('[CustomerHealthcarePage] Failed to fetch specific healthcareOrderIdParam:', err);
+          }
+        };
+        fetchAndSelectOrder();
+      }
+    }
+  }, [healthcareOrderIdParam, orders]);
 
   const handleArchiveClick = (order) => {
     setOrderToDelete(order);

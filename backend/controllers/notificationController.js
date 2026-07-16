@@ -1,5 +1,6 @@
 import Notification from '../models/Notification.js';
 import User from '../models/User.js';
+import PushSubscription from '../models/PushSubscription.js';
 import { asyncHandler, ResponseError } from '../middleware/error.js';
 
 /**
@@ -572,5 +573,46 @@ export const createOrderNotification = async (userId, order, status, userRole = 
     userRole
   );
 };
+
+/**
+ * Register a push subscription
+ */
+export const subscribePush = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const { subscription, role, deviceType, browser, notificationPermission } = req.body;
+
+  const sub = await PushSubscription.findOneAndUpdate(
+    { 'subscription.endpoint': subscription.endpoint },
+    {
+      userId,
+      role,
+      deviceType,
+      browser,
+      notificationPermission,
+      subscription,
+    },
+    { new: true, upsert: true }
+  );
+
+  res.status(200).json({
+    success: true,
+    message: 'Push subscription registered successfully',
+    data: sub,
+  });
+});
+
+/**
+ * Unregister a push subscription
+ */
+export const unsubscribePush = asyncHandler(async (req, res) => {
+  const { endpoint } = req.body;
+
+  await PushSubscription.findOneAndDelete({ 'subscription.endpoint': endpoint });
+
+  res.status(200).json({
+    success: true,
+    message: 'Push subscription removed successfully',
+  });
+});
 
 export default null;
