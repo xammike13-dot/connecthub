@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import ImageUpload from '../components/ImageUpload';
@@ -16,14 +16,39 @@ const LandlordSetupPage = () => {
 
   const [loading, setLoading] = useState(false);
   const [showWalkthrough, setShowWalkthrough] = useState(false);
+  const [initializedData, setInitializedData] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user && user.onboardingCompleted) {
-      navigate('/landlord/dashboard', { replace: true });
+    if (user) {
+      if (user.onboardingCompleted) {
+        navigate('/landlord/dashboard', { replace: true });
+        return;
+      }
+      if (!initializedData) {
+        if (user.profilePhoto || user.avatar) {
+          setProfilePhoto(user.profilePhoto || user.avatar);
+        }
+        if (user.businessLogo || user.landlordProfile?.propertyLogo) {
+          setBusinessLogo(user.businessLogo || user.landlordProfile?.propertyLogo);
+        }
+        if (user.landlordProfile?.propertyName) {
+          setPropertyName(user.landlordProfile.propertyName);
+        }
+        if (user.landlordProfile?.propertyDescription) {
+          setPropertyDescription(user.landlordProfile.propertyDescription);
+        }
+        if (user.landlordProfile?.propertyLocation) {
+          setPropertyLocation(user.landlordProfile.propertyLocation);
+        }
+        if (user.landlordProfile?.contactDetails) {
+          setContactDetails(user.landlordProfile.contactDetails);
+        }
+        setInitializedData(true);
+      }
     }
-  }, [user, navigate]);
+  }, [user, navigate, initializedData]);
 
   const handleNext = () => {
     if (step === 2) {

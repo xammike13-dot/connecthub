@@ -188,18 +188,12 @@ export const completeBusinessSetup = async (req, res) => {
       });
     }
 
-    // Strict validation for business onboarding fields
+    // Strict validation for business onboarding fields (removed description and category fields as required for setup)
     if (!businessLogo || !businessLogo.trim()) {
       return res.status(400).json({ success: false, message: 'Business Logo is required.' });
     }
     if (!businessName || !businessName.trim()) {
       return res.status(400).json({ success: false, message: 'Business Name is required.' });
-    }
-    if (!businessDescription || !businessDescription.trim()) {
-      return res.status(400).json({ success: false, message: 'Business Description is required.' });
-    }
-    if (!businessCategory || !businessCategory.trim()) {
-      return res.status(400).json({ success: false, message: 'Business Category is required.' });
     }
     if (!businessLocation || !businessLocation.trim()) {
       return res.status(400).json({ success: false, message: 'Business Location is required.' });
@@ -224,8 +218,8 @@ export const completeBusinessSetup = async (req, res) => {
     user.businessProfile = user.businessProfile || {};
     user.businessProfile.businessLogo = businessLogo;
     user.businessProfile.businessName = businessName;
-    user.businessProfile.businessDescription = businessDescription;
-    user.businessProfile.businessCategory = businessCategory;
+    user.businessProfile.businessDescription = businessDescription || '';
+    user.businessProfile.businessCategory = businessCategory || '';
     user.businessProfile.businessLocation = businessLocation;
     user.businessProfile.businessContact = businessContact;
 

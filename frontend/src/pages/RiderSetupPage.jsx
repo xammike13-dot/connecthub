@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import ImageUpload from '../components/ImageUpload';
@@ -18,14 +18,42 @@ const RiderSetupPage = () => {
   const [nightRatePerKm, setNightRatePerKm] = useState('35');
   const [loading, setLoading] = useState(false);
   const [showWalkthrough, setShowWalkthrough] = useState(false);
+  const [initializedData, setInitializedData] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user && user.onboardingCompleted) {
-      navigate('/rider/dashboard', { replace: true });
+    if (user) {
+      if (user.onboardingCompleted) {
+        navigate('/rider/dashboard', { replace: true });
+        return;
+      }
+      if (!initializedData) {
+        if (user.profilePhoto || user.avatar) {
+          setProfilePhoto(user.profilePhoto || user.avatar);
+        }
+        if (user.riderProfile?.motorcycle?.photo) {
+          setMotorcyclePhoto(user.riderProfile.motorcycle.photo);
+        }
+        if (user.riderProfile?.workingArea?.selectedWorkingAreas) {
+          setSelectedWorkingAreas(user.riderProfile.workingArea.selectedWorkingAreas);
+        }
+        if (user.riderProfile?.workingHours?.start || user.riderProfile?.workingHours?.end) {
+          setWorkingHours({
+            start: user.riderProfile.workingHours.start || '06:00',
+            end: user.riderProfile.workingHours.end || '22:00',
+          });
+        }
+        if (user.riderProfile?.dayRatePerKm) {
+          setDayRatePerKm(String(user.riderProfile.dayRatePerKm));
+        }
+        if (user.riderProfile?.nightRatePerKm) {
+          setNightRatePerKm(String(user.riderProfile.nightRatePerKm));
+        }
+        setInitializedData(true);
+      }
     }
-  }, [user, navigate]);
+  }, [user, navigate, initializedData]);
 
   const handleNext = () => {
     if (step === 1) {
