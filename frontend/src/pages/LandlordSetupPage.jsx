@@ -9,13 +9,36 @@ const LandlordSetupPage = () => {
   const [step, setStep] = useState(1);
   const [profilePhoto, setProfilePhoto] = useState('');
   const [businessLogo, setBusinessLogo] = useState('');
+  const [propertyName, setPropertyName] = useState('');
+  const [propertyDescription, setPropertyDescription] = useState('');
+  const [propertyLocation, setPropertyLocation] = useState('');
+  const [contactDetails, setContactDetails] = useState('');
+
   const [loading, setLoading] = useState(false);
   const [showWalkthrough, setShowWalkthrough] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  useEffect(() => {
+    if (user && user.onboardingCompleted) {
+      navigate('/landlord/dashboard', { replace: true });
+    }
+  }, [user, navigate]);
+
   const handleNext = () => {
-    if (step < 3) {
+    if (step === 2) {
+      if (!propertyName.trim() || !propertyDescription.trim() || !propertyLocation.trim() || !contactDetails.trim()) {
+        alert('Please fill in all Property details.');
+        return;
+      }
+    }
+    if (step === 3) {
+      if (!businessLogo) {
+        alert('Please upload your Property/Business Logo.');
+        return;
+      }
+    }
+    if (step < 4) {
       setStep(step + 1);
     }
   };
@@ -29,11 +52,28 @@ const LandlordSetupPage = () => {
   const { refreshProfile } = useAuth();
 
   const handleSubmit = async () => {
+    if (!profilePhoto) {
+      alert('Please upload a Profile Photo.');
+      return;
+    }
+    if (!businessLogo) {
+      alert('Please upload a Property/Business Logo.');
+      return;
+    }
+    if (!propertyName.trim() || !propertyDescription.trim() || !propertyLocation.trim() || !contactDetails.trim()) {
+      alert('Please fill in all details.');
+      return;
+    }
+
     setLoading(true);
     try {
       await api.post('/setup/landlord', {
         profilePhoto,
         businessLogo,
+        propertyName,
+        propertyDescription,
+        propertyLocation,
+        contactDetails,
       });
 
       // Refresh the user profile to sync setupCompleted: true in context
@@ -56,36 +96,69 @@ const LandlordSetupPage = () => {
 
   const walkthroughSteps = [
     {
-      title: 'Welcome',
-      heading: 'Add Your First Property',
-      description: 'Start by listing your rental properties. This is how tenants will discover and book from you.',
+      title: 'Properties',
+      heading: 'Add Rental Properties',
+      description: 'Easily list your single rooms, bedsitters, apartments, or hostels by navigating to the Properties page and clicking "Add Property".',
       actionItems: [
-        'Click "Add Property" in your dashboard',
-        'Upload high-quality property photos',
-        'Set competitive rental prices',
-        'Publish your property to go live'
+        'Go to Properties',
+        'Click "Add Property"',
+        'Fill in property specifications',
+        'Save your draft or publish'
       ]
     },
     {
-      title: 'Properties',
-      heading: 'Manage Your Properties',
-      description: 'Keep your property listings updated and monitor your rental performance through the dashboard.',
+      title: 'Photos',
+      heading: 'Upload Property Photos',
+      description: 'Attract tenants by uploading clear, bright photos of your rooms, bathroom, kitchen, and exterior views.',
       actionItems: [
-        'Track property views and inquiries',
-        'Update property details anytime',
-        'Manage availability and pricing',
-        'Analyze booking trends'
+        'Capture clear landscape photos',
+        'Add multiple photos per room',
+        'Rearrange photo order',
+        'Save changes'
+      ]
+    },
+    {
+      title: 'Pricing',
+      heading: 'Set Rent Prices',
+      description: 'Configure standard monthly rent rates, initial security deposits, and any utility or amenity fees transparently.',
+      actionItems: [
+        'Input monthly rent amount',
+        'Specify refundable deposits',
+        'Clarify water/electricity terms',
+        'Show complete cost breakdown'
+      ]
+    },
+    {
+      title: 'Vacancies',
+      heading: 'Manage Vacancies',
+      description: 'Toggle room availability states instantly as tenants move in or check out, keeping your listings fresh and accurate.',
+      actionItems: [
+        'Monitor occupied vs vacant units',
+        'Mark rooms as occupied',
+        'Mark rooms as vacant',
+        'Update total room counts'
       ]
     },
     {
       title: 'Bookings',
-      heading: 'Manage Bookings',
-      description: 'When tenants request bookings, you\'ll receive notifications. Review and accept them quickly to fill your vacancies.',
+      heading: 'Receive Bookings',
+      description: 'Review incoming rental booking requests from students and other tenants. Accept or schedule viewings instantly.',
       actionItems: [
-        'Review incoming booking requests',
-        'Accept or decline requests',
-        'Set move-in dates',
-        'Track payment status'
+        'Get notified of new bookings',
+        'View tenant profiles',
+        'Approve and reserve rooms',
+        'Coordinate check-in dates'
+      ]
+    },
+    {
+      title: 'Edit Listings',
+      heading: 'Edit Listings Anytime',
+      description: 'Keep your listings updated by editing rental descriptions, amenities, guidelines, and rules whenever needed.',
+      actionItems: [
+        'Update amenities lists',
+        'Rewrite descriptive details',
+        'Adjust rent pricing dynamically',
+        'Modify safety/house rules'
       ]
     }
   ];
@@ -106,15 +179,74 @@ const LandlordSetupPage = () => {
       ),
     },
     {
-      title: 'Upload Business Logo',
-      description: 'Add your business or property management logo',
+      title: 'Property Details',
+      description: 'Add name, description, and location of your rental business',
+      content: (
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-neutral-800 mb-2">
+              Property/Business Name *
+            </label>
+            <input
+              type="text"
+              value={propertyName}
+              onChange={(e) => setPropertyName(e.target.value)}
+              className="input-field"
+              placeholder="e.g. Goshen Student Hostels"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-neutral-800 mb-2">
+              Property Description *
+            </label>
+            <textarea
+              value={propertyDescription}
+              onChange={(e) => setPropertyDescription(e.target.value)}
+              className="input-field min-h-[100px]"
+              placeholder="Describe your property, rules, and amenities..."
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-neutral-800 mb-2">
+              Property Location *
+            </label>
+            <input
+              type="text"
+              value={propertyLocation}
+              onChange={(e) => setPropertyLocation(e.target.value)}
+              className="input-field"
+              placeholder="e.g. near Moi University Main Gate"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-neutral-800 mb-2">
+              Contact Details *
+            </label>
+            <input
+              type="text"
+              value={contactDetails}
+              onChange={(e) => setContactDetails(e.target.value)}
+              className="input-field"
+              placeholder="e.g. Phone: +254712345678, WhatsApp: +254712345678"
+              required
+            />
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: 'Upload Property Logo',
+      description: 'Add your property management or business logo',
       content: (
         <div className="space-y-4">
           <ImageUpload
             onUpload={(img) => setBusinessLogo(typeof img === 'string' ? img : img?.url || '')}
             currentImage={businessLogo}
             aspectRatio="square"
-            label="Business Logo"
+            label="Property/Business Logo"
           />
         </div>
       ),
@@ -136,11 +268,23 @@ const LandlordSetupPage = () => {
                 <span className="font-medium">{user?.email}</span>
               </div>
               <div className="flex justify-between">
+                <span className="text-neutral-600">Property Name:</span>
+                <span className="font-medium">{propertyName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-neutral-600">Property Location:</span>
+                <span className="font-medium">{propertyLocation}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-neutral-600">Contact Details:</span>
+                <span className="font-medium">{contactDetails}</span>
+              </div>
+              <div className="flex justify-between">
                 <span className="text-neutral-600">Profile Photo:</span>
                 <span className="font-medium">{profilePhoto ? '✓ Uploaded' : 'Not uploaded'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-neutral-600">Business Logo:</span>
+                <span className="text-neutral-600">Property Logo:</span>
                 <span className="font-medium">{businessLogo ? '✓ Uploaded' : 'Not uploaded'}</span>
               </div>
             </div>
@@ -165,7 +309,7 @@ const LandlordSetupPage = () => {
         {/* Progress Steps */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
-            {[1, 2, 3].map((stepNum) => (
+            {[1, 2, 3, 4].map((stepNum) => (
               <div key={stepNum} className="flex items-center">
                 <div
                   className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
@@ -176,7 +320,7 @@ const LandlordSetupPage = () => {
                 >
                   {step > stepNum ? '✓' : stepNum}
                 </div>
-                {stepNum < 3 && (
+                {stepNum < 4 && (
                   <div
                     className={`w-full h-1 mx-2 ${
                       step > stepNum ? 'bg-blue-600' : 'bg-neutral-200'
@@ -211,16 +355,7 @@ const LandlordSetupPage = () => {
             )}
 
             <div className="flex gap-3">
-              {step < 3 && (
-                <button
-                  type="button"
-                  onClick={handleNext}
-                  className="px-6 py-3 border border-neutral-300 rounded-lg bg-white hover:bg-neutral-50 transition-colors text-neutral-600 font-medium"
-                >
-                  Skip
-                </button>
-              )}
-              {step < 3 ? (
+              {step < 4 ? (
                 <button
                   type="button"
                   onClick={handleNext}

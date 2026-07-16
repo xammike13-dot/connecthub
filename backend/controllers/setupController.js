@@ -46,7 +46,14 @@ const handleControllerError = (error, res, genericMessage) => {
 // @access  Private
 export const completeLandlordSetup = async (req, res) => {
   try {
-    const { profilePhoto, businessLogo } = req.body;
+    const {
+      profilePhoto,
+      businessLogo,
+      propertyName,
+      propertyDescription,
+      propertyLocation,
+      contactDetails
+    } = req.body;
 
     const userId = req.user?.id || req.user?._id;
     if (!userId) {
@@ -72,6 +79,23 @@ export const completeLandlordSetup = async (req, res) => {
       });
     }
 
+    // Strict validation for landlord onboarding fields
+    if (!propertyName || !propertyName.trim()) {
+      return res.status(400).json({ success: false, message: 'Property/Business Name is required.' });
+    }
+    if (!propertyDescription || !propertyDescription.trim()) {
+      return res.status(400).json({ success: false, message: 'Property Description is required.' });
+    }
+    if (!propertyLocation || !propertyLocation.trim()) {
+      return res.status(400).json({ success: false, message: 'Property Location is required.' });
+    }
+    if (!contactDetails || !contactDetails.trim()) {
+      return res.status(400).json({ success: false, message: 'Contact Details are required.' });
+    }
+    if (!businessLogo || !businessLogo.trim()) {
+      return res.status(400).json({ success: false, message: 'Property/Business Logo is required.' });
+    }
+
     // Validate that image paths are valid strings before saving
     if (profilePhoto !== undefined && profilePhoto !== null && profilePhoto !== '') {
       if (typeof profilePhoto !== 'string') {
@@ -93,12 +117,21 @@ export const completeLandlordSetup = async (req, res) => {
       user.businessLogo = businessLogo;
     }
 
+    // Save fields in landlordProfile
+    user.landlordProfile = user.landlordProfile || {};
+    user.landlordProfile.propertyName = propertyName;
+    user.landlordProfile.propertyDescription = propertyDescription;
+    user.landlordProfile.propertyLocation = propertyLocation;
+    user.landlordProfile.propertyLogo = businessLogo;
+    user.landlordProfile.contactDetails = contactDetails;
+
     user.setupCompleted = true;
+    user.onboardingCompleted = true;
     await user.save();
 
     res.status(200).json({
       success: true,
-      message: 'Landlord setup completed successfully',
+      message: 'Landlord setup and onboarding completed successfully',
       user: {
         id: user._id,
         name: user.name,
@@ -107,7 +140,9 @@ export const completeLandlordSetup = async (req, res) => {
         role: user.role,
         profilePhoto: user.profilePhoto,
         businessLogo: user.businessLogo,
+        landlordProfile: user.landlordProfile,
         setupCompleted: user.setupCompleted,
+        onboardingCompleted: user.onboardingCompleted,
       },
     });
   } catch (error) {
@@ -120,7 +155,14 @@ export const completeLandlordSetup = async (req, res) => {
 // @access  Private
 export const completeBusinessSetup = async (req, res) => {
   try {
-    const { businessLogo } = req.body;
+    const {
+      businessLogo,
+      businessName,
+      businessDescription,
+      businessCategory,
+      businessLocation,
+      businessContact
+    } = req.body;
 
     const userId = req.user?.id || req.user?._id;
     if (!userId) {
@@ -146,6 +188,26 @@ export const completeBusinessSetup = async (req, res) => {
       });
     }
 
+    // Strict validation for business onboarding fields
+    if (!businessLogo || !businessLogo.trim()) {
+      return res.status(400).json({ success: false, message: 'Business Logo is required.' });
+    }
+    if (!businessName || !businessName.trim()) {
+      return res.status(400).json({ success: false, message: 'Business Name is required.' });
+    }
+    if (!businessDescription || !businessDescription.trim()) {
+      return res.status(400).json({ success: false, message: 'Business Description is required.' });
+    }
+    if (!businessCategory || !businessCategory.trim()) {
+      return res.status(400).json({ success: false, message: 'Business Category is required.' });
+    }
+    if (!businessLocation || !businessLocation.trim()) {
+      return res.status(400).json({ success: false, message: 'Business Location is required.' });
+    }
+    if (!businessContact || !businessContact.trim()) {
+      return res.status(400).json({ success: false, message: 'Business Contact Details are required.' });
+    }
+
     // Validate and save the business logo to multiple fields to ensure it is displayed everywhere automatically
     if (businessLogo !== undefined && businessLogo !== null) {
       if (typeof businessLogo !== 'string') {
@@ -156,18 +218,24 @@ export const completeBusinessSetup = async (req, res) => {
       }
       user.businessLogo = businessLogo;
       user.avatar = businessLogo;
-
-      // Initialize businessProfile and set the nested businessLogo
-      user.businessProfile = user.businessProfile || {};
-      user.businessProfile.businessLogo = businessLogo;
     }
 
+    // Initialize businessProfile and set fields
+    user.businessProfile = user.businessProfile || {};
+    user.businessProfile.businessLogo = businessLogo;
+    user.businessProfile.businessName = businessName;
+    user.businessProfile.businessDescription = businessDescription;
+    user.businessProfile.businessCategory = businessCategory;
+    user.businessProfile.businessLocation = businessLocation;
+    user.businessProfile.businessContact = businessContact;
+
     user.setupCompleted = true;
+    user.onboardingCompleted = true;
     await user.save();
 
     res.status(200).json({
       success: true,
-      message: 'Business setup completed successfully',
+      message: 'Business setup and onboarding completed successfully',
       user: {
         id: user._id,
         name: user.name,
@@ -176,7 +244,9 @@ export const completeBusinessSetup = async (req, res) => {
         role: user.role,
         avatar: user.avatar,
         businessLogo: user.businessLogo,
+        businessProfile: user.businessProfile,
         setupCompleted: user.setupCompleted,
+        onboardingCompleted: user.onboardingCompleted,
       },
     });
   } catch (error) {
@@ -216,35 +286,32 @@ export const completeRiderSetup = async (req, res) => {
     }
 
     // Validate that image paths are valid strings before saving
-    if (profilePhoto !== undefined && profilePhoto !== null) {
-      if (typeof profilePhoto !== 'string') {
-        return res.status(400).json({
-          success: false,
-          message: 'Profile photo must be a valid string.',
-        });
-      }
-      user.profilePhoto = profilePhoto;
-      user.avatar = profilePhoto;
-      user.riderProfile = user.riderProfile || {};
-      user.riderProfile.profilePhoto = profilePhoto;
-    }
-    if (motorcyclePhoto !== undefined && motorcyclePhoto !== null && motorcyclePhoto !== '') {
-      if (typeof motorcyclePhoto !== 'string') {
-        return res.status(400).json({
-          success: false,
-          message: 'Motorcycle photo must be a valid string.',
-        });
-      }
-      user.riderProfile = user.riderProfile || {};
-      user.riderProfile.motorcycle = user.riderProfile.motorcycle || {};
-      user.riderProfile.motorcycle.photo = motorcyclePhoto;
-    }
-
-    // Strict Backend Validation for Rider Setup
-    if (!workingArea || !workingArea.county || !workingArea.town || !workingArea.serviceRadius) {
+    if (!profilePhoto || typeof profilePhoto !== 'string' || profilePhoto.trim() === '') {
       return res.status(400).json({
         success: false,
-        message: 'Working Area (County, Town, and Service Radius) is required.',
+        message: 'Profile photo is required.',
+      });
+    }
+    if (!motorcyclePhoto || typeof motorcyclePhoto !== 'string' || motorcyclePhoto.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Motorcycle photo is required.',
+      });
+    }
+
+    user.profilePhoto = profilePhoto;
+    user.avatar = profilePhoto;
+    user.riderProfile = user.riderProfile || {};
+    user.riderProfile.profilePhoto = profilePhoto;
+
+    user.riderProfile.motorcycle = user.riderProfile.motorcycle || {};
+    user.riderProfile.motorcycle.photo = motorcyclePhoto;
+
+    // Strict Backend Validation for Rider Setup
+    if (!workingArea || !Array.isArray(workingArea.selectedWorkingAreas) || workingArea.selectedWorkingAreas.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'At least one Working Area is required.',
       });
     }
 
@@ -273,18 +340,23 @@ export const completeRiderSetup = async (req, res) => {
     }
 
     // Save fields
-    user.riderProfile = user.riderProfile || {};
-    user.riderProfile.workingArea = workingArea;
+    user.riderProfile.workingArea = {
+      county: workingArea.county || 'Uasin Gishu',
+      town: workingArea.town || 'Eldoret',
+      serviceRadius: workingArea.serviceRadius || '10',
+      selectedWorkingAreas: workingArea.selectedWorkingAreas,
+    };
     user.riderProfile.workingHours = workingHours;
     user.riderProfile.dayRatePerKm = finalDayRate;
     user.riderProfile.nightRatePerKm = finalNightRate;
 
     user.setupCompleted = true;
+    user.onboardingCompleted = true;
     await user.save();
 
     res.status(200).json({
       success: true,
-      message: 'Rider setup completed successfully',
+      message: 'Rider setup and onboarding completed successfully',
       user: {
         id: user._id,
         name: user.name,
@@ -294,6 +366,7 @@ export const completeRiderSetup = async (req, res) => {
         profilePhoto: user.profilePhoto,
         riderProfile: user.riderProfile,
         setupCompleted: user.setupCompleted,
+        onboardingCompleted: user.onboardingCompleted,
       },
     });
   } catch (error) {

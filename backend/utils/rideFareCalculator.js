@@ -33,7 +33,7 @@
  * Minimum fare constant (KSh)
  * Applied when distance < 1 km
  */
-export const MINIMUM_FARE = 50;
+export const MINIMUM_FARE = 25;
 
 /**
  * Minimum distance threshold in meters (1 km)

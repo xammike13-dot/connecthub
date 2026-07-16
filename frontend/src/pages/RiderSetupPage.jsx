@@ -9,11 +9,7 @@ const RiderSetupPage = () => {
   const [step, setStep] = useState(1);
   const [profilePhoto, setProfilePhoto] = useState('');
   const [motorcyclePhoto, setMotorcyclePhoto] = useState('');
-  const [workingArea, setWorkingArea] = useState({
-    county: '',
-    town: '',
-    serviceRadius: '',
-  });
+  const [selectedWorkingAreas, setSelectedWorkingAreas] = useState([]);
   const [workingHours, setWorkingHours] = useState({
     start: '06:00',
     end: '22:00',
@@ -25,10 +21,28 @@ const RiderSetupPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  useEffect(() => {
+    if (user && user.onboardingCompleted) {
+      navigate('/rider/dashboard', { replace: true });
+    }
+  }, [user, navigate]);
+
   const handleNext = () => {
+    if (step === 1) {
+      if (!profilePhoto) {
+        alert('Please upload a Profile Photo.');
+        return;
+      }
+    }
+    if (step === 2) {
+      if (!motorcyclePhoto) {
+        alert('Please upload a Motorcycle Photo.');
+        return;
+      }
+    }
     if (step === 3) {
-      if (!workingArea.county || !workingArea.town || !workingArea.serviceRadius) {
-        alert('Please fill in County, Town, and Service Radius.');
+      if (selectedWorkingAreas.length === 0) {
+        alert('Please select at least one Working Area.');
         return;
       }
     }
@@ -52,6 +66,18 @@ const RiderSetupPage = () => {
   const { refreshProfile } = useAuth();
 
   const handleSubmit = async () => {
+    if (!profilePhoto) {
+      alert('Please upload a Profile Photo.');
+      return;
+    }
+    if (!motorcyclePhoto) {
+      alert('Please upload a Motorcycle Photo.');
+      return;
+    }
+    if (selectedWorkingAreas.length === 0) {
+      alert('Please select at least one Working Area.');
+      return;
+    }
     if (!dayRatePerKm || !nightRatePerKm) {
       alert('Please set both Day Rate and Night Rate.');
       return;
@@ -62,9 +88,10 @@ const RiderSetupPage = () => {
         profilePhoto,
         motorcyclePhoto,
         workingArea: {
-          county: workingArea.county,
-          town: workingArea.town,
-          serviceRadius: workingArea.serviceRadius,
+          county: 'Uasin Gishu',
+          town: 'Eldoret',
+          serviceRadius: '10',
+          selectedWorkingAreas,
         },
         workingHours,
         dayRatePerKm: parseFloat(dayRatePerKm),
@@ -125,6 +152,21 @@ const RiderSetupPage = () => {
     }
   ];
 
+  const handleToggleArea = (area) => {
+    if (selectedWorkingAreas.includes(area)) {
+      setSelectedWorkingAreas(selectedWorkingAreas.filter((a) => a !== area));
+    } else {
+      setSelectedWorkingAreas([...selectedWorkingAreas, area]);
+    }
+  };
+
+  const workingAreaOptions = [
+    'Chebaiywa (Cheba)',
+    'Stage',
+    'Kesses',
+    'Mabs',
+  ];
+
   const steps = [
     {
       title: 'Upload Rider Profile Photo',
@@ -156,47 +198,40 @@ const RiderSetupPage = () => {
     },
     {
       title: 'Working Area',
-      description: 'Define the area where you provide services',
+      description: 'Select the working areas where you offer services',
       content: (
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-2">
-              County
-            </label>
-            <input
-              type="text"
-              value={workingArea.county}
-              onChange={(e) => setWorkingArea({ ...workingArea, county: e.target.value })}
-              className="input-field"
-              placeholder="e.g., Nairobi"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-2">
-              Town/Area
-            </label>
-            <input
-              type="text"
-              value={workingArea.town}
-              onChange={(e) => setWorkingArea({ ...workingArea, town: e.target.value })}
-              className="input-field"
-              placeholder="e.g., Westlands"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-2">
-              Service Radius (km)
-            </label>
-            <input
-              type="number"
-              value={workingArea.serviceRadius}
-              onChange={(e) => setWorkingArea({ ...workingArea, serviceRadius: e.target.value })}
-              className="input-field"
-              placeholder="e.g., 10"
-              required
-            />
+          <label className="block text-sm font-semibold text-neutral-800 mb-2">
+            Select one or more Areas *
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {workingAreaOptions.map((area) => (
+              <button
+                type="button"
+                key={area}
+                onClick={() => handleToggleArea(area)}
+                className={`flex items-center gap-3 p-4 rounded-xl border text-left font-medium transition-all ${
+                  selectedWorkingAreas.includes(area)
+                    ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-sm'
+                    : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'
+                }`}
+              >
+                <div
+                  className={`w-5 h-5 rounded flex items-center justify-center border transition-all ${
+                    selectedWorkingAreas.includes(area)
+                      ? 'border-blue-600 bg-blue-600 text-white'
+                      : 'border-neutral-300 bg-white'
+                  }`}
+                >
+                  {selectedWorkingAreas.includes(area) && (
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </div>
+                <span>{area}</span>
+              </button>
+            ))}
           </div>
         </div>
       ),
@@ -343,15 +378,6 @@ const RiderSetupPage = () => {
             )}
 
             <div className="flex gap-3">
-              {(step === 1 || step === 2) && (
-                <button
-                  type="button"
-                  onClick={handleNext}
-                  className="px-6 py-3 border border-neutral-300 rounded-lg bg-white hover:bg-neutral-50 transition-colors text-neutral-600 font-medium"
-                >
-                  Skip
-                </button>
-              )}
               {step < 5 ? (
                 <button
                   type="button"
