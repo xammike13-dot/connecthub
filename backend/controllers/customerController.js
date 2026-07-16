@@ -44,12 +44,6 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
   // Get customer unread notifications count
   const unreadNotificationsCount = await Notification.countDocuments({ user: customerId, read: false });
 
-  // Get customer Wallet
-  let wallet = await Wallet.findOne({ user: customerId });
-  if (!wallet) {
-    wallet = await Wallet.create({ user: customerId });
-  }
-
   // Get recent orders (last 5)
   const recentOrders = orders
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
@@ -74,8 +68,6 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
       totalSpent,
       wishlistCount,
       unreadNotificationsCount,
-      walletBalance: wallet.balance,
-      walletPending: wallet.pendingBalance,
       recentOrders,
     },
   });

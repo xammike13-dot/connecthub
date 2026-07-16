@@ -483,32 +483,8 @@ const CustomerDashboard = () => {
             </div>
           </div>
 
-          {/* Wallet and Notifications Row */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-            <div className="card bg-white p-5 rounded-xl border border-neutral-200 shadow-sm flex items-center justify-between">
-              <div>
-                <p className="text-sm text-neutral-500 mb-1">Wallet Balance</p>
-                <p className="text-2xl font-bold text-green-600">
-                  {formatCurrency(dashboardData?.walletBalance || 0)}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                <Wallet className="w-6 h-6 text-green-600" />
-              </div>
-            </div>
-
-            <div className="card bg-white p-5 rounded-xl border border-neutral-200 shadow-sm flex items-center justify-between">
-              <div>
-                <p className="text-sm text-neutral-500 mb-1">Pending Wallet Funds</p>
-                <p className="text-2xl font-bold text-amber-600">
-                  {formatCurrency(dashboardData?.walletPending || 0)}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
-                <Wallet className="w-6 h-6 text-amber-600" />
-              </div>
-            </div>
-
+          {/* Notifications Card - Adjusted for no customer wallet cards */}
+          <div className="grid grid-cols-1 gap-4 mt-6">
             <div className="card bg-white p-5 rounded-xl border border-neutral-200 shadow-sm flex items-center justify-between">
               <div>
                 <p className="text-sm text-neutral-500 mb-1">Unread Notifications</p>

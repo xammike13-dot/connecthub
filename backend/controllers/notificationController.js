@@ -280,17 +280,58 @@ export const createNotification = async (userId, type, title, message, data = {}
       type === 'booking_request' ||
       type === 'new_order' ||
       type === 'order_delivered' ||
+      type === 'delivered' ||
       type === 'ride_request' ||
       type === 'ride_awaiting_customer_confirmation' ||
+      type === 'delivery_confirmation_required' ||
+      type === 'payment_confirmation_required' ||
+      type === 'booking_confirmation_required' ||
+      type === 'ride_confirmation_required' ||
       data?.actionRequired === true
     ) {
       actionRequired = true;
     }
 
+    // Sanitize type parameter to ensure it's in the enum
+    const ALLOWED_NOTIFICATION_TYPES = [
+      'order', 'order_update', 'order_accepted', 'order_delivered', 'new_order', 'order_payment_confirmed', 'delivery_confirmed',
+      'payment', 'payment_received', 'ride_payment_confirmed', 'ride_payment_failed', 'booking_cancelled', 'move_in_date_set',
+      'move_in_confirmed', 'move_in_confirmed_success', 'rent_due', 'rent_payment_received', 'rent_payment_confirmed',
+      'order_payment_failed', 'rental_payment_failed', 'payment_released', 'ride_awaiting_customer_confirmation',
+      'ride_in_progress', 'ride_started', 'ride_declined', 'ride_cancelled', 'ride_pending_payment', 'ride_waiting_rider',
+      'ride_no_rider_available', 'booking', 'booking_confirmed', 'booking_request', 'rental_booking', 'message', 'system',
+      'ride_request', 'ride_accepted', 'ride_completed'
+    ];
+
+    let sanitizedType = type;
+    if (!ALLOWED_NOTIFICATION_TYPES.includes(sanitizedType)) {
+      if (sanitizedType?.includes('message')) {
+        sanitizedType = 'message';
+      } else if (sanitizedType?.includes('payment') || sanitizedType?.includes('pay')) {
+        sanitizedType = 'payment';
+      } else if (sanitizedType?.includes('ride')) {
+        if (sanitizedType.includes('cancel')) sanitizedType = 'ride_cancelled';
+        else if (sanitizedType.includes('accept')) sanitizedType = 'ride_accepted';
+        else if (sanitizedType.includes('complete')) sanitizedType = 'ride_completed';
+        else if (sanitizedType.includes('start')) sanitizedType = 'ride_started';
+        else sanitizedType = 'system';
+      } else if (sanitizedType?.includes('booking') || sanitizedType?.includes('rental')) {
+        if (sanitizedType.includes('cancel')) sanitizedType = 'booking_cancelled';
+        else if (sanitizedType.includes('confirm')) sanitizedType = 'booking_confirmed';
+        else sanitizedType = 'booking';
+      } else if (sanitizedType?.includes('order')) {
+        if (sanitizedType.includes('accept')) sanitizedType = 'order_accepted';
+        else if (sanitizedType.includes('deliver')) sanitizedType = 'order_delivered';
+        else sanitizedType = 'order_update';
+      } else {
+        sanitizedType = 'system';
+      }
+    }
+
     const notification = await Notification.create({
       user: userId,
       userId,
-      type,
+      type: sanitizedType,
       notificationType,
       relatedEntityId,
       relatedEntityType,
@@ -337,7 +378,7 @@ export const createNotification = async (userId, type, title, message, data = {}
       data: {
         ...data,
         notificationId: notification._id,
-        type,
+        type: sanitizedType,
       },
     }).catch((err) => {
       console.error('[NOTIFICATION] Push service delivery failed:', err);
@@ -363,17 +404,39 @@ export const createNotification = async (userId, type, title, message, data = {}
 export const createPaymentNotification = async (userId, transaction, navigationTarget = null, req = null, userRole = 'customer') => {
   const transactionId = transaction?._id || transaction?.transactionRef || 'unknown';
   const amount = transaction?.amount || transaction?.providerReceives || transaction?.customerPays || 0;
-  const title = 'Payment Update';
-  const message = `Your payment for transaction ${String(transactionId).slice(-6).toUpperCase()} has been updated.`;
+  let title = 'Payment Update';
+  let message = `Your payment for transaction ${String(transactionId).slice(-6).toUpperCase()} has been updated.`;
+  let actionRequired = false;
+
+  if (transaction?.status === 'pending') {
+    title = 'Confirm Payment Completion';
+    message = `Action Required: Your payment of KSh ${amount} is pending. Please confirm payment completion to authorize.`;
+    actionRequired = true;
+  } else if (transaction?.status === 'completed' || transaction?.status === 'success') {
+    title = 'Payment Successful';
+    message = `Your payment of KSh ${amount} has been successfully processed.`;
+  } else if (transaction?.status === 'failed') {
+    title = 'Payment Failed';
+    message = `Your payment of KSh ${amount} has failed.`;
+  }
+
+  const finalNavigationTarget = navigationTarget || `/${userRole}/transactions?transactionId=${transactionId}`;
 
   return createNotification(
     userId,
     'payment',
     title,
     message,
-    { transactionId, amount, status: transaction?.status, relatedEntityId: transactionId, relatedEntityType: 'Transaction' },
+    {
+      transactionId,
+      amount,
+      status: transaction?.status,
+      relatedEntityId: transactionId,
+      relatedEntityType: 'Transaction',
+      actionRequired,
+    },
     `/payments/${transactionId}`,
-    navigationTarget,
+    finalNavigationTarget,
     req,
     userRole
   );
@@ -389,7 +452,14 @@ export const createRideNotification = async (userId, ride, status, userRole = 'c
   let title = 'Ride Update';
   let message = customMessage || `Your ride ${rideIdSuffix} has been updated.`;
   let notificationType = 'ride';
-  let navigationTarget = userRole === 'rider' ? '/rider/dashboard' : '/customer/rides';
+  let actionRequired = false;
+
+  let navigationTarget;
+  if (userRole === 'rider') {
+    navigationTarget = `/rider/requests?rideId=${rideId}`;
+  } else {
+    navigationTarget = `/customer/rides?rideId=${rideId}`;
+  }
 
   switch (status) {
     case 'waiting_rider':
@@ -397,8 +467,19 @@ export const createRideNotification = async (userId, ride, status, userRole = 'c
       message = customMessage || 'Your ride request has been received and is waiting for a rider.';
       break;
     case 'accepted':
-      title = 'Ride Accepted';
+      title = 'Rider Accepted';
       message = customMessage || 'A rider has accepted your ride request.';
+      break;
+    case 'arrived':
+    case 'rider_arrived':
+      title = 'Rider Arrived';
+      message = customMessage || 'Action Required: Your rider has arrived at the pickup location. Please meet them.';
+      actionRequired = true;
+      break;
+    case 'ride_started':
+    case 'in_progress':
+      title = 'Ride Started';
+      message = customMessage || 'Your ride has started. Have a safe journey!';
       break;
     case 'completed':
     case 'ride_completed':
@@ -407,12 +488,28 @@ export const createRideNotification = async (userId, ride, status, userRole = 'c
       break;
     case 'cancelled':
     case 'declined':
+    case 'ride_cancelled':
       title = 'Ride Cancelled';
       message = customMessage || 'Your ride has been cancelled.';
       break;
     case 'awaiting_customer_confirmation':
-      title = 'Ride Arrived';
-      message = customMessage || 'Your rider has marked you as arrived. Please confirm your arrival.';
+      title = 'Confirm Ride Completion';
+      message = customMessage || 'Action Required: Rider marked ride completed. Please confirm to release funds.';
+      actionRequired = true;
+      break;
+    case 'new_ride_request':
+    case 'ride_request':
+      title = 'New Ride Request';
+      message = customMessage || 'Action Required: You have received a new ride request near you.';
+      actionRequired = true;
+      break;
+    case 'customer_waiting':
+      title = 'Customer Waiting';
+      message = customMessage || 'The customer is waiting for you at the pickup location.';
+      break;
+    case 'customer_paid':
+      title = 'Customer Paid';
+      message = customMessage || 'Customer has completed payment for the ride.';
       break;
     default:
       title = 'Ride Update';
@@ -425,7 +522,13 @@ export const createRideNotification = async (userId, ride, status, userRole = 'c
     notificationType,
     title,
     message,
-    { rideId, status, relatedEntityId: rideId, relatedEntityType: 'RideRequest' },
+    {
+      rideId,
+      status,
+      relatedEntityId: rideId,
+      relatedEntityType: 'RideRequest',
+      actionRequired,
+    },
     `/rides/${rideId}`,
     navigationTarget,
     req,
@@ -444,7 +547,14 @@ export const createRentalNotification = async (userId, rental, booking, status, 
   let title = 'Rental Update';
   let message = customMessage || `Your rental ${rentalIdSuffix} has been updated.`;
   let notificationType = 'rental';
-  let navigationTarget = userRole === 'landlord' ? '/landlord/bookings' : '/customer/bookings';
+  let actionRequired = false;
+
+  let navigationTarget;
+  if (userRole === 'landlord') {
+    navigationTarget = `/landlord/bookings?bookingId=${bookingId}`;
+  } else {
+    navigationTarget = `/customer/bookings?bookingId=${bookingId}`;
+  }
 
   switch (status) {
     case 'booking_pending':
@@ -452,16 +562,22 @@ export const createRentalNotification = async (userId, rental, booking, status, 
       message = customMessage || 'Your rental booking is pending confirmation.';
       break;
     case 'new_booking':
+    case 'booking_request':
       title = 'New Booking';
-      message = customMessage || 'You have received a new rental booking request.';
+      message = customMessage || 'Action Required: You have received a new rental booking request. Please approve or decline.';
+      actionRequired = true;
       break;
     case 'booking_confirmed':
-      title = 'Booking Confirmed';
-      message = customMessage || 'Your rental booking has been confirmed.';
+    case 'booking_approved':
+    case 'approved':
+      title = 'Rental Approved';
+      message = customMessage || 'Your rental booking has been approved successfully!';
       break;
     case 'booking_cancelled':
-      title = 'Booking Cancelled';
-      message = customMessage || 'Your rental booking has been cancelled.';
+    case 'booking_rejected':
+    case 'rejected':
+      title = 'Rental Rejected';
+      message = customMessage || 'Your rental booking has been cancelled or rejected.';
       break;
     case 'move_in_date_set':
       title = 'Move-in Date Set';
@@ -469,8 +585,18 @@ export const createRentalNotification = async (userId, rental, booking, status, 
       break;
     case 'move_in_confirmed':
     case 'move_in_confirmed_success':
-      title = 'Move-in Confirmed';
-      message = customMessage || 'Your move-in has been confirmed.';
+    case 'tenant_check_in':
+      title = 'Tenant Check-in';
+      message = customMessage || 'Check-in has been successfully confirmed.';
+      break;
+    case 'tenant_check_out':
+      title = 'Tenant Check-out';
+      message = customMessage || 'Check-out has been successfully confirmed.';
+      break;
+    case 'booking_reminder':
+      title = 'Booking Reminder';
+      message = customMessage || 'Action Required: This is a reminder to confirm your upcoming booking.';
+      actionRequired = true;
       break;
     default:
       title = 'Rental Update';
@@ -483,7 +609,14 @@ export const createRentalNotification = async (userId, rental, booking, status, 
     notificationType,
     title,
     message,
-    { rentalId, bookingId, status, relatedEntityId: bookingId, relatedEntityType: 'Rental' },
+    {
+      rentalId,
+      bookingId,
+      status,
+      relatedEntityId: bookingId,
+      relatedEntityType: 'Rental',
+      actionRequired,
+    },
     `/rentals/${rentalId}`,
     navigationTarget,
     req,
@@ -499,66 +632,84 @@ export const createOrderNotification = async (userId, order, status, userRole = 
   const orderIdStr = String(order._id);
 
   // Determine notification type and title based on status
-  let notificationType, title, message;
+  let notificationType = 'order';
+  let title = 'Order Update';
+  let message = `Your order #${orderIdStr.slice(-6).toUpperCase()} status has been updated.`;
+  let actionRequired = false;
 
-  if (status === 'pending') {
+  const orderSuffix = orderIdStr.slice(-6).toUpperCase();
+
+  if (status === 'pending' || status === 'order_placed') {
     notificationType = 'order';
     title = 'Order Placed';
-    message = `Your order #${orderIdStr.slice(-6).toUpperCase()} has been placed successfully.`;
+    message = `Your order #${orderSuffix} has been placed successfully.`;
   } else if (status === 'new_order') {
     notificationType = 'new_order';
     title = 'New Order';
-    message = 'New order received from customer.';
-  } else if (status === 'order_accepted') {
+    message = `New order #${orderSuffix} received from customer.`;
+    actionRequired = true;
+  } else if (status === 'order_accepted' || status === 'accepted') {
     notificationType = 'order_accepted';
     title = 'Order Accepted';
-    message = `Your order has been accepted. Estimated delivery time: ${order.estimatedDeliveryTime || 'pending'}.`;
-  } else if (status === 'order_cancelled') {
+    message = `Your order #${orderSuffix} has been accepted. Estimated delivery time: ${order.estimatedDeliveryTime || 'pending'}.`;
+  } else if (status === 'order_packed' || status === 'packed') {
     notificationType = 'order_update';
-    title = 'Order Cancelled';
-    message = `Your order #${orderIdStr.slice(-6).toUpperCase()} has been cancelled. Reason: ${order.cancellationReason || 'N/A'}.`;
-  } else if (status === 'order_delivered' || status === 'delivered') {
+    title = 'Order Packed';
+    message = `Your order #${orderSuffix} has been packed.`;
+  } else if (status === 'order_shipped' || status === 'shipped') {
+    notificationType = 'order_update';
+    title = 'Order Shipped';
+    message = `Your order #${orderSuffix} has been shipped.`;
+  } else if (status === 'order_delivered' || status === 'delivered' || status === 'delivery_confirmation_required') {
     notificationType = 'order_delivered';
     title = 'Order Delivered';
-    message = 'Your order has been marked as delivered.\nPlease confirm delivery.';
+    message = `Your order #${orderSuffix} has been marked as delivered.\nAction Required: Please confirm delivery.`;
+    actionRequired = true;
   } else if (status === 'delivery_confirmed') {
     notificationType = 'delivery_confirmed';
     title = 'Delivery Confirmed';
-    message = 'Customer confirmed delivery.\nEscrow funds released.';
+    message = `Customer confirmed delivery for order #${orderSuffix}.\nEscrow funds released.`;
   } else if (status === 'delivery_confirmed_success') {
     notificationType = 'delivery_confirmed';
     title = 'Delivery Confirmed';
-    message = 'You confirmed delivery successfully.';
+    message = `You confirmed delivery successfully for order #${orderSuffix}.`;
   } else if (status === 'processing') {
     notificationType = 'order_update';
     title = 'Order Processing';
-    message = `Your order #${orderIdStr.slice(-6).toUpperCase()} is being processed.`;
-  } else if (status === 'paid') {
+    message = `Your order #${orderSuffix} is being processed.`;
+  } else if (status === 'paid' || status === 'payment_successful' || status === 'payment_success') {
     notificationType = 'order_payment_confirmed';
     title = 'Payment Confirmed';
-    message = `Your payment for order #${orderIdStr.slice(-6).toUpperCase()} has been confirmed.`;
-  } else if (status === 'cancelled') {
+    message = `Your payment for order #${orderSuffix} has been confirmed.`;
+  } else if (status === 'cancelled' || status === 'order_cancelled' || status === 'failed' || status === 'payment_failed' || status === 'payment_fail') {
     notificationType = 'order_update';
-    title = 'Order Cancelled';
-    message = `Your order #${orderIdStr.slice(-6).toUpperCase()} has been cancelled.`;
+    title = status.includes('fail') ? 'Payment Failed' : 'Order Cancelled';
+    message = status.includes('fail')
+      ? `Your payment for order #${orderSuffix} has failed.`
+      : `Your order #${orderSuffix} has been cancelled.`;
   } else {
     notificationType = 'order_update';
     title = 'Order Updated';
-    message = `Your order #${orderIdStr.slice(-6).toUpperCase()} status: ${status}`;
+    message = `Your order #${orderSuffix} status: ${status}`;
   }
 
   // Determine navigation target based on user role
   let navigationTarget;
   if (userRole === 'business') {
-    navigationTarget = '/business/orders';
+    navigationTarget = `/business/orders?orderId=${orderIdStr}`;
   } else {
-    navigationTarget = '/customer/orders';
+    if (order.orderType === 'healthcare') {
+      navigationTarget = `/customer/healthcare?healthcareOrderId=${orderIdStr}`;
+    } else {
+      navigationTarget = `/customer/order/${orderIdStr}`;
+    }
   }
 
   // If orderType is healthcare, override notificationType to healthcare
   let finalNotificationType = notificationType;
   if (order.orderType === 'healthcare') {
     finalNotificationType = 'healthcare';
+    title = `Healthcare: ${title}`;
   }
 
   return createNotification(
@@ -566,7 +717,15 @@ export const createOrderNotification = async (userId, order, status, userRole = 
     finalNotificationType,
     title,
     message,
-    { orderId: orderIdStr, status, orderType: order.orderType, relatedEntityId: orderIdStr, relatedEntityType: 'Order' },
+    {
+      orderId: orderIdStr,
+      healthcareOrderId: orderIdStr,
+      status,
+      orderType: order.orderType,
+      relatedEntityId: orderIdStr,
+      relatedEntityType: 'Order',
+      actionRequired,
+    },
     `/orders/${orderIdStr}`,
     navigationTarget,
     req,
