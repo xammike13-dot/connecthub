@@ -3,12 +3,14 @@ import { Upload, X, Loader } from 'lucide-react';
 import { uploadAPI } from '../services/api';
 import { useToast } from './Toast';
 
+const EMPTY_ARRAY = [];
+
 const ImageUpload = ({ 
   multiple = false, 
   maxFiles = 5, 
   onUpload, 
   onUploadStateChange,
-  initialImages = [],
+  initialImages = EMPTY_ARRAY,
   folder = 'connecthub',
   className = ''
 }) => {
@@ -18,17 +20,19 @@ const ImageUpload = ({
   const [images, setImages] = useState(initialImages);
   const [previewUrls, setPreviewUrls] = useState([]);
 
+  const serializedImages = JSON.stringify(initialImages);
+
   useEffect(() => {
-    setImages(initialImages);
+    setImages(initialImages || EMPTY_ARRAY);
     // Extract URLs from image objects for preview
-    const urls = (initialImages || []).map(img => {
+    const urls = (initialImages || EMPTY_ARRAY).map(img => {
       if (typeof img === 'string') {
         return img;
       }
       return img?.url || img?.secure_url || '';
     });
     setPreviewUrls(urls);
-  }, [initialImages]);
+  }, [serializedImages]);
 
   const handleFileSelect = async (e) => {
     const files = Array.from(e.target.files);

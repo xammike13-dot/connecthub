@@ -1,0 +1,10 @@
+
+> connecthub-frontend@1.0.0 dev
+> vite
+
+
+  VITE v5.4.21  ready in 347 ms
+
+  ➜  Local:   http://localhost:3000/
+  ➜  Network: use --host to expose
+8:51:49 PM [vite] hmr update /src/components/ImageUpload.jsx, /src/index.css
