@@ -8,7 +8,7 @@ import { useSocket } from '../context/SocketContext';
 import api, { rentalAPI } from '../services/api';
 import Modal from '../components/ui/Modal';
 import GuidedWalkthrough from '../components/GuidedWalkthrough';
-import { Check, X, Clock, MessageSquare, Calendar, Home, ArrowRight, User } from 'lucide-react';
+import { Check, X, Clock, MessageSquare, Calendar, Home, ArrowRight, User, RefreshCw } from 'lucide-react';
 
 const StatCard = ({ title, value, subtitle, icon, color = 'primary' }) => {
   const colorClasses = {
@@ -241,14 +241,23 @@ const LandlordDashboard = () => {
           </p>
         </div>
 
-        <button
-          onClick={handleRefresh}
-          disabled={refreshing}
-          className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 flex items-center gap-2 font-bold text-sm shadow-sm"
-        >
-          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-          {refreshing ? 'Refreshing...' : 'Refresh'}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => navigate('/landlord/caretakers')}
+            className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-bold text-sm shadow-sm flex items-center gap-2"
+          >
+            <User className="w-4 h-4" />
+            Add Caretaker
+          </button>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 flex items-center gap-2 font-bold text-sm shadow-sm"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Refreshing...' : 'Refresh'}
+          </button>
+        </div>
       </div>
 
       {/* FEATURE 1: ACTIVE TASKS AT THE TOP OF EVERY DASHBOARD (Landlord Dashboard) */}
@@ -537,7 +546,7 @@ const LandlordDashboard = () => {
         <h2 className="text-xl font-semibold text-secondary-800 mb-4">
           Quick Actions
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <Link
             to="/landlord/properties"
             className="p-4 rounded-lg border border-secondary-200 hover:border-primary-500 hover:bg-primary-50 transition-colors flex items-center gap-3"
@@ -595,6 +604,19 @@ const LandlordDashboard = () => {
             <div>
               <h3 className="font-semibold text-secondary-800">Notifications</h3>
               <p className="text-sm text-secondary-500">View alerts</p>
+            </div>
+          </Link>
+
+          <Link
+            to="/landlord/caretakers"
+            className="p-4 rounded-lg border border-secondary-200 hover:border-amber-500 hover:bg-amber-50 transition-colors flex items-center gap-3 animate-pulse"
+          >
+            <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+              <User className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-secondary-800">Caretakers</h3>
+              <p className="text-sm text-secondary-500">Manage property staff</p>
             </div>
           </Link>
         </div>

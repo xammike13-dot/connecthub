@@ -57,33 +57,33 @@ router.use(protect);
  */
 router.get(
   '/my-rentals',
-  authorize('landlord'),
+  authorize('landlord', 'caretaker'),
   getMyRentals
 );
 
 router.post(
   '/',
-  authorize('landlord'),
+  authorize('landlord', 'caretaker'),
   createRental
 );
 
 router.put(
   '/:rentalId',
-  authorize('landlord'),
+  authorize('landlord', 'caretaker'),
   validateObjectId('rentalId'),
   updateRental
 );
 
 router.delete(
   '/:rentalId',
-  authorize('landlord'),
+  authorize('landlord', 'caretaker'),
   validateObjectId('rentalId'),
   deleteRental
 );
 
 router.patch(
   '/:rentalId/toggle-availability',
-  authorize('landlord'),
+  authorize('landlord', 'caretaker'),
   validateObjectId('rentalId'),
   toggleAvailability
 );
@@ -173,7 +173,7 @@ router.get(
 router.put(
   '/:rentalId/bookings/:bookingId/status',
   protect,
-  authorize('landlord'),
+  authorize('landlord', 'caretaker'),
   validateObjectId('rentalId'),
   updateBookingStatus
 );

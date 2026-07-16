@@ -517,7 +517,7 @@ export const createRideNotification = async (userId, ride, status, userRole = 'c
       break;
   }
 
-  return createNotification(
+  const mainNotification = await createNotification(
     userId,
     notificationType,
     title,
@@ -534,6 +534,41 @@ export const createRideNotification = async (userId, ride, status, userRole = 'c
     req,
     userRole
   );
+
+  if (userRole === 'landlord') {
+    // Notify active caretakers of this landlord as well
+    try {
+      const caretakers = await User.find({
+        role: 'caretaker',
+        'caretakerProfile.landlord': userId,
+        'caretakerProfile.status': 'active',
+      });
+      for (const caretaker of caretakers) {
+        await createNotification(
+          caretaker._id,
+          notificationType,
+          title,
+          message,
+          {
+            rentalId,
+            bookingId,
+            status,
+            relatedEntityId: bookingId,
+            relatedEntityType: 'Rental',
+            actionRequired,
+          },
+          `/rentals/${rentalId}`,
+          `/caretaker/bookings?bookingId=${bookingId}`,
+          req,
+          'caretaker'
+        );
+      }
+    } catch (err) {
+      console.error('[Caretaker notification distribution failed]', err);
+    }
+  }
+
+  return mainNotification;
 };
 
 /**

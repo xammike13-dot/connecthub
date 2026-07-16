@@ -51,6 +51,7 @@ import HealthcareShopPage from './pages/HealthcareShopPage';
 import LandlordProfile from './pages/LandlordProfile';
 import LandlordSettings from './pages/LandlordSettings';
 import CustomerSettings from './pages/CustomerSettings';
+import LandlordCaretakersPage from './pages/LandlordCaretakersPage';
 import BusinessSettings from './pages/BusinessSettings';
 import RiderSettings from './pages/RiderSettings';
 import RentalDetailPage from './pages/RentalDetailPage';
@@ -60,6 +61,10 @@ import BusinessHelpPage from './pages/BusinessHelpPage';
 import LandlordHelpPage from './pages/LandlordHelpPage';
 import RiderHelpPage from './pages/RiderHelpPage';
 import PwaPromptManager from './components/PwaPromptManager';
+import CaretakerInvitePage from './pages/CaretakerInvitePage';
+import CaretakerDashboard from './pages/CaretakerDashboard';
+import CaretakerPropertiesPage from './pages/CaretakerPropertiesPage';
+import CaretakerBookingsPage from './pages/CaretakerBookingsPage';
 
 
 function App() {
@@ -88,6 +93,7 @@ function App() {
                 {/* Auth Routes */}
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
+                <Route path="/caretaker/invite/:token" element={<CaretakerInvitePage />} />
                 <Route path="/verify-email" element={<EmailVerificationPage />} />
                 <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
@@ -122,6 +128,7 @@ function App() {
                 {/* Landlord Routes */}
                 <Route path="/landlord" element={<DashboardLayout allowedRoles={['landlord']} />}>
                   <Route path="dashboard" element={<LandlordDashboard />} />
+                  <Route path="caretakers" element={<LandlordCaretakersPage />} />
                   <Route path="properties" element={<LandlordPropertiesPage />} />
                   <Route path="properties/new" element={<LandlordPropertyNew />} />
                   <Route path="properties/:id" element={<LandlordPropertyDetail />} />
@@ -133,6 +140,20 @@ function App() {
                   <Route path="settings" element={<LandlordSettings />} />
                   <Route path="transactions" element={<TransactionHistoryPage />} />
                   <Route path="wallet" element={<WalletPage />} />
+                  <Route path="notifications" element={<NotificationsPage />} />
+                  <Route path="chat" element={<ChatPage />} />
+                  <Route path="chat/:conversationId" element={<ChatPage />} />
+                  <Route path="help" element={<LandlordHelpPage />} />
+                </Route>
+
+                {/* Caretaker Routes */}
+                <Route path="/caretaker" element={<DashboardLayout allowedRoles={['caretaker']} />}>
+                  <Route path="dashboard" element={<CaretakerDashboard />} />
+                  <Route path="properties" element={<CaretakerPropertiesPage />} />
+                  <Route path="properties/new" element={<LandlordPropertyNew />} />
+                  <Route path="properties/:id" element={<LandlordPropertyDetail />} />
+                  <Route path="properties/:id/edit" element={<LandlordPropertyEdit />} />
+                  <Route path="bookings" element={<CaretakerBookingsPage />} />
                   <Route path="notifications" element={<NotificationsPage />} />
                   <Route path="chat" element={<ChatPage />} />
                   <Route path="chat/:conversationId" element={<ChatPage />} />
