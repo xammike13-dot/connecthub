@@ -1,4 +1,6 @@
 import Notification from '../models/Notification.js';
+import PushSubscription from '../models/PushSubscription.js';
+import { sendPushToUser } from '../utils/webPush.js';
 import { asyncHandler, ResponseError } from '../middleware/error.js';
 
 /**
@@ -271,6 +273,20 @@ export const createNotification = async (userId, type, title, message, data = {}
       console.log('[NOTIFICATION] Emitted to room:', targetRoom, 'for user:', userId, 'role:', userRole);
     }
 
+    // Deliver Web Push Notification in background
+    sendPushToUser(userId, {
+      title,
+      body: message,
+      navigationTarget: navigationTarget || actionUrl,
+      data: {
+        ...data,
+        notificationId: notification._id,
+        type,
+      },
+    }).catch((err) => {
+      console.error('[NOTIFICATION] Push service delivery failed:', err);
+    });
+
     return notification;
   } catch (error) {
     console.error('[Notification Failed]', error);
@@ -496,5 +512,60 @@ export const createOrderNotification = async (userId, order, status, userRole = 
     req
   );
 };
+
+/**
+ * Register/Update Push Subscription
+ * POST /api/notifications/subscribe
+ */
+export const subscribePush = asyncHandler(async (req, res) => {
+  const { subscription, role, deviceType, browser, notificationPermission } = req.body;
+
+  if (!subscription || !subscription.endpoint) {
+    throw new ResponseError('Subscription endpoint is required', 400);
+  }
+
+  const userId = req.user ? req.user._id : null;
+  const userRole = role || (req.user ? req.user.role : 'customer');
+
+  // Upsert subscription based on the unique endpoint
+  const updatedSubscription = await PushSubscription.findOneAndUpdate(
+    { 'subscription.endpoint': subscription.endpoint },
+    {
+      userId,
+      role: userRole,
+      deviceType: deviceType || 'desktop',
+      browser: browser || 'unknown',
+      subscription,
+      notificationPermission: notificationPermission || 'granted',
+      lastSeen: new Date(),
+    },
+    { new: true, upsert: true }
+  );
+
+  res.status(200).json({
+    success: true,
+    message: 'Push subscription registered successfully',
+    data: updatedSubscription,
+  });
+});
+
+/**
+ * Remove Push Subscription
+ * POST /api/notifications/unsubscribe
+ */
+export const unsubscribePush = asyncHandler(async (req, res) => {
+  const { endpoint } = req.body;
+
+  if (!endpoint) {
+    throw new ResponseError('Subscription endpoint is required to unsubscribe', 400);
+  }
+
+  await PushSubscription.findOneAndDelete({ 'subscription.endpoint': endpoint });
+
+  res.status(200).json({
+    success: true,
+    message: 'Push subscription removed successfully',
+  });
+});
 
 export default null;

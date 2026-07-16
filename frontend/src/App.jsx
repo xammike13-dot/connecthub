@@ -59,6 +59,7 @@ import CustomerHelpPage from './pages/CustomerHelpPage';
 import BusinessHelpPage from './pages/BusinessHelpPage';
 import LandlordHelpPage from './pages/LandlordHelpPage';
 import RiderHelpPage from './pages/RiderHelpPage';
+import PwaPromptManager from './components/PwaPromptManager';
 
 
 function App() {
@@ -67,6 +68,7 @@ function App() {
       <CartProvider>
         <WishlistProvider>
           <SocketProvider>
+            <PwaPromptManager />
             <Router future={{ v7_relativeSplatPath: true }}>
               <Routes>
                 {/* Public Routes with Main Layout */}
