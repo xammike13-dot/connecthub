@@ -7,7 +7,6 @@ import api from '../services/apiClient';
 
 const LandlordSetupPage = () => {
   const [step, setStep] = useState(1);
-  const [profilePhoto, setProfilePhoto] = useState('');
   const [businessLogo, setBusinessLogo] = useState('');
   const [propertyName, setPropertyName] = useState('');
   const [propertyDescription, setPropertyDescription] = useState('');
@@ -17,7 +16,7 @@ const LandlordSetupPage = () => {
   const [loading, setLoading] = useState(false);
   const [showWalkthrough, setShowWalkthrough] = useState(false);
   const [initializedData, setInitializedData] = useState(false);
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const navigate = useNavigate();
 
   // Instrumentation Logs
@@ -35,16 +34,13 @@ const LandlordSetupPage = () => {
       initializedData
     });
     if (user) {
-      if (user.onboardingCompleted) {
-        console.log('[LandlordSetupPage] Redirecting to /landlord/dashboard because onboardingCompleted is true');
+      if (user.onboardingCompleted && !showWalkthrough) {
+        console.log('[LandlordSetupPage] Redirecting to /landlord/dashboard because onboardingCompleted is true and walkthrough is not active');
         navigate('/landlord/dashboard', { replace: true });
         return;
       }
       if (!initializedData) {
         console.log('[LandlordSetupPage] Initializing form data from user:', user);
-        if (user.profilePhoto || user.avatar) {
-          setProfilePhoto(user.profilePhoto || user.avatar);
-        }
         if (user.businessLogo || user.landlordProfile?.propertyLogo) {
           setBusinessLogo(user.businessLogo || user.landlordProfile?.propertyLogo);
         }
@@ -63,22 +59,22 @@ const LandlordSetupPage = () => {
         setInitializedData(true);
       }
     }
-  }, [user, navigate, initializedData]);
+  }, [user, navigate, initializedData, showWalkthrough]);
 
   const handleNext = () => {
-    if (step === 2) {
+    if (step === 1) {
       if (!propertyName.trim() || !propertyDescription.trim() || !propertyLocation.trim() || !contactDetails.trim()) {
         alert('Please fill in all Property details.');
         return;
       }
     }
-    if (step === 3) {
+    if (step === 2) {
       if (!businessLogo) {
         alert('Please upload your Property/Business Logo.');
         return;
       }
     }
-    if (step < 4) {
+    if (step < 3) {
       setStep(step + 1);
     }
   };
@@ -89,13 +85,7 @@ const LandlordSetupPage = () => {
     }
   };
 
-  const { refreshProfile } = useAuth();
-
   const handleSubmit = async () => {
-    if (!profilePhoto) {
-      alert('Please upload a Profile Photo.');
-      return;
-    }
     if (!businessLogo) {
       alert('Please upload a Property/Business Logo.');
       return;
@@ -108,7 +98,7 @@ const LandlordSetupPage = () => {
     setLoading(true);
     try {
       await api.post('/setup/landlord', {
-        profilePhoto,
+        profilePhoto: '',
         businessLogo,
         propertyName,
         propertyDescription,
@@ -116,15 +106,41 @@ const LandlordSetupPage = () => {
         contactDetails,
       });
 
-      // Refresh the user profile to sync setupCompleted: true in context
-      await refreshProfile();
-      
       // Show guided walkthrough after setup
       setShowWalkthrough(true);
+
+      // Refresh the user profile to sync setupCompleted: true in context
+      await refreshProfile();
     } catch (error) {
       console.error('Setup failed:', error);
       const serverMessage = error.response?.data?.message || 'Failed to complete setup. Please try again.';
       alert(serverMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSkipSetup = async () => {
+    setLoading(true);
+    try {
+      const defaultLogo = "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=500&q=80";
+      await api.post('/setup/landlord', {
+        profilePhoto: '',
+        businessLogo: defaultLogo,
+        propertyName: `${user?.name || 'My'}'s Rental`,
+        propertyDescription: 'A premium residential property managed with ConnectHub.',
+        propertyLocation: 'Eldoret',
+        contactDetails: user?.phone || 'Phone not provided',
+      });
+
+      // Show guided walkthrough after setup
+      setShowWalkthrough(true);
+
+      // Refresh the user profile to sync setupCompleted: true in context
+      await refreshProfile();
+    } catch (error) {
+      console.error('Skip setup failed:', error);
+      alert('Failed to skip setup. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -204,20 +220,6 @@ const LandlordSetupPage = () => {
   ];
 
   const steps = [
-    {
-      title: 'Upload Profile Photo',
-      description: 'Add a professional photo to help tenants recognize you',
-      content: (
-        <div className="space-y-4">
-          <ImageUpload
-            onUpload={(img) => setProfilePhoto(typeof img === 'string' ? img : img?.url || '')}
-            currentImage={profilePhoto}
-            aspectRatio="square"
-            label="Profile Photo"
-          />
-        </div>
-      ),
-    },
     {
       title: 'Property Details',
       description: 'Add name, description, and location of your rental business',
@@ -320,10 +322,6 @@ const LandlordSetupPage = () => {
                 <span className="font-medium">{contactDetails}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-neutral-600">Profile Photo:</span>
-                <span className="font-medium">{profilePhoto ? '✓ Uploaded' : 'Not uploaded'}</span>
-              </div>
-              <div className="flex justify-between">
                 <span className="text-neutral-600">Property Logo:</span>
                 <span className="font-medium">{businessLogo ? '✓ Uploaded' : 'Not uploaded'}</span>
               </div>
@@ -349,7 +347,7 @@ const LandlordSetupPage = () => {
         {/* Progress Steps */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
-            {[1, 2, 3, 4].map((stepNum) => (
+            {[1, 2, 3].map((stepNum) => (
               <div key={stepNum} className="flex items-center">
                 <div
                   className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
@@ -360,7 +358,7 @@ const LandlordSetupPage = () => {
                 >
                   {step > stepNum ? '✓' : stepNum}
                 </div>
-                {stepNum < 4 && (
+                {stepNum < 3 && (
                   <div
                     className={`w-full h-1 mx-2 ${
                       step > stepNum ? 'bg-blue-600' : 'bg-neutral-200'
@@ -381,25 +379,33 @@ const LandlordSetupPage = () => {
 
           {steps[step - 1].content}
 
-          <div className="mt-8 flex justify-between">
-            {step > 1 ? (
+          <div className="mt-8 flex flex-col sm:flex-row justify-between gap-4">
+            <div className="flex gap-3 w-full sm:w-auto">
               <button
                 type="button"
-                onClick={handleBack}
-                className="px-6 py-3 border border-neutral-300 rounded-lg bg-white hover:bg-neutral-50 transition-colors text-neutral-700 font-medium"
+                onClick={handleSkipSetup}
+                disabled={loading}
+                className="px-6 py-3 border border-neutral-300 rounded-lg bg-white hover:bg-neutral-50 transition-colors text-neutral-700 font-medium flex-1 sm:flex-none"
               >
-                Back
+                Skip Setup
               </button>
-            ) : (
-              <div />
-            )}
+              {step > 1 && (
+                <button
+                  type="button"
+                  onClick={handleBack}
+                  className="px-6 py-3 border border-neutral-300 rounded-lg bg-white hover:bg-neutral-50 transition-colors text-neutral-700 font-medium flex-1 sm:flex-none"
+                >
+                  Back
+                </button>
+              )}
+            </div>
 
-            <div className="flex gap-3">
-              {step < 4 ? (
+            <div className="flex gap-3 w-full sm:w-auto justify-end">
+              {step < 3 ? (
                 <button
                   type="button"
                   onClick={handleNext}
-                  className="btn-primary px-6 py-3"
+                  className="btn-primary px-6 py-3 w-full sm:w-auto"
                 >
                   Next
                 </button>
@@ -408,7 +414,7 @@ const LandlordSetupPage = () => {
                   type="button"
                   onClick={handleSubmit}
                   disabled={loading}
-                  className="btn-primary px-6 py-3 flex items-center gap-2"
+                  className="btn-primary px-6 py-3 flex items-center justify-center gap-2 w-full sm:w-auto"
                 >
                   {loading ? (
                     <>

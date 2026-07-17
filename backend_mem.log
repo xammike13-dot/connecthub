@@ -1,5 +1,6 @@
 Starting MongoMemoryServer...
-MongoMemoryServer started at: mongodb://127.0.0.1:44193/
+MongoMemoryServer started at mongodb://127.0.0.1:45955/
+Starting backend server (server.js)...
 Loading middleware/error.js
 Loading models/Rental.js
 Loading middleware/auth.js
@@ -42,120 +43,125 @@ Loading routes/landlordRoutes.js
 
 [Server] MPesa payments will be disabled. Set all MPESA_* variables to enable.
 [RENT REMINDER JOB] Scheduled to run daily at midnight
-[RENT REMINDER JOB] First run in: 196 minutes
-(node:32739) [MONGOOSE] Warning: Duplicate schema index on {"user":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+[RENT REMINDER JOB] First run in: 970 minutes
+(node:336334) [MONGOOSE] Warning: Duplicate schema index on {"user":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
 (Use `node --trace-warnings ...` to show where the warning was created)
 Server running in development mode on port 5000
 MongoDB Connected: 127.0.0.1
 [SCHEDULED] Running initial notification cleanup...
-[REGISTER] Generated verification code for testbusiness@example.com : 759149
-[EMAIL SERVICE] sendVerificationEmail called with: { email: 'testbusiness@example.com', codeLength: 6, code: '759149' }
-[EMAIL] Brevo not configured. Email would have been sent:
-[EMAIL] To: testbusiness@example.com
-[EMAIL] Subject: Verify Your ConnectHub Email
-[EMAIL] Content:
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; bord...
-[0mPOST /api/auth/register [32m201[0m 187.816 ms - 219[0m
-[REGISTER] Generated verification code for testbusiness2@example.com : 328122
-[EMAIL SERVICE] sendVerificationEmail called with: { email: 'testbusiness2@example.com', codeLength: 6, code: '328122' }
-[EMAIL] Brevo not configured. Email would have been sent:
-[EMAIL] To: testbusiness2@example.com
-[EMAIL] Subject: Verify Your ConnectHub Email
-[EMAIL] Content:
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; bord...
-[0mPOST /api/auth/register [32m201[0m 127.968 ms - 220[0m
-[REGISTER] Generated verification code for testbusiness3@example.com : 846634
-[EMAIL SERVICE] sendVerificationEmail called with: { email: 'testbusiness3@example.com', codeLength: 6, code: '846634' }
-[EMAIL] Brevo not configured. Email would have been sent:
-[EMAIL] To: testbusiness3@example.com
-[EMAIL] Subject: Verify Your ConnectHub Email
-[EMAIL] Content:
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; bord...
-[0mPOST /api/auth/register [32m201[0m 129.664 ms - 220[0m
-[VERIFY EMAIL] Received request: { email: 'testbusiness3@example.com', code: '6 digits' }
-[EMAIL] Brevo not configured. Email would have been sent:
-[EMAIL] To: testbusiness3@example.com
-[EMAIL] Subject: Welcome to ConnectHub!
-[EMAIL] Content:
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; bord...
-[0mPOST /api/verification/verify-email [32m200[0m 34.538 ms - 428[0m
-[0mGET /api/notifications/unread-count [32m200[0m 19.815 ms - 35[0m
-[0mGET /api/wishlist [32m200[0m 28.215 ms - 77[0m
-[0mGET /api/notifications?page=1&limit=20 [32m200[0m 47.023 ms - 77[0m
-[0mPOST /api/auth/register [33m400[0m 16.833 ms - 65[0m
-[REGISTER] Generated verification code for testbusiness_1784235263@example.com : 650226
+[REGISTER] Generated verification code for test_business_1784274621@example.com : 676044
 [EMAIL SERVICE] sendVerificationEmail called with: {
-  email: 'testbusiness_1784235263@example.com',
+  email: 'test_business_1784274621@example.com',
   codeLength: 6,
-  code: '650226'
+  code: '676044'
 }
 [EMAIL] Brevo not configured. Email would have been sent:
-[EMAIL] To: testbusiness_1784235263@example.com
+[EMAIL] To: test_business_1784274621@example.com
 [EMAIL] Subject: Verify Your ConnectHub Email
 [EMAIL] Content:
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
       <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; bord...
-[0mPOST /api/auth/register [32m201[0m 131.414 ms - 230[0m
-[VERIFY EMAIL] Received request: { email: 'testbusiness_1784235263@example.com', code: '6 digits' }
-[EMAIL] Brevo not configured. Email would have been sent:
-[EMAIL] To: testbusiness_1784235263@example.com
-[EMAIL] Subject: Welcome to ConnectHub!
-[EMAIL] Content:
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; bord...
-[0mPOST /api/verification/verify-email [32m200[0m 21.256 ms - 438[0m
-[0mGET /api/notifications/unread-count [32m200[0m 13.274 ms - 35[0m
-[0mGET /api/notifications?page=1&limit=20 [32m200[0m 26.790 ms - 77[0m
-[0mGET /api/wishlist [32m200[0m 11.995 ms - 77[0m
-[REGISTER] Generated verification code for test_landlord_1784235351@example.com : 588968
+[0mPOST /api/auth/register [32m201[0m 184.530 ms - 237[0m
+[REGISTER] Generated verification code for test_business_1784274724@example.com : 338844
 [EMAIL SERVICE] sendVerificationEmail called with: {
-  email: 'test_landlord_1784235351@example.com',
+  email: 'test_business_1784274724@example.com',
   codeLength: 6,
-  code: '588968'
+  code: '338844'
 }
 [EMAIL] Brevo not configured. Email would have been sent:
-[EMAIL] To: test_landlord_1784235351@example.com
+[EMAIL] To: test_business_1784274724@example.com
 [EMAIL] Subject: Verify Your ConnectHub Email
 [EMAIL] Content:
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
       <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; bord...
-[0mPOST /api/auth/register [32m201[0m 123.607 ms - 231[0m
-[VERIFY EMAIL] Received request: { email: 'test_landlord_1784235351@example.com', code: '6 digits' }
+[0mPOST /api/auth/register [32m201[0m 125.982 ms - 237[0m
+[VERIFY EMAIL] Received request: { email: 'test_business_1784274724@example.com', code: '6 digits' }
 [EMAIL] Brevo not configured. Email would have been sent:
-[EMAIL] To: test_landlord_1784235351@example.com
+[EMAIL] To: test_business_1784274724@example.com
 [EMAIL] Subject: Welcome to ConnectHub!
 [EMAIL] Content:
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
       <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; bord...
-[0mPOST /api/verification/verify-email [32m200[0m 30.941 ms - 439[0m
-[0mGET /api/notifications?page=1&limit=20 [32m200[0m 19.043 ms - 77[0m
-[0mGET /api/notifications/unread-count [32m200[0m 7.848 ms - 35[0m
-[0mGET /api/wishlist [32m200[0m 19.639 ms - 77[0m
-[REGISTER] Generated verification code for test_rider_1784235419@example.com : 808762
-[EMAIL SERVICE] sendVerificationEmail called with: {
-  email: 'test_rider_1784235419@example.com',
-  codeLength: 6,
-  code: '808762'
+[0mPOST /api/verification/verify-email [32m200[0m 92.086 ms - 445[0m
+[0mGET /api/notifications?page=1&limit=20 [32m200[0m 42.130 ms - 77[0m
+[0mGET /api/notifications/unread-count [32m200[0m 47.159 ms - 35[0m
+[0mGET /api/wishlist [32m200[0m 40.767 ms - 77[0m
+[0mPOST /api/setup/business [32m200[0m 19.067 ms - 834[0m
+[0mGET /api/auth/profile [32m200[0m 12.437 ms - 1512[0m
+[0mGET /api/notifications/unread-count [36m304[0m 15.917 ms - -[0m
+[0mGET /api/notifications?page=1&limit=20 [36m304[0m 19.602 ms - -[0m
+[0mGET /api/business/orders?page=1&limit=10 [32m200[0m 19.907 ms - 77[0m
+[WALLET CALCULATION SERVICE] {
+  userId: new ObjectId('6a59df2887120b43ac490c1b'),
+  role: 'business',
+  walletId: new ObjectId('6a59df2887120b43ac490c1d'),
+  availableBalance: 0,
+  pendingBalance: 0,
+  totalEarnings: 0,
+  totalWithdrawn: 0,
+  monthlyEarnings: 0,
+  pendingEarnings: 0
 }
-[EMAIL] Brevo not configured. Email would have been sent:
-[EMAIL] To: test_rider_1784235419@example.com
-[EMAIL] Subject: Verify Your ConnectHub Email
-[EMAIL] Content:
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; bord...
-[0mPOST /api/auth/register [32m201[0m 121.152 ms - 222[0m
-[VERIFY EMAIL] Received request: { email: 'test_rider_1784235419@example.com', code: '6 digits' }
-[EMAIL] Brevo not configured. Email would have been sent:
-[EMAIL] To: test_rider_1784235419@example.com
-[EMAIL] Subject: Welcome to ConnectHub!
-[EMAIL] Content:
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; bord...
-[0mPOST /api/verification/verify-email [32m200[0m 30.160 ms - 430[0m
-[0mGET /api/notifications/unread-count [32m200[0m 22.613 ms - 35[0m
-[0mGET /api/notifications?page=1&limit=20 [32m200[0m 33.473 ms - 77[0m
-[0mGET /api/wishlist [32m200[0m 18.905 ms - 77[0m
+[0mGET /api/business/dashboard/stats [32m200[0m 47.329 ms - 282[0m
+[0mGET /api/business/orders?page=1&limit=10 [36m304[0m 28.328 ms - -[0m
+[WALLET CALCULATION SERVICE] {
+  userId: new ObjectId('6a59df2887120b43ac490c1b'),
+  role: 'business',
+  walletId: new ObjectId('6a59df2887120b43ac490c1d'),
+  availableBalance: 0,
+  pendingBalance: 0,
+  totalEarnings: 0,
+  totalWithdrawn: 0,
+  monthlyEarnings: 0,
+  pendingEarnings: 0
+}
+[0mGET /api/business/dashboard/stats [36m304[0m 24.065 ms - -[0m
+[LOGIN REQUEST] {
+  email: 'test_business_1784274724@example.com',
+  password: 'password123'
+}
+[USER FOUND] true
+[USER EMAIL] test_business_1784274724@example.com
+[SEARCH EMAIL] test_business_1784274724@example.com
+[PASSWORD FIELD EXISTS] true
+[USER ACTIVE] true
+[USER DELETED] false
+[PASSWORD HASH] $2a$10$U62ixDI7iuaiGRw3sQl5guboIpFeGnza6umJYx8AQU4R3q7dBouC6
+[PASSWORD PROVIDED] password123
+[PASSWORD MATCH] true
+[BCRYPT COMPARE DETAILS] {
+  plainPassword: 'password123',
+  storedHash: '$2a$10$U62ixDI7iuaiGRw3sQl5guboIpFeGnza6umJYx8AQU4R3q7dBouC6',
+  match: true
+}
+[0mPOST /api/auth/login [32m200[0m 132.926 ms - 550[0m
+[0mGET /api/business/orders?page=1&limit=10 [36m304[0m 15.367 ms - -[0m
+[0mGET /api/wishlist [36m304[0m 19.596 ms - -[0m
+[0mGET /api/notifications/unread-count [36m304[0m 33.254 ms - -[0m
+[0mGET /api/notifications?page=1&limit=20 [36m304[0m 40.136 ms - -[0m
+[WALLET CALCULATION SERVICE] {
+  userId: new ObjectId('6a59df2887120b43ac490c1b'),
+  role: 'business',
+  walletId: new ObjectId('6a59df2887120b43ac490c1d'),
+  availableBalance: 0,
+  pendingBalance: 0,
+  totalEarnings: 0,
+  totalWithdrawn: 0,
+  monthlyEarnings: 0,
+  pendingEarnings: 0
+}
+[0mGET /api/business/dashboard/stats [36m304[0m 65.701 ms - -[0m
+[0mGET /api/business/orders?page=1&limit=10 [36m304[0m 29.212 ms - -[0m
+[WALLET CALCULATION SERVICE] {
+  userId: new ObjectId('6a59df2887120b43ac490c1b'),
+  role: 'business',
+  walletId: new ObjectId('6a59df2887120b43ac490c1d'),
+  availableBalance: 0,
+  pendingBalance: 0,
+  totalEarnings: 0,
+  totalWithdrawn: 0,
+  monthlyEarnings: 0,
+  pendingEarnings: 0
+}
+[0mGET /api/business/dashboard/stats [36m304[0m 22.612 ms - -[0m
+Backend server exited with code null
