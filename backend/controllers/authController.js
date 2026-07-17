@@ -281,6 +281,8 @@ export const getProfile = async (req, res, next) => {
         businessProfile: user.businessProfile,
         landlordProfile: user.landlordProfile,
         customerProfile: user.customerProfile,
+        setupCompleted: user.setupCompleted,
+        onboardingCompleted: user.onboardingCompleted,
       },
     });
   } catch (error) {
@@ -333,6 +335,8 @@ export const updateProfile = async (req, res, next) => {
         role: user.role,
         avatar: user.avatar,
         withdrawalNumber: user.withdrawalNumber,
+        setupCompleted: user.setupCompleted,
+        onboardingCompleted: user.onboardingCompleted,
       },
     });
   } catch (error) {

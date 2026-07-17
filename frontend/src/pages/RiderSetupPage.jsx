@@ -19,7 +19,7 @@ const RiderSetupPage = () => {
   const [loading, setLoading] = useState(false);
   const [showWalkthrough, setShowWalkthrough] = useState(false);
   const [initializedData, setInitializedData] = useState(false);
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const navigate = useNavigate();
 
   // Instrumentation Logs
@@ -37,8 +37,8 @@ const RiderSetupPage = () => {
       initializedData
     });
     if (user) {
-      if (user.onboardingCompleted) {
-        console.log('[RiderSetupPage] Redirecting to /rider/dashboard because onboardingCompleted is true');
+      if (user.onboardingCompleted && !showWalkthrough) {
+        console.log('[RiderSetupPage] Redirecting to /rider/dashboard because onboardingCompleted is true and walkthrough is not active');
         navigate('/rider/dashboard', { replace: true });
         return;
       }
@@ -68,7 +68,7 @@ const RiderSetupPage = () => {
         setInitializedData(true);
       }
     }
-  }, [user, navigate, initializedData]);
+  }, [user, navigate, initializedData, showWalkthrough]);
 
   const handleNext = () => {
     if (step === 1) {
@@ -106,8 +106,6 @@ const RiderSetupPage = () => {
     }
   };
 
-  const { refreshProfile } = useAuth();
-
   const handleSubmit = async () => {
     if (!profilePhoto) {
       alert('Please upload a Profile Photo.');
@@ -141,15 +139,50 @@ const RiderSetupPage = () => {
         nightRatePerKm: parseFloat(nightRatePerKm),
       });
 
-      // Refresh the user profile to sync setupCompleted: true in context
-      await refreshProfile();
-      
       // Show guided walkthrough after setup
       setShowWalkthrough(true);
+
+      // Refresh the user profile to sync setupCompleted: true in context
+      await refreshProfile();
     } catch (error) {
       console.error('Setup failed:', error);
       const serverMessage = error.response?.data?.message || 'Failed to complete setup. Please try again.';
       alert(serverMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSkipSetup = async () => {
+    setLoading(true);
+    try {
+      const defaultPhoto = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80";
+      const defaultMoto = "https://images.unsplash.com/photo-1558981806-ec527fa84c39?auto=format&fit=crop&w=500&q=80";
+      await api.post('/setup/rider', {
+        profilePhoto: defaultPhoto,
+        motorcyclePhoto: defaultMoto,
+        workingArea: {
+          county: 'Uasin Gishu',
+          town: 'Eldoret',
+          serviceRadius: '10',
+          selectedWorkingAreas: ['Stage'],
+        },
+        workingHours: {
+          start: '06:00',
+          end: '22:00',
+        },
+        dayRatePerKm: 25,
+        nightRatePerKm: 35,
+      });
+
+      // Show guided walkthrough after setup
+      setShowWalkthrough(true);
+
+      // Refresh the user profile to sync setupCompleted: true in context
+      await refreshProfile();
+    } catch (error) {
+      console.error('Skip setup failed:', error);
+      alert('Failed to skip setup. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -407,25 +440,33 @@ const RiderSetupPage = () => {
 
           {steps[step - 1].content}
 
-          <div className="mt-8 flex justify-between">
-            {step > 1 ? (
+          <div className="mt-8 flex flex-col sm:flex-row justify-between gap-4">
+            <div className="flex gap-3 w-full sm:w-auto">
               <button
                 type="button"
-                onClick={handleBack}
-                className="px-6 py-3 border border-neutral-300 rounded-lg bg-white hover:bg-neutral-50 transition-colors text-neutral-700 font-medium"
+                onClick={handleSkipSetup}
+                disabled={loading}
+                className="px-6 py-3 border border-neutral-300 rounded-lg bg-white hover:bg-neutral-50 transition-colors text-neutral-700 font-medium flex-1 sm:flex-none"
               >
-                Back
+                Skip Setup
               </button>
-            ) : (
-              <div />
-            )}
+              {step > 1 && (
+                <button
+                  type="button"
+                  onClick={handleBack}
+                  className="px-6 py-3 border border-neutral-300 rounded-lg bg-white hover:bg-neutral-50 transition-colors text-neutral-700 font-medium flex-1 sm:flex-none"
+                >
+                  Back
+                </button>
+              )}
+            </div>
 
-            <div className="flex gap-3">
+            <div className="flex gap-3 w-full sm:w-auto justify-end">
               {step < 5 ? (
                 <button
                   type="button"
                   onClick={handleNext}
-                  className="btn-primary px-6 py-3"
+                  className="btn-primary px-6 py-3 w-full sm:w-auto"
                 >
                   Next
                 </button>
@@ -434,19 +475,19 @@ const RiderSetupPage = () => {
                   type="button"
                   onClick={handleSubmit}
                   disabled={loading}
-                  className="btn-primary px-6 py-3 flex items-center gap-2"
+                  className="btn-primary px-6 py-3 flex items-center justify-center gap-2 w-full sm:w-auto"
                 >
-                {loading ? (
-                  <>
-                    <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
-                    Completing...
-                  </>
-                ) : (
-                  'Finish'
-                )}
+                  {loading ? (
+                    <>
+                      <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      Completing...
+                    </>
+                  ) : (
+                    'Finish'
+                  )}
                 </button>
               )}
             </div>

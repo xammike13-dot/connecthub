@@ -33,8 +33,8 @@ const BusinessSetupPage = () => {
       initializedData
     });
     if (user) {
-      if (user.onboardingCompleted) {
-        console.log('[BusinessSetupPage] Redirecting to /business/dashboard because onboardingCompleted is true');
+      if (user.onboardingCompleted && !showWalkthrough) {
+        console.log('[BusinessSetupPage] Redirecting to /business/dashboard because onboardingCompleted is true and walkthrough is not active');
         navigate('/business/dashboard', { replace: true });
         return;
       }
@@ -55,7 +55,7 @@ const BusinessSetupPage = () => {
         setInitializedData(true);
       }
     }
-  }, [user, navigate, initializedData]);
+  }, [user, navigate, initializedData, showWalkthrough]);
 
   const handleSubmit = async () => {
     if (!businessLogo) {
@@ -84,15 +84,39 @@ const BusinessSetupPage = () => {
         businessContact,
       });
 
-      // Refresh the user profile to sync setupCompleted: true in context
-      await refreshProfile();
-      
       // Show guided walkthrough after setup
       setShowWalkthrough(true);
+
+      // Refresh the user profile to sync setupCompleted: true in context
+      await refreshProfile();
     } catch (error) {
       console.error('Setup failed:', error);
       const serverMessage = error.response?.data?.message || 'Failed to complete setup. Please try again.';
       alert(serverMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSkipSetup = async () => {
+    setLoading(true);
+    try {
+      const defaultLogo = "https://images.unsplash.com/photo-1472851294608-062f824d296e?auto=format&fit=crop&w=500&q=80";
+      await api.post('/setup/business', {
+        businessLogo: defaultLogo,
+        businessName: `${user?.name || 'My'}'s Shop`,
+        businessLocation: 'Eldoret',
+        businessContact: user?.phone || 'Phone not provided',
+      });
+
+      // Show guided walkthrough after setup
+      setShowWalkthrough(true);
+
+      // Refresh the user profile to sync setupCompleted: true in context
+      await refreshProfile();
+    } catch (error) {
+      console.error('Skip setup failed:', error);
+      alert('Failed to skip setup. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -245,12 +269,20 @@ const BusinessSetupPage = () => {
             </div>
           </div>
 
-          <div className="mt-8 flex justify-end">
+          <div className="mt-8 flex flex-col sm:flex-row justify-between gap-4">
+            <button
+              type="button"
+              onClick={handleSkipSetup}
+              disabled={loading}
+              className="px-6 py-3 border border-neutral-300 rounded-lg bg-white hover:bg-neutral-50 transition-colors text-neutral-700 font-medium w-full sm:w-auto"
+            >
+              Skip Setup
+            </button>
             <button
               type="button"
               onClick={handleSubmit}
               disabled={loading}
-              className="btn-primary w-full md:w-auto px-8 py-3 flex items-center justify-center gap-2"
+              className="btn-primary w-full sm:w-auto px-8 py-3 flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>
