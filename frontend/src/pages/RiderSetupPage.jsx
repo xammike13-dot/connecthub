@@ -22,13 +22,28 @@ const RiderSetupPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  // Instrumentation Logs
   useEffect(() => {
+    console.log('[RiderSetupPage] MOUNTED');
+    return () => {
+      console.log('[RiderSetupPage] UNMOUNTED');
+    };
+  }, []);
+
+  useEffect(() => {
+    console.log('[RiderSetupPage] user or initializedData updated:', {
+      userExists: !!user,
+      onboardingCompleted: user?.onboardingCompleted,
+      initializedData
+    });
     if (user) {
       if (user.onboardingCompleted) {
+        console.log('[RiderSetupPage] Redirecting to /rider/dashboard because onboardingCompleted is true');
         navigate('/rider/dashboard', { replace: true });
         return;
       }
       if (!initializedData) {
+        console.log('[RiderSetupPage] Initializing form data from user:', user);
         if (user.profilePhoto || user.avatar) {
           setProfilePhoto(user.profilePhoto || user.avatar);
         }

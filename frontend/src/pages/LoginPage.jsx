@@ -18,16 +18,28 @@ const LoginPage = () => {
   // Get the return URL from location state or default to role-based dashboard
   const from = location.state?.from?.pathname;
 
-  // If already authenticated, redirect to appropriate dashboard
+  // If already authenticated, redirect to appropriate dashboard or setup page
   if (isAuthenticated && user) {
-    const dashboardMap = {
-      customer: '/customer/dashboard',
-      landlord: '/landlord/dashboard',
-      business: '/business/dashboard',
-      rider: '/rider/dashboard',
-      admin: '/admin/dashboard',
+    const setupPages = {
+      landlord: '/setup/landlord',
+      business: '/setup/business',
+      rider: '/setup/rider',
     };
-    const targetPath = from || dashboardMap[user.role] || '/';
+
+    let targetPath;
+    if (user.role !== 'customer' && (!user.setupCompleted || !user.onboardingCompleted)) {
+      targetPath = setupPages[user.role] || '/';
+    } else {
+      const dashboardMap = {
+        customer: '/customer/dashboard',
+        landlord: '/landlord/dashboard',
+        business: '/business/dashboard',
+        rider: '/rider/dashboard',
+        admin: '/admin/dashboard',
+      };
+      targetPath = from || dashboardMap[user.role] || '/';
+    }
+
     if (window.location.pathname !== targetPath) {
       navigate(targetPath, { replace: true });
     }

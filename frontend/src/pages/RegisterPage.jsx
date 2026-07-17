@@ -7,16 +7,28 @@ const RegisterPage = () => {
   const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
 
-  // Redirect if already authenticated
+  // Redirect if already authenticated to dashboard or setup page
   if (isAuthenticated && user) {
-    const dashboardMap = {
-      customer: '/customer/dashboard',
-      landlord: '/landlord/dashboard',
-      business: '/business/dashboard',
-      rider: '/rider/dashboard',
-      admin: '/admin/dashboard',
+    const setupPages = {
+      landlord: '/setup/landlord',
+      business: '/setup/business',
+      rider: '/setup/rider',
     };
-    const targetPath = dashboardMap[user.role] || '/';
+
+    let targetPath;
+    if (user.role !== 'customer' && (!user.setupCompleted || !user.onboardingCompleted)) {
+      targetPath = setupPages[user.role] || '/';
+    } else {
+      const dashboardMap = {
+        customer: '/customer/dashboard',
+        landlord: '/landlord/dashboard',
+        business: '/business/dashboard',
+        rider: '/rider/dashboard',
+        admin: '/admin/dashboard',
+      };
+      targetPath = dashboardMap[user.role] || '/';
+    }
+
     // Use setTimeout to avoid React rendering warning if navigating during render
     setTimeout(() => {
       navigate(targetPath, { replace: true });
