@@ -228,7 +228,7 @@ const CaretakerInvitePage = () => {
                         type="tel"
                         required
                         className="w-full pl-10 pr-4 py-2.5 border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="0748459757"
+                        placeholder="0794603837"
                         value={regForm.phone}
                         onChange={(e) => setRegForm({ ...regForm, phone: e.target.value })}
                       />

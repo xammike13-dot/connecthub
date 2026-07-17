@@ -178,11 +178,11 @@ const DashboardHeader = ({ onMenuClick }) => {
           </div>
 
           <div className="bg-secondary-50 p-4 rounded-xl border border-secondary-200/60 space-y-3 text-left text-sm mt-3">
-            <a href="tel:0748459757" className="flex items-center gap-3 hover:bg-neutral-100 p-1.5 rounded-lg transition-colors block">
+            <a href="tel:0794603837" className="flex items-center gap-3 hover:bg-neutral-100 p-1.5 rounded-lg transition-colors block">
               <Phone size={16} className="text-blue-600" />
               <div>
                 <p className="font-semibold text-secondary-700 text-xs">Call Hotline</p>
-                <p className="font-bold text-secondary-800 text-sm mt-0.5">0748459757</p>
+                <p className="font-bold text-secondary-800 text-sm mt-0.5">0794603837</p>
               </div>
             </a>
 
@@ -194,11 +194,11 @@ const DashboardHeader = ({ onMenuClick }) => {
               </div>
             </a>
 
-            <a href="https://wa.me/254748459757" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 hover:bg-neutral-100 p-1.5 rounded-lg transition-colors block">
+            <a href="https://wa.me/254794603837" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 hover:bg-neutral-100 p-1.5 rounded-lg transition-colors block">
               <MessageCircle size={16} className="text-green-600" />
               <div>
                 <p className="font-semibold text-secondary-700 text-xs">WhatsApp Chat</p>
-                <p className="font-bold text-secondary-800 text-sm mt-0.5">0748459757</p>
+                <p className="font-bold text-secondary-800 text-sm mt-0.5">0794603837</p>
               </div>
             </a>
           </div>

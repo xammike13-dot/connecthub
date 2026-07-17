@@ -279,7 +279,7 @@ const LandlordCaretakersPage = () => {
               <input
                 type="tel"
                 className="w-full px-3 py-2 border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                placeholder="e.g. 0748459757"
+                placeholder="e.g. 0794603837"
                 value={inviteForm.phone}
                 onChange={(e) => setInviteForm({ ...inviteForm, phone: e.target.value })}
               />
