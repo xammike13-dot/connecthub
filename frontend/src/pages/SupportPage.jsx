@@ -4,10 +4,10 @@ import { Link } from 'react-router-dom';
 
 const SupportPage = () => {
   const officialEmail = 'connecthub387@gmail.com';
-  const officialPhone = '0748459757';
+  const officialPhone = '0794603837';
 
   // Format WhatsApp Link: 254 country code for Kenya
-  const whatsappUrl = 'https://wa.me/254748459757';
+  const whatsappUrl = 'https://wa.me/254794603837';
 
   return (
     <div className="bg-slate-50 min-h-screen py-12 px-4 sm:px-6 lg:px-8">

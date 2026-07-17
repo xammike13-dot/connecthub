@@ -213,7 +213,7 @@ const NotificationsPage = () => {
         navigate('/customer/rides');
         toastSuccess('Redirecting to ride timeline');
       } else if (actionType === 'call_rider') {
-        window.location.href = `tel:${notif.data?.riderPhone || '0748459757'}`;
+        window.location.href = `tel:${notif.data?.riderPhone || '0794603837'}`;
       } else if (actionType === 'cancel_ride') {
         await rideAPI.cancel(rideId);
         toastSuccess('Ride cancelled successfully');
