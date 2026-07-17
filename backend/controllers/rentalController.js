@@ -9,12 +9,21 @@ import Wishlist from '../models/Wishlist.js';
 import User from '../models/User.js';
 import mpesaService from '../services/mpesaService.js';
 
+const getActiveLandlordId = (user) => {
+  if (!user) return null;
+  if (user.role === 'landlord') return user._id;
+  if (user.role === 'caretaker' && user.caretakerProfile?.status === 'active') {
+    return user.caretakerProfile.landlord;
+  }
+  return null;
+};
+
 /**
  * Create Rental
  */
 export const createRental = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'landlord') {
-    throw new ResponseError('Only landlords can create rentals', 403);
+  if (req.user.role !== 'landlord' && req.user.role !== 'caretaker') {
+    throw new ResponseError('Only landlords and caretakers can create rentals', 403);
   }
 
   const {
@@ -39,8 +48,13 @@ export const createRental = asyncHandler(async (req, res) => {
     );
   }
 
+  const landlordId = getActiveLandlordId(req.user);
+  if (!landlordId) {
+    throw new ResponseError('No associated active landlord found', 403);
+  }
+
   const rental = await Rental.create({
-    landlord: req.user._id,
+    landlord: landlordId,
     rentalName,
     rentalType,
     monthlyPrice,
@@ -245,9 +259,10 @@ export const updateRental = asyncHandler(async (req, res) => {
     throw new ResponseError('Rental not found', 404);
   }
 
+  const landlordId = getActiveLandlordId(req.user);
   if (
-    rental.landlord.toString() !==
-    req.user._id.toString()
+    !landlordId ||
+    rental.landlord.toString() !== landlordId.toString()
   ) {
     throw new ResponseError(
       'Not authorized to update this rental',
@@ -306,9 +321,10 @@ export const deleteRental = asyncHandler(async (req, res) => {
     throw new ResponseError('Rental not found', 404);
   }
 
+  const landlordId = getActiveLandlordId(req.user);
   if (
-    rental.landlord.toString() !==
-    req.user._id.toString()
+    !landlordId ||
+    rental.landlord.toString() !== landlordId.toString()
   ) {
     throw new ResponseError(
       'Not authorized to delete this rental',
@@ -358,15 +374,20 @@ export const getMyRentals = asyncHandler(async (req, res) => {
 
   const skip = (page - 1) * limit;
 
+  const landlordId = getActiveLandlordId(req.user);
+  if (!landlordId) {
+    throw new ResponseError('No associated active landlord found', 403);
+  }
+
   const rentals = await Rental.find({
-    landlord: req.user._id,
+    landlord: landlordId,
   })
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limit);
 
   const total = await Rental.countDocuments({
-    landlord: req.user._id,
+    landlord: landlordId,
   });
 
   res.status(200).json({
@@ -392,9 +413,10 @@ export const toggleAvailability = asyncHandler(async (req, res) => {
     throw new ResponseError('Rental not found', 404);
   }
 
+  const landlordId = getActiveLandlordId(req.user);
   if (
-    rental.landlord.toString() !==
-    req.user._id.toString()
+    !landlordId ||
+    rental.landlord.toString() !== landlordId.toString()
   ) {
     throw new ResponseError(
       'Not authorized to update this rental',
@@ -609,8 +631,8 @@ export const updateBookingStatus = asyncHandler(async (req, res) => {
 
   console.log('[LANDLORD ACCEPTED BOOKING]', { rentalId, bookingId, status, paymentStatus, declineReason });
 
-  if (req.user.role !== 'landlord') {
-    throw new ResponseError('Only landlords can update booking status', 403);
+  if (req.user.role !== 'landlord' && req.user.role !== 'caretaker') {
+    throw new ResponseError('Only landlords and caretakers can update booking status', 403);
   }
 
   const rental = await Rental.findById(rentalId);
@@ -619,7 +641,8 @@ export const updateBookingStatus = asyncHandler(async (req, res) => {
     throw new ResponseError('Rental not found', 404);
   }
 
-  if (rental.landlord.toString() !== req.user._id.toString()) {
+  const landlordId = getActiveLandlordId(req.user);
+  if (!landlordId || rental.landlord.toString() !== landlordId.toString()) {
     throw new ResponseError('Not authorized to update this booking', 403);
   }
 

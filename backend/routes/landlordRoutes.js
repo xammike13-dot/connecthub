@@ -17,29 +17,30 @@ import { validateObjectId } from '../middleware/validateObjectId.js';
 const router = express.Router();
 
 router.use(protect);
-router.use(authorize('landlord'));
 
-router.get('/dashboard/stats', getDashboardStats);
+router.get('/dashboard/stats', authorize('landlord'), getDashboardStats);
 
-router.get('/wallet', getWallet);
+router.get('/wallet', authorize('landlord'), getWallet);
 
-router.get('/new-bookings', getNewBookings);
+router.get('/new-bookings', authorize('landlord', 'caretaker'), getNewBookings);
 
-router.get('/bookings', getAllBookings);
+router.get('/bookings', authorize('landlord', 'caretaker'), getAllBookings);
 
-router.get('/my-properties', getMyProperties);
+router.get('/my-properties', authorize('landlord', 'caretaker'), getMyProperties);
 
-router.get('/my-rentals', getMyRentals);
+router.get('/my-rentals', authorize('landlord', 'caretaker'), getMyRentals);
 
 router.get(
   '/my-rentals/:rentalId',
   validateObjectId('rentalId'),
+  authorize('landlord', 'caretaker'),
   getMyRental
 );
 
 router.patch(
   '/my-rentals/:rentalId/toggle-availability',
   validateObjectId('rentalId'),
+  authorize('landlord', 'caretaker'),
   toggleAvailability
 );
 

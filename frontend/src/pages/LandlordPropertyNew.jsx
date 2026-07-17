@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import ImageUpload from '../components/ImageUpload';
 import Button from '../components/ui/Button';
 import { useToast } from '../components/Toast';
+import { useAuth } from '../context/AuthContext';
 
 const LOCATIONS = [
   { value: 'stage', label: 'Stage' },
@@ -31,6 +32,7 @@ const AMENITIES = [
 ];
 
 const LandlordPropertyNew = () => {
+  const { user } = useAuth();
   const [form, setForm] = useState({
     rentalName: '',
     rentalType: '',
@@ -117,7 +119,7 @@ const LandlordPropertyNew = () => {
       console.log('[LandlordPropertyNew] Creating rental with images:', formattedImages);
       await rentalAPI.create(payload);
       addToast('Property created successfully', 'success');
-      navigate('/landlord/properties');
+      navigate(user?.role === 'caretaker' ? '/caretaker/properties' : '/landlord/properties');
     } catch (err) {
       const errorMsg = err?.response?.data?.message || err.message || 'Failed to create property';
       addToast(errorMsg, 'error');
@@ -130,7 +132,7 @@ const LandlordPropertyNew = () => {
     <div className="p-6">
       <div className="flex items-center gap-4 mb-6">
         <button
-          onClick={() => navigate('/landlord/properties')}
+          onClick={() => navigate(user?.role === 'caretaker' ? '/caretaker/properties' : '/landlord/properties')}
           className="p-2 hover:bg-secondary-100 rounded-lg transition-colors"
         >
           <svg className="w-5 h-5 text-secondary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -287,7 +289,7 @@ const LandlordPropertyNew = () => {
           <Button
             type="button"
             variant="outline"
-            onClick={() => navigate('/landlord/properties')}
+            onClick={() => navigate(user?.role === 'caretaker' ? '/caretaker/properties' : '/landlord/properties')}
           >
             Cancel
           </Button>

@@ -116,6 +116,7 @@ import wishlistRoutes from './routes/wishlistRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import verificationRoutes from './routes/verificationRoutes.js';
 import setupRoutes from './routes/setupRoutes.js';
+import caretakerRoutes from './routes/caretakerRoutes.js';
 
 // Connect Database
 connectDB();
@@ -255,6 +256,7 @@ app.use('/api/rider', riderProfileRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/caretakers', caretakerRoutes);
 
 // Serve frontend static assets in production
 const frontendDistPath = path.resolve(__dirname, '../frontend/dist');

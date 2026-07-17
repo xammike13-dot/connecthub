@@ -7,6 +7,15 @@ import User from '../models/User.js';
 import { asyncHandler, ResponseError } from '../middleware/error.js';
 import { getDashboardWalletData, getWalletPageData } from '../services/walletCalculationService.js';
 
+const getActiveLandlordId = (user) => {
+  if (!user) return null;
+  if (user.role === 'landlord') return user._id;
+  if (user.role === 'caretaker' && user.caretakerProfile?.status === 'active') {
+    return user.caretakerProfile.landlord;
+  }
+  return null;
+};
+
 /**
  * Dashboard Statistics
  */
@@ -154,7 +163,7 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
  * Get Current Landlord Rentals
  */
 export const getMyRentals = asyncHandler(async (req, res) => {
-  const landlordId = req.user._id;
+  const landlordId = getActiveLandlordId(req.user);
 
   const page = Number(req.query.page) || 1;
   const limit = Number(req.query.limit) || 20;
@@ -199,9 +208,11 @@ export const getMyRental = asyncHandler(async (req, res) => {
     throw new ResponseError('Invalid rental ID', 400);
   }
 
+  const landlordId = getActiveLandlordId(req.user);
+
   const rental = await Rental.findOne({
     _id: rentalId,
-    landlord: req.user._id,
+    landlord: landlordId,
   }).populate(
     'landlord',
     'name email phone'
@@ -273,7 +284,7 @@ export const toggleAvailability = asyncHandler(
  * Returns pending bookings with customer phone numbers
  */
 export const getNewBookings = asyncHandler(async (req, res) => {
-  const landlordId = req.user._id;
+  const landlordId = getActiveLandlordId(req.user);
 
   console.log('[LANDLORD NEW BOOKINGS] Fetching for landlord:', landlordId);
 
@@ -326,7 +337,7 @@ export const getNewBookings = asyncHandler(async (req, res) => {
  * Returns all bookings (pending, accepted, active, completed, cancelled)
  */
 export const getAllBookings = asyncHandler(async (req, res) => {
-  const landlordId = req.user._id;
+  const landlordId = getActiveLandlordId(req.user);
 
   console.log('[LANDLORD ALL BOOKINGS] Fetching for landlord:', landlordId);
 

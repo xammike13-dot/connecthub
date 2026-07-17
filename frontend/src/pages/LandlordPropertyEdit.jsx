@@ -5,6 +5,7 @@ import ImageUpload from '../components/ImageUpload';
 import Button from '../components/ui/Button';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useToast } from '../components/Toast';
+import { useAuth } from '../context/AuthContext';
 
 const LOCATIONS = [
   { value: 'stage', label: 'Stage' },
@@ -34,6 +35,7 @@ const AMENITIES = [
 const LandlordPropertyEdit = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { addToast } = useToast();
   
   const [form, setForm] = useState({
@@ -71,7 +73,7 @@ const LandlordPropertyEdit = () => {
       } catch (err) {
         const errorMsg = err?.response?.data?.message || err.message || 'Failed to load property';
         addToast(errorMsg, 'error');
-        navigate('/landlord/properties');
+        navigate(user?.role === 'caretaker' ? '/caretaker/properties' : '/landlord/properties');
       } finally {
         if (mounted) setLoading(false);
       }
@@ -152,7 +154,7 @@ const LandlordPropertyEdit = () => {
       console.log('[LandlordPropertyEdit] Updating rental with images:', formattedImages);
       await rentalAPI.update(id, payload);
       addToast('Property updated successfully', 'success');
-      navigate('/landlord/properties');
+      navigate(user?.role === 'caretaker' ? '/caretaker/properties' : '/landlord/properties');
     } catch (err) {
       const errorMsg = err?.response?.data?.message || err.message || 'Failed to update property';
       addToast(errorMsg, 'error');
@@ -173,7 +175,7 @@ const LandlordPropertyEdit = () => {
     <div className="p-6">
       <div className="flex items-center gap-4 mb-6">
         <button
-          onClick={() => navigate('/landlord/properties')}
+          onClick={() => navigate(user?.role === 'caretaker' ? '/caretaker/properties' : '/landlord/properties')}
           className="p-2 hover:bg-secondary-100 rounded-lg transition-colors"
         >
           <svg className="w-5 h-5 text-secondary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -331,7 +333,7 @@ const LandlordPropertyEdit = () => {
           <Button
             type="button"
             variant="outline"
-            onClick={() => navigate('/landlord/properties')}
+            onClick={() => navigate(user?.role === 'caretaker' ? '/caretaker/properties' : '/landlord/properties')}
           >
             Cancel
           </Button>

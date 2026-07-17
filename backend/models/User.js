@@ -27,7 +27,7 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['customer', 'landlord', 'business', 'rider'],
+      enum: ['customer', 'landlord', 'business', 'rider', 'caretaker'],
       default: 'customer',
     },
     avatar: {
@@ -214,6 +214,21 @@ const userSchema = new mongoose.Schema(
         min: 0,
         max: 5,
       },
+    },
+    // Caretaker specific fields
+    caretakerProfile: {
+      landlord: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+      status: {
+        type: String,
+        enum: ['active', 'disabled'],
+        default: 'active',
+      },
+      invitedAt: Date,
+      addedAt: Date,
+      lastActive: Date,
     },
     // Landlord specific fields
     landlordProfile: {

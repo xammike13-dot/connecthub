@@ -28,6 +28,7 @@ const Sidebar = ({ isOpen, onClose }) => {
       case 'landlord':
         return [
           { path: '/landlord/dashboard', label: 'Dashboard', icon: 'home' },
+          { path: '/landlord/caretakers', label: 'Caretakers', icon: 'users' },
           { path: '/landlord/properties', label: 'Properties', icon: 'building' },
           { path: '/landlord/bookings', label: 'Bookings', icon: 'orders' },
           { path: '/landlord/wallet', label: 'Wallet', icon: 'money' },
@@ -35,6 +36,14 @@ const Sidebar = ({ isOpen, onClose }) => {
           { path: '/landlord/profile', label: 'Profile', icon: 'user' },
           { path: '/landlord/settings', label: 'Settings', icon: 'settings' },
           { path: '/landlord/help', label: 'Help Center', icon: 'help' },
+        ];
+      case 'caretaker':
+        return [
+          { path: '/caretaker/dashboard', label: 'Dashboard', icon: 'home' },
+          { path: '/caretaker/properties', label: 'Properties', icon: 'building' },
+          { path: '/caretaker/bookings', label: 'Bookings', icon: 'orders' },
+          { path: '/caretaker/notifications', label: 'Notifications', icon: 'calendar' },
+          { path: '/caretaker/help', label: 'Help Center', icon: 'help' },
         ];
       case 'business':
         return [

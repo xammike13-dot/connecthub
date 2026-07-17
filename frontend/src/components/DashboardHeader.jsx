@@ -47,7 +47,7 @@ const DashboardHeader = ({ onMenuClick }) => {
             {/* Help Center Icon with text tooltip/trigger */}
             <button
               onClick={() => {
-                if (user?.role && ['customer', 'landlord', 'business', 'rider'].includes(user.role)) {
+                if (user?.role && ['customer', 'landlord', 'business', 'rider', 'caretaker'].includes(user.role)) {
                   navigate(`/${user.role}/help`);
                 } else {
                   setHelpOpen(true);
