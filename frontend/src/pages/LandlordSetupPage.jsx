@@ -20,13 +20,28 @@ const LandlordSetupPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  // Instrumentation Logs
   useEffect(() => {
+    console.log('[LandlordSetupPage] MOUNTED');
+    return () => {
+      console.log('[LandlordSetupPage] UNMOUNTED');
+    };
+  }, []);
+
+  useEffect(() => {
+    console.log('[LandlordSetupPage] user or initializedData updated:', {
+      userExists: !!user,
+      onboardingCompleted: user?.onboardingCompleted,
+      initializedData
+    });
     if (user) {
       if (user.onboardingCompleted) {
+        console.log('[LandlordSetupPage] Redirecting to /landlord/dashboard because onboardingCompleted is true');
         navigate('/landlord/dashboard', { replace: true });
         return;
       }
       if (!initializedData) {
+        console.log('[LandlordSetupPage] Initializing form data from user:', user);
         if (user.profilePhoto || user.avatar) {
           setProfilePhoto(user.profilePhoto || user.avatar);
         }

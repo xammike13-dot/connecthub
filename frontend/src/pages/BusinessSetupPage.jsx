@@ -18,13 +18,28 @@ const BusinessSetupPage = () => {
   const [showWalkthrough, setShowWalkthrough] = useState(false);
   const [initializedData, setInitializedData] = useState(false);
 
+  // Instrumentation Logs
   useEffect(() => {
+    console.log('[BusinessSetupPage] MOUNTED');
+    return () => {
+      console.log('[BusinessSetupPage] UNMOUNTED');
+    };
+  }, []);
+
+  useEffect(() => {
+    console.log('[BusinessSetupPage] user or initializedData updated:', {
+      userExists: !!user,
+      onboardingCompleted: user?.onboardingCompleted,
+      initializedData
+    });
     if (user) {
       if (user.onboardingCompleted) {
+        console.log('[BusinessSetupPage] Redirecting to /business/dashboard because onboardingCompleted is true');
         navigate('/business/dashboard', { replace: true });
         return;
       }
       if (!initializedData) {
+        console.log('[BusinessSetupPage] Initializing form data from user:', user);
         if (user.businessLogo || user.businessProfile?.businessLogo) {
           setBusinessLogo(user.businessLogo || user.businessProfile?.businessLogo);
         }
