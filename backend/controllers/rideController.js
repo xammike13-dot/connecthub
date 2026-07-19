@@ -1058,8 +1058,13 @@ export const calculateRideFare = asyncHandler(async (req, res) => {
   // Calculate distance using routing API (or Haversine fallback)
   const distanceInMeters = await getRoutingDistance(pickupLocation, dropoffLocation);
 
-  // Calculate fare using the centralized fare calculator
-  const fareBreakdown = calculateFare(distanceInMeters, ratePerKm);
+  // Calculate fare using the centralized fare calculator. Fallback to default rates if ratePerKm is not provided.
+  let fareBreakdown;
+  if (ratePerKm !== undefined && ratePerKm !== null && !isNaN(ratePerKm) && ratePerKm > 0) {
+    fareBreakdown = calculateFare(distanceInMeters, ratePerKm);
+  } else {
+    fareBreakdown = calculateFareWithDefaultRate(distanceInMeters);
+  }
 
   // Format distance for display
   const formattedDistance = formatDistance(distanceInMeters);

@@ -652,8 +652,15 @@ export const getNearbyRiders = asyncHandler(async (req, res) => {
     throw new ResponseError('Latitude and longitude are required', 400);
   }
 
+  const lat = parseFloat(latitude);
+  const lng = parseFloat(longitude);
+
+  if (isNaN(lat) || isNaN(lng)) {
+    throw new ResponseError('Invalid coordinates provided', 400);
+  }
+
   // Find riders who satisfy ALL availability conditions
-  console.log(`[getNearbyRiders] Querying MongoDB for riders near: [${longitude}, ${latitude}] within ${maxDistance}m`);
+  console.log(`[getNearbyRiders] Querying MongoDB for riders near: [${lng}, ${lat}] within ${maxDistance}m`);
   
   const riders = await User.find({
     role: 'rider',
@@ -666,7 +673,7 @@ export const getNearbyRiders = asyncHandler(async (req, res) => {
       $near: {
         $geometry: {
           type: 'Point',
-          coordinates: [parseFloat(longitude), parseFloat(latitude)],
+          coordinates: [lng, lat],
         },
         $maxDistance: parseInt(maxDistance),
       },
@@ -696,17 +703,18 @@ export const getNearbyRiders = asyncHandler(async (req, res) => {
     status: { $in: ['accepted', 'in_progress', 'awaiting_customer_confirmation'] },
   }).distinct('rider');
 
-  console.log(`[getNearbyRiders] Riders currently on active rides:`, activeRideRiders.length);
+  const activeRideRiderIds = activeRideRiders.map(id => id.toString());
+  console.log(`[getNearbyRiders] Riders currently on active rides:`, activeRideRiderIds.length);
 
   // Filter out riders who are currently on rides
   const availableRiders = riders.filter(rider => 
-    !activeRideRiders.includes(rider._id)
+    !activeRideRiderIds.includes(rider._id.toString())
   );
 
   console.log(`[getNearbyRiders] Available riders after filtering:`, availableRiders.length);
 
   // Helper functions for matching working hours and working areas
-  const getClosestWorkingArea = (lat, lng) => {
+  const getClosestWorkingArea = (latVal, lngVal) => {
     const areas = [
       { name: 'Chebaiywa (Cheba)', lat: 0.2800, lng: 35.3000 },
       { name: 'Stage', lat: 0.2850, lng: 35.2900 },
@@ -716,7 +724,7 @@ export const getNearbyRiders = asyncHandler(async (req, res) => {
     let closestArea = areas[0].name;
     let minDistance = Infinity;
     for (const area of areas) {
-      const d = Math.sqrt(Math.pow(lat - area.lat, 2) + Math.pow(lng - area.lng, 2));
+      const d = Math.sqrt(Math.pow(latVal - area.lat, 2) + Math.pow(lngVal - area.lng, 2));
       if (d < minDistance) {
         minDistance = d;
         closestArea = area.name;
@@ -734,10 +742,30 @@ export const getNearbyRiders = asyncHandler(async (req, res) => {
     }
   };
 
-  const now = new Date();
-  const options = { timeZone: 'Africa/Nairobi', hour: '2-digit', minute: '2-digit', hour12: false };
-  const currentTimeStr = now.toLocaleTimeString('en-US', options);
-  const closestArea = getClosestWorkingArea(parseFloat(latitude), parseFloat(longitude));
+  const getKenyanTimeStr = () => {
+    try {
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Africa/Nairobi',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+      const parts = formatter.formatToParts(new Date());
+      const hourPart = parts.find(p => p.type === 'hour')?.value || '00';
+      const minutePart = parts.find(p => p.type === 'minute')?.value || '00';
+      return `${hourPart}:${minutePart}`;
+    } catch (e) {
+      const d = new Date();
+      const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
+      const nd = new Date(utc + (3600000 * 3));
+      const hh = String(nd.getHours()).padStart(2, '0');
+      const mm = String(nd.getMinutes()).padStart(2, '0');
+      return `${hh}:${mm}`;
+    }
+  };
+
+  const currentTimeStr = getKenyanTimeStr();
+  const closestArea = getClosestWorkingArea(lat, lng);
 
   console.log(`[getNearbyRiders] Current Kenyan time: ${currentTimeStr}, Closest area to request: ${closestArea}`);
 
@@ -771,14 +799,14 @@ export const getNearbyRiders = asyncHandler(async (req, res) => {
 
   // Calculate distance for each rider
   const ridersWithDistance = activeMatchingRiders.map(rider => {
-    const riderLoc = rider.riderProfile.currentLocation;
-    if (!riderLoc) return null;
+    const riderLoc = rider.riderProfile?.currentLocation;
+    if (!riderLoc || !Array.isArray(riderLoc.coordinates) || riderLoc.coordinates.length < 2) return null;
 
     // Simple distance calculation (Haversine formula approximation)
     const riderLng = riderLoc.coordinates[0];
     const riderLat = riderLoc.coordinates[1];
-    const customerLng = parseFloat(longitude);
-    const customerLat = parseFloat(latitude);
+    const customerLng = lng;
+    const customerLat = lat;
 
     const R = 6371; // Earth's radius in km
     const dLat = (customerLat - riderLat) * Math.PI / 180;
