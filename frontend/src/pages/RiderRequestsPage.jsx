@@ -21,6 +21,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useSocket } from '../context/SocketContext';
+import LeafletMap from '../components/maps/LeafletMap';
 
 const formatCurrency = (amount) => {
   if (amount === null || amount === undefined || isNaN(amount)) {
@@ -74,6 +75,44 @@ const RiderRequestsPage = () => {
   const [declineReason, setDeclineReason] = useState('');
   const [customReason, setCustomReason] = useState('');
   const [declining, setDeclining] = useState(false);
+
+  // Rider's location and Map modal states
+  const [riderLocation, setRiderLocation] = useState(null);
+  const [showFullMapModal, setShowFullMapModal] = useState(false);
+  const [activeRideForMap, setActiveRideForMap] = useState(null);
+
+  // Get rider's current location on mount
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setRiderLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          });
+        },
+        (error) => {
+          console.error('[RiderRequestsPage] Failed to get location:', error);
+        }
+      );
+    }
+  }, []);
+
+  // Handle external Google Maps navigation
+  const handleStartNavigation = (ride) => {
+    const pickupLat = ride.pickupLocation?.coordinates?.[1];
+    const pickupLng = ride.pickupLocation?.coordinates?.[0];
+    const dropoffLat = ride.dropoffLocation?.coordinates?.[1];
+    const dropoffLng = ride.dropoffLocation?.coordinates?.[0];
+
+    if (pickupLat !== undefined && pickupLng !== undefined && dropoffLat !== undefined && dropoffLng !== undefined) {
+      // Direct routing with pickup as waypoint and dropoff as final destination
+      const url = `https://www.google.com/maps/dir/?api=1&destination=${dropoffLat},${dropoffLng}&waypoints=${pickupLat},${pickupLng}`;
+      window.open(url, '_blank');
+    } else {
+      addToast('Pickup and dropoff coordinates are missing', 'error');
+    }
+  };
 
   // Fetch available ride requests
   const fetchRequests = useCallback(async () => {
@@ -290,6 +329,42 @@ const RiderRequestsPage = () => {
           {pendingRequests.map((ride) => {
             const isHighlighted = ride._id === rideIdParam;
 
+            const pickupLat = ride.pickupLocation?.coordinates?.[1];
+            const pickupLng = ride.pickupLocation?.coordinates?.[0];
+            const dropoffLat = ride.dropoffLocation?.coordinates?.[1];
+            const dropoffLng = ride.dropoffLocation?.coordinates?.[0];
+
+            const hasCoords =
+              pickupLat !== undefined && pickupLat !== null && !isNaN(pickupLat) &&
+              pickupLng !== undefined && pickupLng !== null && !isNaN(pickupLng) &&
+              dropoffLat !== undefined && dropoffLat !== null && !isNaN(dropoffLat) &&
+              dropoffLng !== undefined && dropoffLng !== null && !isNaN(dropoffLng);
+
+            const mapCenter = hasCoords ? [pickupLat, pickupLng] : [-1.2921, 36.8219];
+
+            const pickupLoc = hasCoords ? {
+              lat: pickupLat,
+              lng: pickupLng,
+              address: ride.pickupLocation?.name || ride.pickupLocation?.address || 'Pickup Location'
+            } : null;
+
+            const dropoffLoc = hasCoords ? {
+              lat: dropoffLat,
+              lng: dropoffLng,
+              address: ride.dropoffLocation?.name || ride.dropoffLocation?.address || 'Dropoff Location'
+            } : null;
+
+            const routeCoords = hasCoords ? [
+              [pickupLat, pickupLng],
+              [dropoffLat, dropoffLng]
+            ] : [];
+
+            const validRiderLoc = riderLocation ? {
+              lat: riderLocation.lat,
+              lng: riderLocation.lng,
+              address: 'My Location'
+            } : null;
+
             return (
               <div
                 key={ride._id}
@@ -308,7 +383,7 @@ const RiderRequestsPage = () => {
                   <div>
                     <p className="font-semibold text-gray-900">New Ride Request</p>
                     <p className="text-sm text-gray-500">
-                      {ride.pickupLocation?.address || 'Pickup location'} → {ride.dropoffLocation?.address || 'Dropoff location'}
+                      {ride.pickupLocation?.name || ride.pickupLocation?.address || 'Pickup location'} → {ride.dropoffLocation?.name || ride.dropoffLocation?.address || 'Dropoff location'}
                     </p>
                   </div>
                 </div>
@@ -333,7 +408,7 @@ const RiderRequestsPage = () => {
                     <div>
                       <p className="text-sm text-gray-500">Pickup Location</p>
                       <p className="font-medium text-gray-900">
-                        {ride.pickupLocation?.address || 'Unknown'}
+                        {ride.pickupLocation?.name || ride.pickupLocation?.address || 'Unknown'}
                       </p>
                     </div>
                   </div>
@@ -344,7 +419,7 @@ const RiderRequestsPage = () => {
                     <div>
                       <p className="text-sm text-gray-500">Destination</p>
                       <p className="font-medium text-gray-900">
-                        {ride.dropoffLocation?.address || 'Unknown'}
+                        {ride.dropoffLocation?.name || ride.dropoffLocation?.address || 'Unknown'}
                       </p>
                     </div>
                   </div>
@@ -368,28 +443,162 @@ const RiderRequestsPage = () => {
                   </div>
                 </div>
               </div>
+
+              {/* Small Embedded Map Preview */}
+              <div className="my-4 border rounded-xl overflow-hidden shadow-sm relative" style={{ height: '220px' }}>
+                <LeafletMap
+                  center={mapCenter}
+                  zoom={12}
+                  pickupLocation={pickupLoc}
+                  dropoffLocation={dropoffLoc}
+                  routeCoordinates={routeCoords}
+                  showUserLocation={!!validRiderLoc}
+                  userLocation={validRiderLoc}
+                  height="100%"
+                />
+              </div>
               
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-2.5 mt-2">
+                <Button
+                  variant="outline"
+                  className="flex-1 text-blue-600 border-blue-300 hover:bg-blue-50 flex items-center justify-center gap-1.5 font-bold"
+                  onClick={() => {
+                    setActiveRideForMap(ride);
+                    setShowFullMapModal(true);
+                  }}
+                >
+                  <Navigation size={15} />
+                  Open Full Map
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className="flex-1 text-emerald-600 border-emerald-300 hover:bg-emerald-50 flex items-center justify-center gap-1.5 font-bold"
+                  onClick={() => handleStartNavigation(ride)}
+                >
+                  <Navigation size={15} className="rotate-45" />
+                  Start Navigation
+                </Button>
+
                 <Button 
                   variant="outline" 
-                  className="flex-1 text-red-600 border-red-300 hover:bg-red-50"
+                  className="flex-1 text-red-600 border-red-300 hover:bg-red-50 flex items-center justify-center gap-1.5 font-bold"
                   onClick={() => showDeclineDialog(ride)}
                 >
-                  <X size={16} />
-                  Decline
+                  <X size={15} />
+                  Reject Ride
                 </Button>
+
                 <Button 
                   variant="primary" 
-                  className="flex-1"
+                  className="flex-1 flex items-center justify-center gap-1.5 font-bold"
                   onClick={() => acceptRide(ride._id)}
                 >
-                  <Check size={16} />
+                  <Check size={15} />
                   Accept Ride
                 </Button>
               </div>
             </div>
           )})}
         </div>
+      )}
+
+      {/* Full Navigation Map Modal */}
+      {activeRideForMap && (
+        <Modal
+          isOpen={showFullMapModal}
+          onClose={() => {
+            setShowFullMapModal(false);
+            setActiveRideForMap(null);
+          }}
+          title="Full Navigation Map"
+          size="xl"
+        >
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-neutral-50 p-4 rounded-lg border">
+              <div>
+                <p className="text-xs text-gray-500 font-bold uppercase">Customer Name</p>
+                <p className="text-sm font-semibold text-gray-900">{activeRideForMap.customer?.name || 'Passenger'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 font-bold uppercase">Estimated Distance</p>
+                <p className="text-sm font-semibold text-gray-900">
+                  {activeRideForMap.estimatedDistance ? `${activeRideForMap.estimatedDistance.toFixed(1)} km` : 'N/A'}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 font-bold uppercase">Estimated Fare</p>
+                <p className="text-sm font-bold text-green-600">
+                  {formatCurrency(activeRideForMap.fare?.totalFare || activeRideForMap.estimatedPrice || 0)}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-neutral-50 p-3 rounded-lg border text-xs">
+              <div>
+                <span className="font-bold text-green-600">Pickup: </span>
+                {activeRideForMap.pickupLocation?.name || activeRideForMap.pickupLocation?.address}
+              </div>
+              <div>
+                <span className="font-bold text-red-600">Dropoff: </span>
+                {activeRideForMap.dropoffLocation?.name || activeRideForMap.dropoffLocation?.address}
+              </div>
+            </div>
+
+            {/* Large Map Container */}
+            <div className="border rounded-xl overflow-hidden shadow-sm relative" style={{ height: '400px' }}>
+              <LeafletMap
+                center={[
+                  activeRideForMap.pickupLocation?.coordinates?.[1] || -1.2921,
+                  activeRideForMap.pickupLocation?.coordinates?.[0] || 36.8219
+                ]}
+                zoom={14}
+                pickupLocation={{
+                  lat: activeRideForMap.pickupLocation?.coordinates?.[1],
+                  lng: activeRideForMap.pickupLocation?.coordinates?.[0],
+                  address: activeRideForMap.pickupLocation?.name || activeRideForMap.pickupLocation?.address || 'Pickup'
+                }}
+                dropoffLocation={{
+                  lat: activeRideForMap.dropoffLocation?.coordinates?.[1],
+                  lng: activeRideForMap.dropoffLocation?.coordinates?.[0],
+                  address: activeRideForMap.dropoffLocation?.name || activeRideForMap.dropoffLocation?.address || 'Destination'
+                }}
+                routeCoordinates={[
+                  [activeRideForMap.pickupLocation?.coordinates?.[1], activeRideForMap.pickupLocation?.coordinates?.[0]],
+                  [activeRideForMap.dropoffLocation?.coordinates?.[1], activeRideForMap.dropoffLocation?.coordinates?.[0]]
+                ]}
+                showUserLocation={!!riderLocation}
+                userLocation={riderLocation ? {
+                  lat: riderLocation.lat,
+                  lng: riderLocation.lng,
+                  address: 'My Location'
+                } : null}
+                height="100%"
+                showControls={true}
+              />
+            </div>
+
+            <div className="flex gap-3 justify-end pt-2 border-t">
+              <Button
+                variant="outline"
+                className="text-emerald-600 border-emerald-300 hover:bg-emerald-50 flex items-center gap-1.5 font-bold"
+                onClick={() => handleStartNavigation(activeRideForMap)}
+              >
+                <Navigation size={15} className="rotate-45" />
+                Start Google Maps Navigation
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setShowFullMapModal(false);
+                  setActiveRideForMap(null);
+                }}
+              >
+                Close Map
+              </Button>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {/* Decline Reason Modal */}

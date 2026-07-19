@@ -28,6 +28,7 @@ import {
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import Button from '../components/ui/Button';
 import { rideAPI, riderAPI, notificationAPI } from '../services/api';
+import LeafletMap from '../components/maps/LeafletMap';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -576,54 +577,114 @@ const RiderDashboard = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 
             {/* 1. Active Trip (Assigned Ride) */}
-            {activeRide && (
-              <div className="bg-white border-2 border-blue-300 rounded-xl p-4 shadow-sm flex flex-col justify-between">
-                <div>
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-black uppercase rounded-md border border-blue-200">
-                      <Bike className="w-3 h-3" />
-                      Current Trip
-                    </span>
-                    <span className="text-xs font-bold text-neutral-400">
-                      #{activeRide._id?.slice(-6).toUpperCase()}
-                    </span>
+            {(() => {
+              if (!activeRide) return null;
+
+              const pickupLat = activeRide?.pickupLocation?.coordinates?.[1];
+              const pickupLng = activeRide?.pickupLocation?.coordinates?.[0];
+              const dropoffLat = activeRide?.dropoffLocation?.coordinates?.[1];
+              const dropoffLng = activeRide?.dropoffLocation?.coordinates?.[0];
+
+              const hasCoords =
+                pickupLat !== undefined && pickupLat !== null && !isNaN(pickupLat) &&
+                pickupLng !== undefined && pickupLng !== null && !isNaN(pickupLng) &&
+                dropoffLat !== undefined && dropoffLat !== null && !isNaN(dropoffLat) &&
+                dropoffLng !== undefined && dropoffLng !== null && !isNaN(dropoffLng);
+
+              const mapCenter = hasCoords ? [pickupLat, pickupLng] : [-1.2921, 36.8219];
+
+              const pickupLoc = hasCoords ? {
+                lat: pickupLat,
+                lng: pickupLng,
+                address: activeRide?.pickupLocation?.name || activeRide?.pickupLocation?.address || 'Pickup Location'
+              } : null;
+
+              const dropoffLoc = hasCoords ? {
+                lat: dropoffLat,
+                lng: dropoffLng,
+                address: activeRide?.dropoffLocation?.name || activeRide?.dropoffLocation?.address || 'Dropoff Location'
+              } : null;
+
+              const routeCoords = hasCoords ? [
+                [pickupLat, pickupLng],
+                [dropoffLat, dropoffLng]
+              ] : [];
+
+              const validRiderLoc = riderLocation ? {
+                lat: riderLocation.lat,
+                lng: riderLocation.lng,
+                address: 'My Location'
+              } : null;
+
+              return (
+                <div className="bg-white border-2 border-blue-300 rounded-xl p-4 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-black uppercase rounded-md border border-blue-200">
+                        <Bike className="w-3 h-3" />
+                        Current Trip
+                      </span>
+                      <span className="text-xs font-bold text-neutral-400">
+                        #{activeRide._id?.slice(-6).toUpperCase()}
+                      </span>
+                    </div>
+
+                    <p className="text-sm font-bold text-neutral-800 line-clamp-1">
+                      Route: {activeRide.pickupLocation?.name || activeRide.pickupLocation?.address} → {activeRide.dropoffLocation?.name || activeRide.dropoffLocation?.address}
+                    </p>
+
+                    <div className="mt-2.5 space-y-1 bg-neutral-50 p-2 rounded-lg border border-neutral-100 text-xs">
+                      <p><span className="font-bold">Customer:</span> {activeRide.customer?.name || 'Passenger'}</p>
+                      <p><span className="font-bold">Fare:</span> {formatCurrency(activeRide.fare?.totalFare || activeRide.estimatedPrice || 0)}</p>
+                      <p><span className="font-bold">Status:</span> <span className="font-extrabold capitalize text-blue-600">{activeRide.status}</span></p>
+                    </div>
+
+                    {activeRide.status === 'accepted' && (
+                      <p className="text-[11px] text-amber-600 font-bold bg-amber-50 p-1.5 rounded-lg border border-amber-100 mt-2">
+                        Rider Accepted. Pickup pending. Navigate to customer to start trip.
+                      </p>
+                    )}
+                    {activeRide.status === 'in_progress' && (
+                      <p className="text-[11px] text-blue-600 font-bold bg-blue-50 p-1.5 rounded-lg border border-blue-100 mt-2">
+                        On Trip. Drive safely to destination.
+                      </p>
+                    )}
+                    {activeRide.status === 'awaiting_customer_confirmation' && (
+                      <p className="text-[11px] text-green-600 font-bold bg-green-50 p-1.5 rounded-lg border border-green-100 mt-2">
+                        Trip completed. Awaiting passenger payment release.
+                      </p>
+                    )}
+
+                    {/* Embedded Active Trip Map */}
+                    <div className="my-3 border rounded-xl overflow-hidden shadow-sm relative" style={{ height: '220px' }}>
+                      <LeafletMap
+                        center={mapCenter}
+                        zoom={13}
+                        pickupLocation={pickupLoc}
+                        dropoffLocation={dropoffLoc}
+                        routeCoordinates={routeCoords}
+                        showUserLocation={!!validRiderLoc}
+                        userLocation={validRiderLoc}
+                        height="100%"
+                      />
+                    </div>
                   </div>
 
-                  <p className="text-sm font-bold text-neutral-800 line-clamp-1">
-                    Route: {activeRide.pickupLocation?.address} → {activeRide.dropoffLocation?.address}
-                  </p>
-
-                  <div className="mt-2.5 space-y-1 bg-neutral-50 p-2 rounded-lg border border-neutral-100 text-xs">
-                    <p><span className="font-bold">Customer:</span> {activeRide.customer?.name || 'Passenger'}</p>
-                    <p><span className="font-bold">Fare:</span> {formatCurrency(activeRide.fare?.totalFare || activeRide.estimatedPrice || 0)}</p>
-                    <p><span className="font-bold">Status:</span> <span className="font-extrabold capitalize text-blue-600">{activeRide.status}</span></p>
-                  </div>
-
-                  {activeRide.status === 'accepted' && (
-                    <p className="text-[11px] text-amber-600 font-bold bg-amber-50 p-1.5 rounded-lg border border-amber-100 mt-2">
-                      Rider Accepted. Pickup pending. Navigate to customer to start trip.
-                    </p>
-                  )}
-                  {activeRide.status === 'in_progress' && (
-                    <p className="text-[11px] text-blue-600 font-bold bg-blue-50 p-1.5 rounded-lg border border-blue-100 mt-2">
-                      On Trip. Drive safely to destination.
-                    </p>
-                  )}
-                  {activeRide.status === 'awaiting_customer_confirmation' && (
-                    <p className="text-[11px] text-green-600 font-bold bg-green-50 p-1.5 rounded-lg border border-green-100 mt-2">
-                      Trip completed. Awaiting passenger payment release.
-                    </p>
-                  )}
-                </div>
-
-                <div className="mt-4 pt-3 border-t border-neutral-100 flex gap-2 flex-wrap">
-                  <button
-                    onClick={() => handleNavigate(activeRide.pickupLocation?.address, activeRide.pickupLocation?.coordinates)}
-                    className="px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold text-xs rounded-lg shadow-sm flex items-center gap-1"
-                  >
-                    <Navigation size={12} />
-                    Map
-                  </button>
+                  <div className="mt-4 pt-3 border-t border-neutral-100 flex gap-2 flex-wrap">
+                    <button
+                      onClick={() => {
+                        if (hasCoords) {
+                          const url = `https://www.google.com/maps/dir/?api=1&destination=${dropoffLat},${dropoffLng}&waypoints=${pickupLat},${pickupLng}`;
+                          window.open(url, '_blank');
+                        } else {
+                          handleNavigate(activeRide.pickupLocation?.address, activeRide.pickupLocation?.coordinates);
+                        }
+                      }}
+                      className="px-3 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold text-xs rounded-lg shadow-sm flex items-center gap-1"
+                    >
+                      <Navigation size={12} className="rotate-45" />
+                      Navigate
+                    </button>
 
                   {activeRide.status === 'accepted' && (
                     <button
@@ -656,7 +717,7 @@ const RiderDashboard = () => {
                   )}
                 </div>
               </div>
-            )}
+            );})()}
 
             {/* 2. Available/Unassigned Ride Requests */}
             {isOnline && availableRequests.map(ride => (

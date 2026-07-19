@@ -204,11 +204,36 @@ export const createRideRequest = asyncHandler(async (req, res) => {
   console.log('[rideController] Computed Fare Breakdown:', fareBreakdown);
 
   // STEP 4: Build the ride request with proper fare object
+  const formatCoordinates = (loc) => {
+    if (!loc) return [];
+    if (Array.isArray(loc.coordinates)) {
+      return loc.coordinates;
+    }
+    if (loc.coordinates && Array.isArray(loc.coordinates.coordinates)) {
+      return loc.coordinates.coordinates;
+    }
+    return [];
+  };
+
+  const formattedPickup = {
+    name: pickupLocation.name || pickupLocation.address || 'Pickup Location',
+    address: pickupLocation.address || pickupLocation.name || 'Pickup Location',
+    landmark: pickupLocation.landmark,
+    coordinates: formatCoordinates(pickupLocation),
+  };
+
+  const formattedDropoff = {
+    name: dropoffLocation.name || dropoffLocation.address || 'Dropoff Location',
+    address: dropoffLocation.address || dropoffLocation.name || 'Dropoff Location',
+    landmark: dropoffLocation.landmark,
+    coordinates: formatCoordinates(dropoffLocation),
+  };
+
   const ridePayload = {
     customer: customerId,
     transaction: transactionId, // Link to confirmed payment transaction
-    pickupLocation,
-    dropoffLocation,
+    pickupLocation: formattedPickup,
+    dropoffLocation: formattedDropoff,
     estimatedDistance: Math.round(distanceInMeters / 1000 * 100) / 100, // Distance in km
     rideType,
     passengers,
