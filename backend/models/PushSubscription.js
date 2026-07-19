@@ -21,6 +21,20 @@ const PushSubscriptionSchema = new mongoose.Schema(
       type: String,
       default: 'unknown',
     },
+    endpoint: {
+      type: String,
+      required: true,
+    },
+    keys: {
+      p256dh: {
+        type: String,
+        required: true,
+      },
+      auth: {
+        type: String,
+        required: true,
+      },
+    },
     subscription: {
       type: mongoose.Schema.Types.Mixed,
       required: true,
@@ -40,7 +54,8 @@ const PushSubscriptionSchema = new mongoose.Schema(
   }
 );
 
-// Unique index on endpoint to avoid duplicate registrations
+// Unique indexes on endpoint to avoid duplicate registrations
+PushSubscriptionSchema.index({ endpoint: 1 }, { unique: true });
 PushSubscriptionSchema.index({ 'subscription.endpoint': 1 }, { unique: true });
 
 const PushSubscription = mongoose.model('PushSubscription', PushSubscriptionSchema);

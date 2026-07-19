@@ -2,6 +2,7 @@ import Notification from '../models/Notification.js';
 import User from '../models/User.js';
 import PushSubscription from '../models/PushSubscription.js';
 import { asyncHandler, ResponseError } from '../middleware/error.js';
+import { sendPushToUser, vapidPublicKey } from '../utils/webPush.js';
 
 /**
  * WhatsApp Webhook Verification
@@ -769,21 +770,44 @@ export const createOrderNotification = async (userId, order, status, userRole = 
 };
 
 /**
+ * Get VAPID Public Key for client subscription setup
+ */
+export const getVapidKey = asyncHandler(async (req, res) => {
+  res.status(200).json({
+    success: true,
+    vapidPublicKey: vapidPublicKey,
+  });
+});
+
+/**
  * Register a push subscription
  */
 export const subscribePush = asyncHandler(async (req, res) => {
   const userId = req.user._id;
   const { subscription, role, deviceType, browser, notificationPermission } = req.body;
 
+  if (!subscription || !subscription.endpoint || !subscription.keys || !subscription.keys.auth || !subscription.keys.p256dh) {
+    throw new ResponseError('Subscription must contain endpoint and p256dh/auth keys', 400);
+  }
+
+  const endpoint = subscription.endpoint;
+  const keys = {
+    p256dh: subscription.keys.p256dh,
+    auth: subscription.keys.auth,
+  };
+
   const sub = await PushSubscription.findOneAndUpdate(
-    { 'subscription.endpoint': subscription.endpoint },
+    { endpoint },
     {
       userId,
-      role,
-      deviceType,
-      browser,
-      notificationPermission,
+      role: role || req.user?.role || 'customer',
+      deviceType: deviceType || 'desktop',
+      browser: browser || 'unknown',
+      endpoint,
+      keys,
       subscription,
+      notificationPermission: notificationPermission || 'granted',
+      lastSeen: new Date(),
     },
     { new: true, upsert: true }
   );
@@ -801,7 +825,16 @@ export const subscribePush = asyncHandler(async (req, res) => {
 export const unsubscribePush = asyncHandler(async (req, res) => {
   const { endpoint } = req.body;
 
-  await PushSubscription.findOneAndDelete({ 'subscription.endpoint': endpoint });
+  if (!endpoint) {
+    throw new ResponseError('Endpoint is required to unsubscribe', 400);
+  }
+
+  await PushSubscription.deleteMany({
+    $or: [
+      { endpoint },
+      { 'subscription.endpoint': endpoint }
+    ]
+  });
 
   res.status(200).json({
     success: true,
