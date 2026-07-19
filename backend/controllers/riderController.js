@@ -668,8 +668,6 @@ export const getNearbyRiders = asyncHandler(async (req, res) => {
     isDeleted: false, // Account must not be deleted
     'riderProfile.isOnline': true, // Rider must be online
     'riderProfile.currentLocation': {
-      $exists: true,
-      $ne: null, // Must have location enabled
       $near: {
         $geometry: {
           type: 'Point',
