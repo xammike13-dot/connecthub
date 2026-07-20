@@ -1,8 +1,9 @@
 import webpush from 'web-push';
 import PushSubscription from '../models/PushSubscription.js';
+import Notification from '../models/Notification.js';
 
 // VAPID Keys - loaded from env if present, with reliable fallbacks
-const vapidPublicKey = process.env.VAPID_PUBLIC_KEY || 'BGixtKJV9Uh2ov9bXcNo-9IanofbeUOJcIV2pZ6R4fBk478mbbZwYd5DNowJ-GExxlBUQaCt9Ba1Ybv74zALyvE';
+export const vapidPublicKey = process.env.VAPID_PUBLIC_KEY || 'BGixtKJV9Uh2ov9bXcNo-9IanofbeUOJcIV2pZ6R4fBk478mbbZwYd5DNowJ-GExxlBUQaCt9Ba1Ybv74zALyvE';
 const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || '27udMCopf2g1kFEtuRN2C2svLOpvqJf0sbFsCf9BzTg';
 const vapidEmail = process.env.VAPID_EMAIL || 'mailto:connecthub387@gmail.com';
 
@@ -27,9 +28,11 @@ export const sendPushToSubscription = async (subDoc, payload) => {
       body: payload.body || payload.message || '',
       icon: '/icon-192.png',
       badge: '/icon-192.png',
+      unreadCount: payload.unreadCount || 0,
       data: {
         url: payload.url || payload.navigationTarget || '/',
         createdAt: new Date().toISOString(),
+        unreadCount: payload.unreadCount || 0,
         ...payload.data
       }
     });
@@ -41,7 +44,8 @@ export const sendPushToSubscription = async (subDoc, payload) => {
     await subDoc.save();
     return true;
   } catch (error) {
-    console.error(`[WebPush] Failed for endpoint: ${subDoc.subscription?.endpoint}. Status: ${error.statusCode}`);
+    const endpointUrl = subDoc.endpoint || subDoc.subscription?.endpoint || 'unknown';
+    console.error(`[WebPush] Failed for endpoint: ${endpointUrl}. Status: ${error.statusCode}`);
 
     // If subscription is expired, revoked, or gone (410 Gone or 404 Not Found), delete it
     if (error.statusCode === 410 || error.statusCode === 404) {
@@ -66,10 +70,17 @@ export const sendPushToUser = async (userId, payload) => {
       return;
     }
 
-    console.log(`[WebPush] Sending push to ${subscriptions.length} devices for user ${userId}`);
+    // Dynamically retrieve user's unread notifications count
+    const unreadCount = await Notification.countDocuments({ user: userId, read: false });
+    const enrichedPayload = {
+      ...payload,
+      unreadCount,
+    };
+
+    console.log(`[WebPush] Sending push to ${subscriptions.length} devices for user ${userId} with unreadCount: ${unreadCount}`);
 
     const sendPromises = subscriptions.map((subDoc) =>
-      sendPushToSubscription(subDoc, payload)
+      sendPushToSubscription(subDoc, enrichedPayload)
     );
 
     await Promise.all(sendPromises);

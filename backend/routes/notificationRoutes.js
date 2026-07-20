@@ -10,6 +10,7 @@ import {
   handleWhatsAppMessage,
   subscribePush,
   unsubscribePush,
+  getVapidKey,
 } from '../controllers/notificationController.js';
 import { protect } from '../middleware/auth.js';
 
@@ -22,6 +23,9 @@ router.get('/webhook', verifyWhatsAppWebhook);
 // WhatsApp message webhook endpoint (public - no authentication)
 // POST /api/notifications/webhook
 router.post('/webhook', handleWhatsAppMessage);
+
+// Get VAPID public key (public - no authentication)
+router.get('/vapid-key', getVapidKey);
 
 // All routes below require authentication
 router.use(protect);

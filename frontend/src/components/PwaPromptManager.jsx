@@ -100,12 +100,24 @@ export default function PwaPromptManager() {
     }
 
     try {
+      // Dynamically fetch public VAPID key from backend with fallback
+      let vapidKey = PUBLIC_VAPID_KEY;
+      try {
+        const response = await api.get('/notifications/vapid-key');
+        if (response.data && response.data.vapidPublicKey) {
+          vapidKey = response.data.vapidPublicKey;
+          console.log('[PWA Prompt] Successfully fetched dynamic VAPID key from backend.');
+        }
+      } catch (err) {
+        console.warn('[PWA Prompt] Failed to fetch dynamic VAPID key, falling back to default:', err);
+      }
+
       const registration = await navigator.serviceWorker.ready;
 
       let subscription = await registration.pushManager.getSubscription();
 
       if (!subscription) {
-        const convertedKey = urlBase64ToUint8Array(PUBLIC_VAPID_KEY);
+        const convertedKey = urlBase64ToUint8Array(vapidKey);
         subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: convertedKey

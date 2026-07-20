@@ -15,6 +15,17 @@ export const SocketProvider = ({ children }) => {
   const notificationPermissionRequested = useRef(false);
   const shownNotificationIds = useRef(new Set());
 
+  // Automatically update the PWA App Badge count when the unread count changes
+  useEffect(() => {
+    if ('setAppBadge' in navigator) {
+      if (unreadCount > 0) {
+        navigator.setAppBadge(unreadCount).catch(err => console.error('[AppBadge] Error setting:', err));
+      } else {
+        navigator.clearAppBadge().catch(err => console.error('[AppBadge] Error clearing:', err));
+      }
+    }
+  }, [unreadCount]);
+
   const fetchNotifications = useCallback(async () => {
     if (!token || !user) return;
     try {

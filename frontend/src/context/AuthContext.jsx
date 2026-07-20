@@ -122,13 +122,28 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    setToken(null);
-    delete api.defaults.headers.common['Authorization'];
-    setUser(null);
-    setInitialized(true);
-    setLoading(false);
+  const logout = async () => {
+    try {
+      if ('serviceWorker' in navigator && 'PushManager' in window) {
+        const registration = await navigator.serviceWorker.ready;
+        const subscription = await registration.pushManager.getSubscription();
+        if (subscription) {
+          // Send request to backend to unsubscribe before clearing token
+          await api.post('/notifications/unsubscribe', { endpoint: subscription.endpoint }).catch(() => {});
+          // Unsubscribe from browser PushManager
+          await subscription.unsubscribe().catch(() => {});
+        }
+      }
+    } catch (err) {
+      console.error('[AuthContext] Unsubscribe push on logout failed:', err);
+    } finally {
+      localStorage.removeItem('token');
+      setToken(null);
+      delete api.defaults.headers.common['Authorization'];
+      setUser(null);
+      setInitialized(true);
+      setLoading(false);
+    }
   };
 
   const refreshProfile = async () => {

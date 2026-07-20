@@ -99,13 +99,23 @@ self.addEventListener("push", (event) => {
     body: data.body || data.message || "",
     icon: data.icon || "/icon-192.png",
     badge: data.badge || "/icon-192.png",
-    vibrate: [100, 50, 100],
+    vibrate: [120, 80, 120],
     data: data.data || { url: "/" },
     actions: [
-      { action: "open", title: "Open" },
+      { action: "open", title: "Open ConnectHub" },
       { action: "close", title: "Dismiss" }
     ]
   };
+
+  // Handle App Badging in Background Push Event
+  let unreadCount = data.unreadCount || (data.data && data.data.unreadCount) || 0;
+  if ('setAppBadge' in self.navigator) {
+    if (unreadCount > 0) {
+      self.navigator.setAppBadge(unreadCount).catch(err => console.error('[SW AppBadge] Error setting:', err));
+    } else {
+      self.navigator.clearAppBadge().catch(err => console.error('[SW AppBadge] Error clearing:', err));
+    }
+  }
 
   event.waitUntil(
     self.registration.showNotification(data.title, options)
@@ -127,6 +137,11 @@ self.addEventListener("notificationclick", (event) => {
     : "/";
 
   const absoluteUrl = new URL(targetUrl, self.location.origin).href;
+
+  // Clear or reset app badge on notification click
+  if ('clearAppBadge' in self.navigator) {
+    self.navigator.clearAppBadge().catch(() => {});
+  }
 
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {

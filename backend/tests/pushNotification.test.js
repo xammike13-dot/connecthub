@@ -66,12 +66,12 @@ test('subscribePush controller stores and upserts subscription successfully', as
 });
 
 test('unsubscribePush controller deletes subscription successfully', async () => {
-  const originalFindOneAndDelete = PushSubscription.findOneAndDelete;
+  const originalDeleteMany = PushSubscription.deleteMany;
 
   let deletedQuery = null;
-  PushSubscription.findOneAndDelete = async (query) => {
+  PushSubscription.deleteMany = async (query) => {
     deletedQuery = query;
-    return { _id: 'sub-1' };
+    return { deletedCount: 1 };
   };
 
   const req = {
@@ -102,8 +102,10 @@ test('unsubscribePush controller deletes subscription successfully', async () =>
     assert.equal(responseStatus, 200);
     assert.equal(responseData.success, true);
     assert.equal(responseData.message, 'Push subscription removed successfully');
-    assert.equal(deletedQuery['subscription.endpoint'], 'https://updates.push.services.mozilla.com/wpush/v2/gAAAAAB');
+    assert.ok(deletedQuery.$or);
+    assert.equal(deletedQuery.$or[0].endpoint, 'https://updates.push.services.mozilla.com/wpush/v2/gAAAAAB');
+    assert.equal(deletedQuery.$or[1]['subscription.endpoint'], 'https://updates.push.services.mozilla.com/wpush/v2/gAAAAAB');
   } finally {
-    PushSubscription.findOneAndDelete = originalFindOneAndDelete;
+    PushSubscription.deleteMany = originalDeleteMany;
   }
 });
