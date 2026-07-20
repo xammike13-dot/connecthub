@@ -56,7 +56,7 @@ test('getCustomers aggregated stats logic works correctly', async () => {
   };
 
   const req = {
-    user: { _id: 'business-1' },
+    user: { _id: 'business-1', role: 'business' },
     query: { search: '', page: 1, limit: 10 }
   };
 
@@ -74,7 +74,11 @@ test('getCustomers aggregated stats logic works correctly', async () => {
     }
   };
 
-  const next = () => {};
+  const next = (err) => {
+    if (err) {
+      console.error('TEST CAUGHT ERROR IN NEXT:', err);
+    }
+  };
 
   try {
     await getCustomers(req, res, next);
