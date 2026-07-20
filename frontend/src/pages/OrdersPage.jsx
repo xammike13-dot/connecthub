@@ -216,14 +216,14 @@ const OrdersPage = () => {
 
     try {
       setDeleting(true);
-      await orderAPI.archive(orderToDelete._id);
-      toastSuccess('Order archived successfully');
+      await orderAPI.delete(orderToDelete._id);
+      toastSuccess('Order deleted successfully');
       fetchOrders();
       setShowDeleteModal(false);
       setOrderToDelete(null);
     } catch (error) {
-      toastError(error.response?.data?.message || 'Failed to archive order');
-      console.error('Failed to archive order:', error);
+      toastError(error.response?.data?.message || 'Failed to delete order');
+      console.error('Failed to delete order:', error);
     } finally {
       setDeleting(false);
     }
@@ -863,9 +863,8 @@ const OrdersPage = () => {
             <div>
               <p className="font-semibold text-gray-900">Are you sure?</p>
               <p className="text-sm text-gray-600">
-                This will archive order{' '}
+                This action cannot be undone. This will permanently delete order{' '}
                 <span className="font-mono">#{orderToDelete?._id?.slice(-6).toUpperCase()}</span>.
-                Archived orders are hidden from your activity history.
               </p>
             </div>
           </div>
@@ -887,7 +886,7 @@ const OrdersPage = () => {
               isLoading={deleting}
               leftIcon={<Trash2 size={14} />}
             >
-              Archive Order
+              Delete Order
             </Button>
           </div>
         </div>

@@ -689,12 +689,18 @@ export const deleteOrder = asyncHandler(async (req, res) => {
   const order = await Order.findById(orderId);
   if (!order) throw new ResponseError('Order not found', 404);
 
-  // Check authorization
-  if (userRole === 'customer' && order.customer.toString() !== userId.toString()) {
-    throw new ResponseError('Not authorized to delete this order', 403);
-  }
-
-  if (userRole === 'business' && order.business?.toString() !== userId.toString()) {
+  // Check authorization securely
+  if (userRole === 'customer') {
+    const orderCustomerId = (order.customer?._id || order.customer)?.toString();
+    if (orderCustomerId !== userId.toString()) {
+      throw new ResponseError('Not authorized to delete this order', 403);
+    }
+  } else if (userRole === 'business') {
+    const orderBusinessId = (order.business?._id || order.business)?.toString();
+    if (orderBusinessId !== userId.toString()) {
+      throw new ResponseError('Not authorized to delete this order', 403);
+    }
+  } else if (userRole !== 'admin') {
     throw new ResponseError('Not authorized to delete this order', 403);
   }
 
