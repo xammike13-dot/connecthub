@@ -1047,10 +1047,35 @@ export const verifyMpesaPayment = asyncHandler(async (req, res) => {
     if (pendingRideData && transaction.type !== 'order' && transaction.type !== 'rental') {
       const selectedRiderId = pendingRideData.selectedRiderId;
 
+      const formatCoordinates = (loc) => {
+        if (!loc) return [];
+        if (Array.isArray(loc.coordinates)) {
+          return loc.coordinates;
+        }
+        if (loc.coordinates && Array.isArray(loc.coordinates.coordinates)) {
+          return loc.coordinates.coordinates;
+        }
+        return [];
+      };
+
+      const formattedPickup = {
+        name: pendingRideData.pickupLocation?.name || pendingRideData.pickupLocation?.address || 'Pickup Location',
+        address: pendingRideData.pickupLocation?.address || pendingRideData.pickupLocation?.name || 'Pickup Location',
+        landmark: pendingRideData.pickupLocation?.landmark,
+        coordinates: formatCoordinates(pendingRideData.pickupLocation),
+      };
+
+      const formattedDropoff = {
+        name: pendingRideData.dropoffLocation?.name || pendingRideData.dropoffLocation?.address || 'Dropoff Location',
+        address: pendingRideData.dropoffLocation?.address || pendingRideData.dropoffLocation?.name || 'Dropoff Location',
+        landmark: pendingRideData.dropoffLocation?.landmark,
+        coordinates: formatCoordinates(pendingRideData.dropoffLocation),
+      };
+
       const ridePayload = {
         customer: transaction.customer._id,
-        pickupLocation: pendingRideData.pickupLocation,
-        dropoffLocation: pendingRideData.dropoffLocation,
+        pickupLocation: formattedPickup,
+        dropoffLocation: formattedDropoff,
         estimatedDistance: pendingRideData.estimatedDistance,
         rideType: pendingRideData.rideType || 'bodaboda',
         passengers: 1,
@@ -1582,10 +1607,35 @@ export const mpesaCallback = asyncHandler(async (req, res) => {
       console.log('[RIDE CALLBACK] Selected Rider ID:', selectedRiderId);
       console.log('[RIDE CALLBACK] Customer ID:', transaction.customer._id);
 
+      const formatCoordinates = (loc) => {
+        if (!loc) return [];
+        if (Array.isArray(loc.coordinates)) {
+          return loc.coordinates;
+        }
+        if (loc.coordinates && Array.isArray(loc.coordinates.coordinates)) {
+          return loc.coordinates.coordinates;
+        }
+        return [];
+      };
+
+      const formattedPickup = {
+        name: pendingRideData.pickupLocation?.name || pendingRideData.pickupLocation?.address || 'Pickup Location',
+        address: pendingRideData.pickupLocation?.address || pendingRideData.pickupLocation?.name || 'Pickup Location',
+        landmark: pendingRideData.pickupLocation?.landmark,
+        coordinates: formatCoordinates(pendingRideData.pickupLocation),
+      };
+
+      const formattedDropoff = {
+        name: pendingRideData.dropoffLocation?.name || pendingRideData.dropoffLocation?.address || 'Dropoff Location',
+        address: pendingRideData.dropoffLocation?.address || pendingRideData.dropoffLocation?.name || 'Dropoff Location',
+        landmark: pendingRideData.dropoffLocation?.landmark,
+        coordinates: formatCoordinates(pendingRideData.dropoffLocation),
+      };
+
       const ridePayload = {
         customer: transaction.customer._id,
-        pickupLocation: pendingRideData.pickupLocation,
-        dropoffLocation: pendingRideData.dropoffLocation,
+        pickupLocation: formattedPickup,
+        dropoffLocation: formattedDropoff,
         estimatedDistance: pendingRideData.estimatedDistance,
         rideType: pendingRideData.rideType || 'bodaboda',
         passengers: 1,

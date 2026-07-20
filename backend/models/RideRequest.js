@@ -12,36 +12,28 @@ const rideRequestSchema = new mongoose.Schema(
       ref: 'User',
     },
     pickupLocation: {
+      name: String,
       address: {
         type: String,
-        required: true,
+        required: false,
       },
       landmark: String,
       coordinates: {
-        type: {
-          type: String,
-          enum: ['Point'],
-        },
-        coordinates: {
-          type: [Number],
-        },
-      },
+        type: [Number], // [longitude, latitude]
+        index: '2dsphere'
+      }
     },
     dropoffLocation: {
+      name: String,
       address: {
         type: String,
-        required: true,
+        required: false,
       },
       landmark: String,
       coordinates: {
-        type: {
-          type: String,
-          enum: ['Point'],
-        },
-        coordinates: {
-          type: [Number],
-        },
-      },
+        type: [Number], // [longitude, latitude]
+        index: '2dsphere'
+      }
     },
     currentLocation: {
       type: {
