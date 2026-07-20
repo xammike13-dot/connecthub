@@ -1,0 +1,48 @@
+Starting MongoMemoryServer...
+MongoMemoryServer started at: mongodb://127.0.0.1:27017/
+Loading middleware/error.js
+[WebPush] Initialized with public key: BGixtKJV9U...
+Loading models/Rental.js
+Loading middleware/auth.js
+Loading controllers/landlordController.js
+Loading routes/landlordRoutes.js
+[Server] Loading .env from: /app/backend/.env
+[Server] .env exists: true
+[Server] CLOUDINARY_CLOUD_NAME: MISSING
+[Server] CLOUDINARY_API_KEY: MISSING
+[Server] CLOUDINARY_API_SECRET: MISSING
+
+═══════════════════════════════════════════════════════════
+  WARNING: WhatsApp Webhook Configuration
+═══════════════════════════════════════════════════════════
+
+  WHATSAPP_VERIFY_TOKEN is not configured.
+  WhatsApp webhook verification will be disabled.
+
+  To enable WhatsApp webhooks, add to backend/.env:
+    WHATSAPP_VERIFY_TOKEN=your_secure_verify_token
+
+═══════════════════════════════════════════════════════════
+
+
+═══════════════════════════════════════════════════════════
+  MPesa Daraja API Configuration Loaded
+═══════════════════════════════════════════════════════════
+[Server] MPESA_CONSUMER_KEY: LOADED ✓
+[Server] MPESA_CONSUMER_SECRET: LOADED ✓
+[Server] MPESA_SHORTCODE: 174379
+[Server] MPESA_PASSKEY: LOADED ✓
+[Server] MPESA_CALLBACK_URL: http://localhost:5000/api/payments/callback
+[Server] MPESA_ENVIRONMENT: sandbox
+═══════════════════════════════════════════════════════════
+
+[RENT REMINDER JOB] Scheduled to run daily at midnight
+[RENT REMINDER JOB] First run in: 206 minutes
+(node:650782) [MONGOOSE] Warning: Duplicate schema index on {"user":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:650782) [MONGOOSE] Warning: Duplicate schema index on {"pickupLocation.coordinates":"2dsphere"} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+(node:650782) [MONGOOSE] Warning: Duplicate schema index on {"dropoffLocation.coordinates":"2dsphere"} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+Server running in development mode on port 5000
+MongoDB Connected: 127.0.0.1
+[SCHEDULED] Running initial notification cleanup...
+Backend process exited with code null

@@ -16,7 +16,7 @@ const RegisterPage = () => {
     };
 
     let targetPath;
-    if (user.role !== 'customer' && (!user.setupCompleted || !user.onboardingCompleted)) {
+    if (user.role !== 'customer' && user.role !== 'assistant' && (!user.setupCompleted || !user.onboardingCompleted)) {
       targetPath = setupPages[user.role] || '/';
     } else {
       const dashboardMap = {
@@ -25,6 +25,7 @@ const RegisterPage = () => {
         business: '/business/dashboard',
         rider: '/rider/dashboard',
         admin: '/admin/dashboard',
+        assistant: '/assistant/dashboard',
       };
       targetPath = dashboardMap[user.role] || '/';
     }

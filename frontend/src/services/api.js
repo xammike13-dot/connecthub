@@ -145,15 +145,24 @@ export const userAPI = {
 
 // Admin APIs
 export const adminAPI = {
-  getDashboardStats: () => api.get('/admin/stats'),
+  getDashboardStats: () => api.get('/admin/dashboard/stats'),
   getUsers: (params) => api.get('/admin/users', { params }),
-  getProducts: (params) => api.get('/admin/products', { params }),
-  getRentals: (params) => api.get('/admin/rentals', { params }),
+  updateUserStatus: (id, data) => api.put(`/admin/users/${id}/status`, data),
+  deleteUser: (id) => api.delete(`/admin/users/${id}`),
   getOrders: (params) => api.get('/admin/orders', { params }),
-  getPayments: (params) => api.get('/admin/payments', { params }),
+  updateOrder: (id, data) => api.put(`/admin/orders/${id}`, data),
+  getProperties: (params) => api.get('/admin/properties', { params }),
+  flagProperty: (id, data) => api.put(`/admin/properties/${id}/flag`, data),
+  getBookings: (params) => api.get('/admin/bookings', { params }),
+  getRides: (params) => api.get('/admin/rides', { params }),
+  updateRide: (id, data) => api.put(`/admin/rides/${id}`, data),
+  getReports: (params) => api.get('/admin/reports', { params }),
+  updateReportStatus: (id, data) => api.put(`/admin/reports/${id}`, data),
+  broadcastNotification: (data) => api.post('/admin/broadcast', data),
+  getPlatformHealth: () => api.get('/admin/health'),
   getWithdrawals: (params) => api.get('/admin/withdrawals', { params }),
-  approveWithdrawal: (id) => api.post(`/admin/withdrawals/${id}/approve`),
-  rejectWithdrawal: (id, reason) => api.post(`/admin/withdrawals/${id}/reject`, { reason }),
+  approveWithdrawal: (id) => api.put(`/admin/withdrawals/${id}/approve`),
+  rejectWithdrawal: (id, reason) => api.put(`/admin/withdrawals/${id}/reject`, { reason }),
 };
 
 // Withdrawal APIs
@@ -206,6 +215,20 @@ export const wishlistAPI = {
   remove: (productId) => api.delete(`/wishlist/remove/${productId}`),
   check: (productId) => api.get(`/wishlist/check/${productId}`),
   clear: () => api.delete('/wishlist/clear'),
+};
+
+// Assistant APIs
+export const assistantAPI = {
+  getInvitation: (token) => api.get(`/assistants/invite/${token}`),
+  registerAndAccept: (token, data) => api.post(`/assistants/invite/${token}/register`, data),
+  acceptExisting: (token) => api.post(`/assistants/invite/${token}/accept`),
+  getDashboardStats: () => api.get('/assistants/dashboard/stats'),
+  // Business owner managing assistants
+  getAssistants: () => api.get('/assistants'),
+  generateInvite: (data) => api.post('/assistants/invite', data),
+  remove: (id) => api.delete(`/assistants/${id}`),
+  updateStatus: (id, status) => api.patch(`/assistants/${id}/status`, { status }),
+  resendInvite: (id) => api.post(`/assistants/${id}/resend`),
 };
 
 // Customer APIs

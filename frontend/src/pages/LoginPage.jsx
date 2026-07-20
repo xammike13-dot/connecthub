@@ -27,7 +27,7 @@ const LoginPage = () => {
     };
 
     let targetPath;
-    if (user.role !== 'customer' && (!user.setupCompleted || !user.onboardingCompleted)) {
+    if (user.role !== 'customer' && user.role !== 'assistant' && (!user.setupCompleted || !user.onboardingCompleted)) {
       targetPath = setupPages[user.role] || '/';
     } else {
       const dashboardMap = {
@@ -36,6 +36,7 @@ const LoginPage = () => {
         business: '/business/dashboard',
         rider: '/rider/dashboard',
         admin: '/admin/dashboard',
+        assistant: '/assistant/dashboard',
       };
       targetPath = from || dashboardMap[user.role] || '/';
     }
@@ -116,7 +117,7 @@ const LoginPage = () => {
 
     if (result.success) {
       // Check if user needs setup / onboarding
-      if (result.user.role !== 'customer' && (!result.user.setupCompleted || !result.user.onboardingCompleted)) {
+      if (result.user.role !== 'customer' && result.user.role !== 'assistant' && (!result.user.setupCompleted || !result.user.onboardingCompleted)) {
         const setupPages = {
           landlord: '/setup/landlord',
           business: '/setup/business',
@@ -134,6 +135,7 @@ const LoginPage = () => {
         business: '/business/dashboard',
         rider: '/rider/dashboard',
         admin: '/admin/dashboard',
+        assistant: '/assistant/dashboard',
       };
       
       // Use the return URL if available, otherwise use role-based dashboard

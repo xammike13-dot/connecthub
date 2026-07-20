@@ -748,7 +748,7 @@ export const createOrderNotification = async (userId, order, status, userRole = 
     title = `Healthcare: ${title}`;
   }
 
-  return createNotification(
+  const mainNotification = await createNotification(
     userId,
     finalNotificationType,
     title,
@@ -767,6 +767,42 @@ export const createOrderNotification = async (userId, order, status, userRole = 
     req,
     userRole
   );
+
+  // If the target is the business owner, also notify active assistants
+  if (userRole === 'business') {
+    try {
+      const assistants = await User.find({
+        role: 'assistant',
+        'assistantProfile.business': userId,
+        'assistantProfile.status': 'active',
+      });
+      for (const assistant of assistants) {
+        await createNotification(
+          assistant._id,
+          finalNotificationType,
+          title,
+          message,
+          {
+            orderId: orderIdStr,
+            healthcareOrderId: orderIdStr,
+            status,
+            orderType: order.orderType,
+            relatedEntityId: orderIdStr,
+            relatedEntityType: 'Order',
+            actionRequired,
+          },
+          `/orders/${orderIdStr}`,
+          `/assistant/orders?orderId=${orderIdStr}`,
+          req,
+          'assistant'
+        );
+      }
+    } catch (err) {
+      console.error('[Assistant notification distribution failed]', err);
+    }
+  }
+
+  return mainNotification;
 };
 
 /**

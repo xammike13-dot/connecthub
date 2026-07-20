@@ -48,6 +48,7 @@ const Sidebar = ({ isOpen, onClose }) => {
       case 'business':
         return [
           { path: '/business/dashboard', label: 'Dashboard', icon: 'home' },
+          { path: '/business/assistants', label: 'Assistants', icon: 'users' },
           { path: '/business/products', label: 'Products', icon: 'shopping' },
           { path: '/business/orders', label: 'Orders', icon: 'orders' },
           { path: '/business/customers', label: 'Customers', icon: 'users' },
@@ -55,6 +56,14 @@ const Sidebar = ({ isOpen, onClose }) => {
           { path: '/business/profile', label: 'Profile', icon: 'user' },
           { path: '/business/settings', label: 'Settings', icon: 'settings' },
           { path: '/business/help', label: 'Help Center', icon: 'help' },
+        ];
+      case 'assistant':
+        return [
+          { path: '/assistant/dashboard', label: 'Dashboard', icon: 'home' },
+          { path: '/assistant/products', label: 'Products', icon: 'shopping' },
+          { path: '/assistant/orders', label: 'Orders', icon: 'orders' },
+          { path: '/assistant/notifications', label: 'Notifications', icon: 'calendar' },
+          { path: '/assistant/help', label: 'Help Center', icon: 'help' },
         ];
       case 'rider':
         return [
@@ -70,12 +79,12 @@ const Sidebar = ({ isOpen, onClose }) => {
         return [
           { path: '/admin/dashboard', label: 'Dashboard', icon: 'home' },
           { path: '/admin/users', label: 'Users', icon: 'users' },
-          { path: '/admin/products', label: 'Products', icon: 'shopping' },
-          { path: '/admin/rentals', label: 'Rentals', icon: 'building' },
           { path: '/admin/orders', label: 'Orders', icon: 'orders' },
-          { path: '/admin/payments', label: 'Payments', icon: 'money' },
-          { path: '/admin/withdrawals', label: 'Withdrawals', icon: 'chart' },
-          { path: '/admin/analytics', label: 'Analytics', icon: 'chart' },
+          { path: '/admin/rentals', label: 'Rentals', icon: 'building' },
+          { path: '/admin/rides', label: 'Rides', icon: 'transport' },
+          { path: '/admin/reports', label: 'Reports', icon: 'help' },
+          { path: '/admin/broadcast', label: 'Broadcast', icon: 'megaphone' },
+          { path: '/admin/monitoring', label: 'Monitoring', icon: 'chart' },
           { path: '/admin/settings', label: 'Settings', icon: 'settings' },
         ];
       default:

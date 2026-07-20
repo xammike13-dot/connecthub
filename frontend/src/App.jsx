@@ -65,6 +65,17 @@ import CaretakerInvitePage from './pages/CaretakerInvitePage';
 import CaretakerDashboard from './pages/CaretakerDashboard';
 import CaretakerPropertiesPage from './pages/CaretakerPropertiesPage';
 import CaretakerBookingsPage from './pages/CaretakerBookingsPage';
+import AssistantInvitePage from './pages/AssistantInvitePage';
+import BusinessAssistantsPage from './pages/BusinessAssistantsPage';
+import AssistantDashboard from './pages/AssistantDashboard';
+import AdminUsersPage from './pages/AdminUsersPage';
+import AdminOrdersPage from './pages/AdminOrdersPage';
+import AdminRentalsPage from './pages/AdminRentalsPage';
+import AdminRidesPage from './pages/AdminRidesPage';
+import AdminReportsPage from './pages/AdminReportsPage';
+import AdminBroadcastPage from './pages/AdminBroadcastPage';
+import AdminMonitoringPage from './pages/AdminMonitoringPage';
+import AdminSettingsPage from './pages/AdminSettingsPage';
 
 
 function App() {
@@ -94,6 +105,7 @@ function App() {
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
                 <Route path="/caretaker/invite/:token" element={<CaretakerInvitePage />} />
+                <Route path="/assistant/invite/:token" element={<AssistantInvitePage />} />
                 <Route path="/verify-email" element={<EmailVerificationPage />} />
                 <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
@@ -163,6 +175,7 @@ function App() {
                 {/* Business Routes */}
                 <Route path="/business" element={<DashboardLayout allowedRoles={['business']} />}>
                   <Route path="dashboard" element={<BusinessDashboard />} />
+                  <Route path="assistants" element={<BusinessAssistantsPage />} />
                   <Route path="products" element={<BusinessProductsPage />} />
                   <Route path="orders" element={<BusinessOrdersPage />} />
                   <Route path="customers" element={<BusinessCustomersPage />} />
@@ -172,6 +185,17 @@ function App() {
                   <Route path="earnings" element={<EarningsDashboardPage />} />
                   <Route path="transactions" element={<TransactionHistoryPage />} />
                   <Route path="wallet" element={<WalletPage />} />
+                  <Route path="notifications" element={<NotificationsPage />} />
+                  <Route path="chat" element={<ChatPage />} />
+                  <Route path="chat/:conversationId" element={<ChatPage />} />
+                  <Route path="help" element={<BusinessHelpPage />} />
+                </Route>
+
+                {/* Assistant Routes */}
+                <Route path="/assistant" element={<DashboardLayout allowedRoles={['assistant']} />}>
+                  <Route path="dashboard" element={<AssistantDashboard />} />
+                  <Route path="products" element={<BusinessProductsPage />} />
+                  <Route path="orders" element={<BusinessOrdersPage />} />
                   <Route path="notifications" element={<NotificationsPage />} />
                   <Route path="chat" element={<ChatPage />} />
                   <Route path="chat/:conversationId" element={<ChatPage />} />
@@ -197,14 +221,14 @@ function App() {
                 {/* Admin Routes */}
                 <Route path="/admin" element={<DashboardLayout allowedRoles={['admin']} />}>
                   <Route path="dashboard" element={<AdminDashboard />} />
-                  <Route path="users" element={<BusinessDashboard />} />
-                  <Route path="products" element={<BusinessDashboard />} />
-                  <Route path="rentals" element={<BusinessDashboard />} />
-                  <Route path="orders" element={<BusinessDashboard />} />
-                  <Route path="payments" element={<BusinessDashboard />} />
-                  <Route path="withdrawals" element={<BusinessDashboard />} />
-                  <Route path="analytics" element={<BusinessDashboard />} />
-                  <Route path="settings" element={<BusinessDashboard />} />
+                  <Route path="users" element={<AdminUsersPage />} />
+                  <Route path="orders" element={<AdminOrdersPage />} />
+                  <Route path="rentals" element={<AdminRentalsPage />} />
+                  <Route path="rides" element={<AdminRidesPage />} />
+                  <Route path="reports" element={<AdminReportsPage />} />
+                  <Route path="broadcast" element={<AdminBroadcastPage />} />
+                  <Route path="monitoring" element={<AdminMonitoringPage />} />
+                  <Route path="settings" element={<AdminSettingsPage />} />
                 </Route>
 
                 {/* Fallback */}

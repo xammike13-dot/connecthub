@@ -46,6 +46,8 @@ const DashboardLayout = ({ allowedRoles }) => {
       business: '/business/dashboard',
       rider: '/rider/dashboard',
       admin: '/admin/dashboard',
+      caretaker: '/caretaker/dashboard',
+      assistant: '/assistant/dashboard',
     };
     
     const userDashboard = dashboardMap[user?.role];
