@@ -48,6 +48,7 @@ const Sidebar = ({ isOpen, onClose }) => {
       case 'business':
         return [
           { path: '/business/dashboard', label: 'Dashboard', icon: 'home' },
+          { path: '/business/assistants', label: 'Assistants', icon: 'users' },
           { path: '/business/products', label: 'Products', icon: 'shopping' },
           { path: '/business/orders', label: 'Orders', icon: 'orders' },
           { path: '/business/customers', label: 'Customers', icon: 'users' },
@@ -55,6 +56,14 @@ const Sidebar = ({ isOpen, onClose }) => {
           { path: '/business/profile', label: 'Profile', icon: 'user' },
           { path: '/business/settings', label: 'Settings', icon: 'settings' },
           { path: '/business/help', label: 'Help Center', icon: 'help' },
+        ];
+      case 'assistant':
+        return [
+          { path: '/assistant/dashboard', label: 'Dashboard', icon: 'home' },
+          { path: '/assistant/products', label: 'Products', icon: 'shopping' },
+          { path: '/assistant/orders', label: 'Orders', icon: 'orders' },
+          { path: '/assistant/notifications', label: 'Notifications', icon: 'calendar' },
+          { path: '/assistant/help', label: 'Help Center', icon: 'help' },
         ];
       case 'rider':
         return [

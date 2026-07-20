@@ -208,6 +208,20 @@ export const wishlistAPI = {
   clear: () => api.delete('/wishlist/clear'),
 };
 
+// Assistant APIs
+export const assistantAPI = {
+  getInvitation: (token) => api.get(`/assistants/invite/${token}`),
+  registerAndAccept: (token, data) => api.post(`/assistants/invite/${token}/register`, data),
+  acceptExisting: (token) => api.post(`/assistants/invite/${token}/accept`),
+  getDashboardStats: () => api.get('/assistants/dashboard/stats'),
+  // Business owner managing assistants
+  getAssistants: () => api.get('/assistants'),
+  generateInvite: (data) => api.post('/assistants/invite', data),
+  remove: (id) => api.delete(`/assistants/${id}`),
+  updateStatus: (id, status) => api.patch(`/assistants/${id}/status`, { status }),
+  resendInvite: (id) => api.post(`/assistants/${id}/resend`),
+};
+
 // Customer APIs
 export const customerAPI = {
   getDashboardStats: () => api.get('/customer/dashboard/stats'),
