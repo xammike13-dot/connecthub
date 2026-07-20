@@ -6,12 +6,16 @@ import Transaction from '../models/Transaction.js';
 import Withdrawal from '../models/Withdrawal.js';
 import { asyncHandler, ResponseError } from '../middleware/error.js';
 import { getDashboardWalletData, getWalletPageData } from '../services/walletCalculationService.js';
+import { getActiveBusinessId } from './assistantController.js';
 
 /**
  * Get business dashboard statistics
  */
 export const getDashboardStats = asyncHandler(async (req, res) => {
-  const businessId = req.user._id;
+  const businessId = getActiveBusinessId(req.user);
+  if (!businessId) {
+    throw new ResponseError('No active business association found', 403);
+  }
 
   // Get all products for this business
   const products = await Product.find({ business: businessId });
@@ -28,8 +32,11 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
   const completedOrders = orders.filter(o => o.status === 'completed').length;
   const cancelledOrders = orders.filter(o => o.status === 'cancelled').length;
 
-  // Calculate total revenue from delivered orders
-  const totalRevenue = orders
+  // Determine if caller is assistant
+  const isAssistant = req.user.role === 'assistant';
+
+  // Calculate total revenue from delivered/completed orders (zero for assistant)
+  const totalRevenue = isAssistant ? 0 : orders
     .filter(o => o.status === 'completed' || o.status === 'delivered')
     .reduce((sum, o) => sum + (o.finalAmount || 0), 0);
 
@@ -52,12 +59,20 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
   const user = await User.findById(businessId);
   const rating = user?.businessProfile?.rating || 0;
 
-  // Get wallet data from centralized service
-  const walletData = await getDashboardWalletData(businessId, 'business');
-  const availableBalance = walletData.availableBalance;
-  const pendingBalance = walletData.pendingBalance;
-  const totalEarnings = walletData.totalEarnings;
-  const totalWithdrawn = walletData.totalWithdrawn;
+  // Retrieve wallet statistics (mocked/zeroed out for assistant)
+  let availableBalance = 0;
+  let pendingBalance = 0;
+  let totalEarnings = 0;
+  let totalWithdrawn = 0;
+
+  if (!isAssistant) {
+    // Get wallet data from centralized service
+    const walletData = await getDashboardWalletData(businessId, 'business');
+    availableBalance = walletData.availableBalance;
+    pendingBalance = walletData.pendingBalance;
+    totalEarnings = walletData.totalEarnings;
+    totalWithdrawn = walletData.totalWithdrawn;
+  }
 
   res.status(200).json({
     success: true,
@@ -85,7 +100,10 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
  * Supports searching by customer name, email, or phone.
  */
 export const getCustomers = asyncHandler(async (req, res) => {
-  const businessId = req.user._id;
+  const businessId = getActiveBusinessId(req.user);
+  if (!businessId) {
+    throw new ResponseError('No active business association found', 403);
+  }
   const { search, page = 1, limit = 10 } = req.query;
 
   // First, find all orders for this business
@@ -170,7 +188,10 @@ export const getCustomers = asyncHandler(async (req, res) => {
  * Get business profile
  */
 export const getProfile = asyncHandler(async (req, res) => {
-  const businessId = req.user._id;
+  const businessId = getActiveBusinessId(req.user);
+  if (!businessId) {
+    throw new ResponseError('No active business association found', 403);
+  }
 
   const user = await User.findById(businessId).select('-password');
 
@@ -178,10 +199,16 @@ export const getProfile = asyncHandler(async (req, res) => {
     throw new ResponseError('User not found', 404);
   }
 
-  // Get or create wallet
-  let wallet = await Wallet.findOne({ user: businessId });
-  if (!wallet) {
-    wallet = await Wallet.create({ user: businessId });
+  const isAssistant = req.user.role === 'assistant';
+
+  // Strictly block wallet details for assistant
+  let wallet = null;
+  if (!isAssistant) {
+    // Get or create wallet
+    wallet = await Wallet.findOne({ user: businessId });
+    if (!wallet) {
+      wallet = await Wallet.create({ user: businessId });
+    }
   }
 
   res.status(200).json({
@@ -197,7 +224,7 @@ export const getProfile = asyncHandler(async (req, res) => {
         businessProfile: user.businessProfile,
         createdAt: user.createdAt,
       },
-      wallet,
+      wallet: wallet || { availableBalance: 0, pendingBalance: 0, totalEarnings: 0, totalWithdrawn: 0 },
     },
   });
 });
@@ -206,7 +233,10 @@ export const getProfile = asyncHandler(async (req, res) => {
  * Update business profile
  */
 export const updateProfile = asyncHandler(async (req, res) => {
-  const businessId = req.user._id;
+  const businessId = getActiveBusinessId(req.user);
+  if (!businessId) {
+    throw new ResponseError('No active business association found', 403);
+  }
   const updates = req.body;
 
   console.log('[updateProfile] Received updates:', updates);
@@ -263,6 +293,9 @@ export const updateProfile = asyncHandler(async (req, res) => {
  * Get business wallet details
  */
 export const getWallet = asyncHandler(async (req, res) => {
+  if (req.user.role === 'assistant') {
+    throw new ResponseError('Assistants are not authorized to view wallet details.', 403);
+  }
   const businessId = req.user._id;
 
   // Get wallet data from centralized service
@@ -278,6 +311,9 @@ export const getWallet = asyncHandler(async (req, res) => {
  * Get withdrawal history
  */
 export const getWithdrawals = asyncHandler(async (req, res) => {
+  if (req.user.role === 'assistant') {
+    throw new ResponseError('Assistants are not authorized to view withdrawal history.', 403);
+  }
   const businessId = req.user._id;
   const { page = 1, limit = 10 } = req.query;
 
@@ -307,7 +343,10 @@ export const getWithdrawals = asyncHandler(async (req, res) => {
  * Get business's products
  */
 export const getMyProducts = asyncHandler(async (req, res) => {
-  const businessId = req.user._id;
+  const businessId = getActiveBusinessId(req.user);
+  if (!businessId) {
+    throw new ResponseError('No active business association found', 403);
+  }
   const { page = 1, limit = 20, category, isActive } = req.query;
 
   let query = { business: businessId };
@@ -338,7 +377,10 @@ export const getMyProducts = asyncHandler(async (req, res) => {
  * Get business's services (alias for getMyProducts)
  */
 export const getMyServices = asyncHandler(async (req, res) => {
-  const businessId = req.user._id;
+  const businessId = getActiveBusinessId(req.user);
+  if (!businessId) {
+    throw new ResponseError('No active business association found', 403);
+  }
   const { page = 1, limit = 20, category, isActive } = req.query;
 
   let query = { business: businessId };
@@ -369,7 +411,10 @@ export const getMyServices = asyncHandler(async (req, res) => {
  * Get business's orders
  */
 export const getOrders = asyncHandler(async (req, res) => {
-  const businessId = req.user._id;
+  const businessId = getActiveBusinessId(req.user);
+  if (!businessId) {
+    throw new ResponseError('No active business association found', 403);
+  }
   const { status, orderType, page = 1, limit = 10 } = req.query;
 
   let query = { business: businessId };
