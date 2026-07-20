@@ -25,6 +25,24 @@ const connectDB = async () => {
     } catch (indexError) {
       console.warn('[Database] Warning: Could not drop obsolete unique index on transactions collection:', indexError.message);
     }
+
+    // Safely drop obsolete unique indexes on notifications collection
+    try {
+      const db = conn.connection.db;
+      const notifCollections = await db.listCollections({ name: 'notifications' }).toArray();
+      if (notifCollections.length > 0) {
+        const indexes = await db.collection('notifications').indexes();
+        for (const idx of indexes) {
+          if (idx.unique && (idx.name.includes('data.rideId') || idx.name.includes('data.orderId') || idx.name.includes('data.bookingId'))) {
+            console.log(`[Database] Found obsolete unique index "${idx.name}" on "notifications" collection. Dropping it...`);
+            await db.collection('notifications').dropIndex(idx.name);
+            console.log(`[Database] Obsolete unique index "${idx.name}" dropped successfully.`);
+          }
+        }
+      }
+    } catch (indexError) {
+      console.warn('[Database] Warning: Could not drop obsolete unique indexes on notifications collection:', indexError.message);
+    }
   } catch (error) {
     console.error(`Error: ${error.message}`);
     process.exit(1);

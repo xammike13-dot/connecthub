@@ -16,6 +16,17 @@ const router = express.Router();
 // All routes require authentication
 router.use(protect);
 
+// Block assistants from withdrawal and financial endpoints
+router.use((req, res, next) => {
+  if (req.user && req.user.role === 'assistant') {
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied: Business assistants are not authorized to access financial or withdrawal endpoints.',
+    });
+  }
+  next();
+});
+
 // Withdrawal routes
 router.post('/request', requestWithdrawal);
 router.get('/history', getWithdrawalHistory);

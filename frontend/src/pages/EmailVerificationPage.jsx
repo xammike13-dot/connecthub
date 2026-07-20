@@ -141,6 +141,8 @@ const EmailVerificationPage = () => {
                 landlord: '/landlord/dashboard',
                 business: '/business/dashboard',
                 rider: '/rider/dashboard',
+                admin: '/admin/dashboard',
+                assistant: '/assistant/dashboard',
               };
               navigate(dashboardMap[role] || '/customer/dashboard');
             }
