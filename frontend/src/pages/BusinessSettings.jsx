@@ -150,7 +150,7 @@ const BusinessSettings = () => {
     try {
       await authAPI.logoutAllDevices();
       addToast('Logged out from all devices successfully', 'success');
-      logout();
+      await logout();
     } catch (error) {
       console.error('Failed to logout from all devices:', error);
       addToast(error.response?.data?.message || 'Failed to logout from all devices', 'error');
@@ -169,7 +169,7 @@ const BusinessSettings = () => {
     try {
       await authAPI.deactivateAccount();
       addToast('Account deactivated successfully', 'success');
-      logout();
+      await logout();
     } catch (error) {
       console.error('Failed to deactivate account:', error);
       addToast(error.response?.data?.message || 'Failed to deactivate account', 'error');
@@ -196,7 +196,7 @@ const BusinessSettings = () => {
     try {
       await authAPI.deleteAccount(password);
       addToast('Account deleted successfully', 'success');
-      logout();
+      await logout();
     } catch (error) {
       console.error('Failed to delete account:', error);
       addToast(error.response?.data?.message || 'Failed to delete account', 'error');
