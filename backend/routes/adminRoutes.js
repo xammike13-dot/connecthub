@@ -5,6 +5,19 @@ import {
   getUsers,
   getUser,
   updateUserStatus,
+  deleteUser,
+  getAdminOrders,
+  updateAdminOrder,
+  getAdminProperties,
+  getAdminBookings,
+  flagAdminProperty,
+  getAdminRides,
+  updateAdminRide,
+  createAdminReport,
+  getAdminReports,
+  updateAdminReportStatus,
+  broadcastNotification,
+  getPlatformHealth,
   getTransactions,
   getWithdrawals,
   getPendingWithdrawals,
@@ -34,6 +47,31 @@ router.get('/disputes/report', getDisputeReport);
 router.get('/users', getUsers);
 router.get('/users/:userId', getUser);
 router.put('/users/:userId/status', updateUserStatus);
+router.delete('/users/:userId', deleteUser);
+
+// Order management
+router.get('/orders', getAdminOrders);
+router.put('/orders/:orderId', updateAdminOrder);
+
+// Rental management
+router.get('/properties', getAdminProperties);
+router.get('/bookings', getAdminBookings);
+router.put('/properties/:rentalId/flag', flagAdminProperty);
+
+// Ride management
+router.get('/rides', getAdminRides);
+router.put('/rides/:rideId', updateAdminRide);
+
+// Reports/Complaints management
+router.get('/reports', getAdminReports);
+router.post('/reports', createAdminReport);
+router.put('/reports/:reportId', updateAdminReportStatus);
+
+// Broadcast Notification
+router.post('/broadcast', broadcastNotification);
+
+// Platform Monitoring
+router.get('/health', getPlatformHealth);
 
 // Transaction management
 router.get('/transactions', getTransactions);
