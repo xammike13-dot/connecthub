@@ -140,9 +140,9 @@ NotificationSchema.pre('save', function (next) {
 NotificationSchema.index({ user: 1, read: 1, createdAt: -1 });
 NotificationSchema.index({ userId: 1, status: 1, createdAt: -1 });
 // Compound index to prevent duplicate notifications for same user, type, and data
-NotificationSchema.index({ user: 1, type: 1, 'data.rideId': 1 }, { unique: true, sparse: true });
-NotificationSchema.index({ user: 1, type: 1, 'data.orderId': 1 }, { unique: true, sparse: true });
-NotificationSchema.index({ user: 1, type: 1, 'data.bookingId': 1 }, { unique: true, sparse: true });
+NotificationSchema.index({ user: 1, type: 1, 'data.rideId': 1 }, { sparse: true });
+NotificationSchema.index({ user: 1, type: 1, 'data.orderId': 1 }, { sparse: true });
+NotificationSchema.index({ user: 1, type: 1, 'data.bookingId': 1 }, { sparse: true });
 
 const Notification = mongoose.model('Notification', NotificationSchema);
 

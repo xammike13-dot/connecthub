@@ -107,6 +107,7 @@ const HomePage = () => {
         business: '/business/dashboard',
         rider: '/rider/dashboard',
         admin: '/admin/dashboard',
+        assistant: '/assistant/dashboard',
       };
       const targetPath = dashboardMap[user.role] || '/';
       navigate(targetPath, { replace: true });
