@@ -27,10 +27,10 @@ router.put('/:orderId/archive', authorize('customer'), archiveOrder);
 router.put('/:orderId/confirm-delivery', authorize('customer'), confirmDelivery);
 
 // Business routes
-router.put('/:orderId/status', authorize('business'), updateOrderStatus);
-router.put('/:orderId/accept', authorize('business'), acceptOrder);
-router.put('/:orderId/cancel', authorize('business'), businessCancelOrder);
-router.put('/:orderId/delivered', authorize('business'), markOrderDelivered);
+router.put('/:orderId/status', authorize('business', 'assistant'), updateOrderStatus);
+router.put('/:orderId/accept', authorize('business', 'assistant'), acceptOrder);
+router.put('/:orderId/cancel', authorize('business', 'assistant'), businessCancelOrder);
+router.put('/:orderId/delivered', authorize('business', 'assistant'), markOrderDelivered);
 
 // Delete order (both customer and business can delete their own completed/cancelled orders)
 router.delete('/:orderId', deleteOrder);

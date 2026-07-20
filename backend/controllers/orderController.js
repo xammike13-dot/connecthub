@@ -5,6 +5,7 @@ import { asyncHandler, ResponseError } from '../middleware/error.js';
 import { calculateShoppingPayment } from '../utils/paymentCalculator.js';
 import { releaseEscrow } from '../utils/walletService.js';
 import { createOrderNotification, createNotification } from './notificationController.js';
+import { getActiveBusinessId } from './assistantController.js';
 
 /**
  * Create a new order
@@ -118,9 +119,13 @@ export const getOrders = asyncHandler(async (req, res) => {
     // Filter out archived orders by default
     query.hiddenByCustomer = { $ne: true };
     console.log('[CUSTOMER QUERY]', query);
-  } else if (req.user.role === 'business') {
-    query = { business: userId };
-    console.log('[BUSINESS QUERY]', query);
+  } else if (req.user.role === 'business' || req.user.role === 'assistant') {
+    const businessId = getActiveBusinessId(req.user);
+    if (!businessId) {
+      throw new ResponseError('No active business association found', 403);
+    }
+    query = { business: businessId };
+    console.log('[BUSINESS/ASSISTANT QUERY]', query);
   } else {
     throw new ResponseError('Not authorized to view orders', 403);
   }
@@ -152,9 +157,10 @@ export const getOrders = asyncHandler(async (req, res) => {
     createdAt: o.createdAt,
   })));
 
-  if (req.user.role === 'business') {
-    console.log('[BUSINESS ORDERS API][QUERY]', {
-      businessId: userId,
+  if (req.user.role === 'business' || req.user.role === 'assistant') {
+    const activeBusinessId = getActiveBusinessId(req.user);
+    console.log('[BUSINESS/ASSISTANT ORDERS API][QUERY]', {
+      businessId: activeBusinessId,
       query,
       status: req.query.status || null,
     });
@@ -184,9 +190,10 @@ export const getOrders = asyncHandler(async (req, res) => {
 
 
   // Debug: marketplace business orders data flow
-  if (req.user.role === 'business') {
-    console.log('[BUSINESS ORDERS API]', {
-      businessId: req.user._id,
+  if (req.user.role === 'business' || req.user.role === 'assistant') {
+    const activeBusinessId = getActiveBusinessId(req.user);
+    console.log('[BUSINESS/ASSISTANT ORDERS API]', {
+      businessId: activeBusinessId,
       totalOrders: orders.length,
       orderIds: orders.map((o) => o._id),
       statuses: orders.map((o) => o.status),
@@ -225,9 +232,10 @@ export const getOrder = asyncHandler(async (req, res) => {
     throw new ResponseError('Order not found', 404);
   }
 
+  const activeBusinessId = getActiveBusinessId(req.user);
   if (
     order.customer._id.toString() !== userId.toString() &&
-    order.business?.toString?.() !== userId.toString() &&
+    (!activeBusinessId || order.business?.toString() !== activeBusinessId.toString()) &&
     req.user.role !== 'admin'
   ) {
     throw new ResponseError('Not authorized to view this order', 403);
@@ -262,7 +270,8 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
     throw new ResponseError('Order not found', 404);
   }
 
-  if (order.business?.toString() !== userId.toString()) {
+  const activeBusinessId = getActiveBusinessId(req.user);
+  if (!activeBusinessId || order.business?.toString() !== activeBusinessId.toString()) {
     throw new ResponseError('Not authorized to update this order', 403);
   }
 
@@ -454,7 +463,8 @@ export const acceptOrder = asyncHandler(async (req, res) => {
   const order = await Order.findById(orderId).populate('customer', 'name email phone');
   if (!order) throw new ResponseError('Order not found', 404);
 
-  if (order.business?.toString() !== userId.toString()) {
+  const activeBusinessId = getActiveBusinessId(req.user);
+  if (!activeBusinessId || order.business?.toString() !== activeBusinessId.toString()) {
     throw new ResponseError('Not authorized to update this order', 403);
   }
 
@@ -512,7 +522,8 @@ export const businessCancelOrder = asyncHandler(async (req, res) => {
   const order = await Order.findById(orderId).populate('customer', 'name email phone');
   if (!order) throw new ResponseError('Order not found', 404);
 
-  if (order.business?.toString() !== userId.toString()) {
+  const activeBusinessId = getActiveBusinessId(req.user);
+  if (!activeBusinessId || order.business?.toString() !== activeBusinessId.toString()) {
     throw new ResponseError('Not authorized to cancel this order', 403);
   }
 
@@ -577,7 +588,8 @@ export const markOrderDelivered = asyncHandler(async (req, res) => {
   const order = await Order.findById(orderId).populate('customer', 'name email phone');
   if (!order) throw new ResponseError('Order not found', 404);
 
-  if (order.business?.toString() !== userId.toString()) {
+  const activeBusinessId = getActiveBusinessId(req.user);
+  if (!activeBusinessId || order.business?.toString() !== activeBusinessId.toString()) {
     throw new ResponseError('Not authorized to update this order', 403);
   }
 
@@ -695,9 +707,10 @@ export const deleteOrder = asyncHandler(async (req, res) => {
     if (orderCustomerId !== userId.toString()) {
       throw new ResponseError('Not authorized to delete this order', 403);
     }
-  } else if (userRole === 'business') {
+  } else if (userRole === 'business' || userRole === 'assistant') {
+    const activeBusinessId = getActiveBusinessId(req.user);
     const orderBusinessId = (order.business?._id || order.business)?.toString();
-    if (orderBusinessId !== userId.toString()) {
+    if (!activeBusinessId || orderBusinessId !== activeBusinessId.toString()) {
       throw new ResponseError('Not authorized to delete this order', 403);
     }
   } else if (userRole !== 'admin') {

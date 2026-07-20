@@ -65,6 +65,9 @@ import CaretakerInvitePage from './pages/CaretakerInvitePage';
 import CaretakerDashboard from './pages/CaretakerDashboard';
 import CaretakerPropertiesPage from './pages/CaretakerPropertiesPage';
 import CaretakerBookingsPage from './pages/CaretakerBookingsPage';
+import AssistantInvitePage from './pages/AssistantInvitePage';
+import BusinessAssistantsPage from './pages/BusinessAssistantsPage';
+import AssistantDashboard from './pages/AssistantDashboard';
 
 
 function App() {
@@ -94,6 +97,7 @@ function App() {
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
                 <Route path="/caretaker/invite/:token" element={<CaretakerInvitePage />} />
+                <Route path="/assistant/invite/:token" element={<AssistantInvitePage />} />
                 <Route path="/verify-email" element={<EmailVerificationPage />} />
                 <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
@@ -163,6 +167,7 @@ function App() {
                 {/* Business Routes */}
                 <Route path="/business" element={<DashboardLayout allowedRoles={['business']} />}>
                   <Route path="dashboard" element={<BusinessDashboard />} />
+                  <Route path="assistants" element={<BusinessAssistantsPage />} />
                   <Route path="products" element={<BusinessProductsPage />} />
                   <Route path="orders" element={<BusinessOrdersPage />} />
                   <Route path="customers" element={<BusinessCustomersPage />} />
@@ -172,6 +177,17 @@ function App() {
                   <Route path="earnings" element={<EarningsDashboardPage />} />
                   <Route path="transactions" element={<TransactionHistoryPage />} />
                   <Route path="wallet" element={<WalletPage />} />
+                  <Route path="notifications" element={<NotificationsPage />} />
+                  <Route path="chat" element={<ChatPage />} />
+                  <Route path="chat/:conversationId" element={<ChatPage />} />
+                  <Route path="help" element={<BusinessHelpPage />} />
+                </Route>
+
+                {/* Assistant Routes */}
+                <Route path="/assistant" element={<DashboardLayout allowedRoles={['assistant']} />}>
+                  <Route path="dashboard" element={<AssistantDashboard />} />
+                  <Route path="products" element={<BusinessProductsPage />} />
+                  <Route path="orders" element={<BusinessOrdersPage />} />
                   <Route path="notifications" element={<NotificationsPage />} />
                   <Route path="chat" element={<ChatPage />} />
                   <Route path="chat/:conversationId" element={<ChatPage />} />

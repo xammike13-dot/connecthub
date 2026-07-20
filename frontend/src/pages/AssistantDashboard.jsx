@@ -1,13 +1,10 @@
-import { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { useBusinessDashboard } from '../hooks/useDashboardData';
+import { useState, useEffect, useCallback } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useAuth } from '../context/AuthContext';
-import GuidedWalkthrough from '../components/GuidedWalkthrough';
-import api, { orderAPI, assistantAPI } from '../services/api';
-import { useToast } from '../components/Toast';
-import { motion } from 'framer-motion';
+import api, { orderAPI, assistantAPI, businessAPI } from '../services/api';
 import { useSocket } from '../context/SocketContext';
+import { useToast } from '../components/Toast';
 import {
   Package,
   CheckCircle,
@@ -15,21 +12,14 @@ import {
   ShoppingCart,
   Clock,
   XCircle,
-  DollarSign,
-  TrendingUp,
-  Plus,
-  ClipboardList,
-  Wallet,
   Bell,
   ArrowRight,
   RefreshCw,
   Star,
   Check,
   X,
-  UserPlus,
-  Copy,
-  Mail,
   MessageSquare,
+  HelpCircle,
 } from 'lucide-react';
 
 const formatCurrency = (amount) => {
@@ -74,59 +64,46 @@ const StatCard = ({ title, value, subtitle, icon, color = 'primary' }) => {
   );
 };
 
-const BusinessDashboard = () => {
-  const { stats, orders, loading, error, refetch } = useBusinessDashboard();
+const AssistantDashboard = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { success: toastSuccess, error: toastError } = useToast();
+  const [stats, setStats] = useState(null);
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [showWalkthrough, setShowWalkthrough] = useState(false);
   const [actionProcessing, setActionProcessing] = useState({});
-
-  // Assistant Invitation Modal State
-  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
-  const [assistantName, setAssistantName] = useState('');
-  const [assistantPhone, setAssistantPhone] = useState('');
-  const [generatedInviteLink, setGeneratedInviteLink] = useState('');
-  const [generatingInvite, setGeneratingInvite] = useState(false);
-
-  const handleGenerateInvitation = async (e) => {
-    e.preventDefault();
-    setGeneratingInvite(true);
-    try {
-      const { data } = await assistantAPI.generateInvite({
-        assistantName,
-        assistantPhone,
-      });
-      setGeneratedInviteLink(data.data.inviteLink);
-      toastSuccess('Invitation link generated successfully!');
-    } catch (err) {
-      toastError(err.response?.data?.message || 'Failed to generate invitation link');
-    } finally {
-      setGeneratingInvite(false);
-    }
-  };
-
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(generatedInviteLink);
-    toastSuccess('Invitation link copied to clipboard!');
-  };
-  const location = useLocation();
   const { socket } = useSocket();
 
-  // Check if walkthrough should be shown
-  useEffect(() => {
-    if (location.state?.showWalkthrough && !user?.onboardingCompleted) {
-      setShowWalkthrough(true);
+  const fetchDashboardData = useCallback(async () => {
+    try {
+      setError(null);
+      const [statsRes, ordersRes] = await Promise.all([
+        assistantAPI.getDashboardStats(),
+        businessAPI.getOrders({ page: 1, limit: 10 }),
+      ]);
+      setStats(statsRes.data.data);
+      setOrders(ordersRes.data.data || []);
+    } catch (err) {
+      console.error('Error loading assistant dashboard:', err);
+      setError(err.response?.data?.message || 'Failed to load dashboard data.');
+    } finally {
+      setLoading(false);
     }
-  }, [location.state, user]);
+  }, []);
 
-  // Listen for socket events to auto-refresh the dashboard
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  // Real-time updates via Socket.IO
   useEffect(() => {
     if (!socket) return;
 
     const handleUpdate = () => {
-      console.log('[BusinessDashboard] Real-time event received, refetching dashboard stats...');
-      refetch();
+      console.log('[AssistantDashboard] Real-time socket event, refreshing stats...');
+      fetchDashboardData();
     };
 
     socket.on('order_created', handleUpdate);
@@ -134,7 +111,6 @@ const BusinessDashboard = () => {
     socket.on('order_cancelled', handleUpdate);
     socket.on('order_delivered', handleUpdate);
     socket.on('payment_confirmed', handleUpdate);
-    socket.on('payment_released', handleUpdate);
     socket.on('new_order', handleUpdate);
     socket.on('new_notification', handleUpdate);
 
@@ -144,47 +120,14 @@ const BusinessDashboard = () => {
       socket.off('order_cancelled', handleUpdate);
       socket.off('order_delivered', handleUpdate);
       socket.off('payment_confirmed', handleUpdate);
-      socket.off('payment_released', handleUpdate);
       socket.off('new_order', handleUpdate);
       socket.off('new_notification', handleUpdate);
     };
-  }, [socket, refetch]);
-
-  const walkthroughSteps = [
-    {
-      targetId: 'add-product-btn',
-      title: 'Add Your First Product',
-      content: 'Click here to list your first product on the marketplace.',
-    },
-    {
-      targetId: 'upload-image-btn',
-      title: 'Upload Product Image',
-      content: 'Add high-quality images to attract more customers.',
-    },
-    {
-      targetId: 'set-price-btn',
-      title: 'Set Product Price',
-      content: 'Configure competitive pricing for your product.',
-    },
-    {
-      targetId: 'publish-btn',
-      title: 'Publish Product',
-      content: 'Make your product visible to potential buyers.',
-    },
-  ];
-
-  const handleWalkthroughComplete = async () => {
-    setShowWalkthrough(false);
-    try {
-      await api.post('/setup/onboarding-complete');
-    } catch (error) {
-      console.error('Failed to mark onboarding complete:', error);
-    }
-  };
+  }, [socket, fetchDashboardData]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await refetch();
+    await fetchDashboardData();
     setRefreshing(false);
   };
 
@@ -193,7 +136,7 @@ const BusinessDashboard = () => {
     try {
       await orderAPI.accept(orderId, '30 mins');
       toastSuccess('Order accepted successfully!');
-      refetch();
+      fetchDashboardData();
     } catch (err) {
       toastError(err.response?.data?.message || 'Failed to accept order');
     } finally {
@@ -206,7 +149,7 @@ const BusinessDashboard = () => {
     try {
       await orderAPI.businessCancel(orderId, 'Out of stock');
       toastSuccess('Order rejected/cancelled successfully');
-      refetch();
+      fetchDashboardData();
     } catch (err) {
       toastError(err.response?.data?.message || 'Failed to reject order');
     } finally {
@@ -219,7 +162,7 @@ const BusinessDashboard = () => {
     try {
       await orderAPI.markDelivered(orderId);
       toastSuccess('Order marked as delivered successfully!');
-      refetch();
+      fetchDashboardData();
     } catch (err) {
       toastError(err.response?.data?.message || 'Failed to mark delivered');
     } finally {
@@ -271,15 +214,15 @@ const BusinessDashboard = () => {
   };
 
   const formatStatus = (status) => {
-    return status.split('_').map(word => 
+    return status.split('_').map(word =>
       word.charAt(0).toUpperCase() + word.slice(1)
     ).join(' ');
   };
 
-  // Filter Active orders for Feature 1 (pending, paid, processing, delivered)
-  const activeOrders = (orders || []).filter(o => ['pending', 'paid', 'processing', 'delivered'].includes(o.status));
+  // Filter Active orders for tasks (pending, paid, processing, delivered)
+  const activeOrders = orders.filter(o => ['pending', 'paid', 'processing', 'delivered'].includes(o.status));
 
-  // Sort: pending (high priority) > paid > processing > delivered
+  // Sort active tasks: pending (highest action required) > paid > processing > delivered
   const sortedActiveOrders = [...activeOrders].sort((a, b) => {
     const priority = { 'pending': 1, 'paid': 2, 'processing': 3, 'delivered': 4 };
     return (priority[a.status] || 9) - (priority[b.status] || 9);
@@ -287,43 +230,28 @@ const BusinessDashboard = () => {
 
   return (
     <div className="space-y-6">
-      {/* Sub-header inside main body */}
+      {/* Welcome sub-header inside main body */}
       <div className="flex items-center justify-between flex-wrap gap-4 bg-white p-5 border border-secondary-100 rounded-2xl shadow-sm">
         <div>
           <h2 className="text-xl md:text-2xl font-extrabold text-secondary-800 tracking-tight">
-            Welcome back, {user?.name?.split(' ')[0] || 'Business Owner'}!
+            Welcome back, {user?.name?.split(' ')[0] || 'Assistant'}!
           </h2>
           <p className="text-sm text-secondary-500 mt-1 font-medium">
-            Here's what's happening with your business operations today.
+            Manage your business operations, products, and process orders efficiently.
           </p>
         </div>
 
-        <div className="flex gap-2.5">
-          <button
-            onClick={() => {
-              setAssistantName('');
-              setAssistantPhone('');
-              setGeneratedInviteLink('');
-              setIsInviteModalOpen(true);
-            }}
-            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl flex items-center gap-2 transition-all duration-150 font-semibold shadow-sm text-sm"
-          >
-            <UserPlus className="w-4 h-4" />
-            Add Assistant
-          </button>
-
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="px-4 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 disabled:opacity-50 flex items-center gap-2 transition-all duration-150 font-semibold shadow-sm text-sm"
-          >
-            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-            {refreshing ? 'Refreshing...' : 'Refresh Stats'}
-          </button>
-        </div>
+        <button
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="px-4 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 disabled:opacity-50 flex items-center gap-2 transition-all duration-150 font-semibold shadow-sm text-sm"
+        >
+          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+          {refreshing ? 'Refreshing...' : 'Refresh Stats'}
+        </button>
       </div>
 
-      {/* FEATURE 1: ACTIVE TASKS AT THE TOP OF EVERY DASHBOARD (Business Dashboard) */}
+      {/* ACTIVE TASKS AT THE TOP (Orders requiring Action) */}
       {sortedActiveOrders.length > 0 && (
         <div className="bg-orange-50/40 p-5 rounded-2xl border border-orange-100 space-y-4">
           <div className="flex items-center gap-2">
@@ -357,7 +285,7 @@ const BusinessDashboard = () => {
                     {/* Specific Sub-status/workflow displays */}
                     {order.status === 'pending' && (
                       <p className="text-xs text-amber-600 font-bold bg-amber-50 p-1.5 rounded-lg border border-amber-100 mt-2">
-                        Waiting for business confirmation
+                        Waiting for assistant confirmation
                       </p>
                     )}
                     {order.status === 'paid' && (
@@ -411,7 +339,7 @@ const BusinessDashboard = () => {
                     )}
 
                     <Link
-                      to="/business/orders"
+                      to="/assistant/orders"
                       className="px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold text-xs rounded-lg self-center ml-auto"
                     >
                       Detail
@@ -424,7 +352,7 @@ const BusinessDashboard = () => {
         </div>
       )}
 
-      {/* Product Stats Grid */}
+      {/* Operational Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
         <StatCard
           title="Total Products"
@@ -467,7 +395,7 @@ const BusinessDashboard = () => {
         />
       </div>
 
-      {/* Order Stats Grid */}
+      {/* Order Status Counts */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         <StatCard
           title="Pending Orders"
@@ -494,120 +422,59 @@ const BusinessDashboard = () => {
         />
       </div>
 
-      {/* Financial Overview Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
-        <div className="card p-5 bg-white border border-secondary-100 rounded-2xl shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-          <div>
-            <p className="text-xs font-bold text-secondary-400 uppercase tracking-wider">Available Balance</p>
-            <p className="text-2xl font-extrabold text-emerald-600 mt-1">{formatCurrency(stats?.availableBalance || 0)}</p>
-            <p className="text-xs text-secondary-500 font-medium mt-1">Ready for withdraw</p>
-          </div>
-          <button
-            onClick={() => window.location.href = '/business/wallet'}
-            className="w-full mt-4 py-2 bg-emerald-600 text-white font-bold text-sm rounded-xl hover:bg-emerald-700 transition-colors shadow-sm"
-          >
-            Withdraw Funds
-          </button>
-        </div>
-
-        <div className="card p-5 bg-white border border-secondary-100 rounded-2xl shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-          <div>
-            <p className="text-xs font-bold text-secondary-400 uppercase tracking-wider">Pending Balance</p>
-            <p className="text-2xl font-extrabold text-amber-500 mt-1">{formatCurrency(stats?.pendingBalance || 0)}</p>
-            <p className="text-xs text-secondary-500 font-medium mt-1">In escrow / transit</p>
-          </div>
-          <div className="mt-4 text-xs text-secondary-400 font-semibold leading-normal">
-            Released instantly upon order confirmation.
-          </div>
-        </div>
-
-        <div className="card p-5 bg-white border border-secondary-100 rounded-2xl shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-          <div>
-            <p className="text-xs font-bold text-secondary-400 uppercase tracking-wider">Total Revenue</p>
-            <p className="text-2xl font-extrabold text-blue-600 mt-1">{formatCurrency(stats?.totalRevenue || 0)}</p>
-            <p className="text-xs text-secondary-500 font-medium mt-1">From completed sales</p>
-          </div>
-          <div className="mt-4 flex items-center gap-1 text-xs text-green-500 font-bold">
-            <TrendingUp size={14} /> +8.5% growth
-          </div>
-        </div>
-
-        <div className="card p-5 bg-white border border-secondary-100 rounded-2xl shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-          <div>
-            <p className="text-xs font-bold text-secondary-400 uppercase tracking-wider">Total Earnings</p>
-            <p className="text-2xl font-extrabold text-indigo-600 mt-1">{formatCurrency(stats?.totalEarnings || 0)}</p>
-            <p className="text-xs text-secondary-500 font-medium mt-1">All-time gross value</p>
-          </div>
-          <div className="mt-4 text-xs text-secondary-400 font-semibold leading-normal">
-            Cumulative business payout logs.
-          </div>
-        </div>
-
-        <div className="card p-5 bg-white border border-secondary-100 rounded-2xl shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-          <div>
-            <p className="text-xs font-bold text-secondary-400 uppercase tracking-wider">Withdrawn Amount</p>
-            <p className="text-2xl font-extrabold text-rose-600 mt-1">{formatCurrency(stats?.totalWithdrawn || 0)}</p>
-            <p className="text-xs text-secondary-500 font-medium mt-1">Transferred to M-Pesa</p>
-          </div>
-          <div className="mt-4 text-xs text-secondary-400 font-semibold leading-normal">
-            Successfully settled payouts.
-          </div>
-        </div>
-      </div>
-
-      {/* Quick Actions Grid */}
+      {/* Quick Actions (Strictly non-financial only) */}
       <div className="card p-6 bg-white border border-secondary-100 rounded-2xl shadow-sm">
         <h2 className="text-lg font-bold text-secondary-800 tracking-tight mb-4">Operational Quick Actions</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Link
-            to="/business/products"
+            to="/assistant/products"
             className="p-4 rounded-xl border border-secondary-100 hover:border-blue-500 hover:bg-blue-50/50 transition-all duration-150 flex items-center gap-3.5 group"
           >
             <div className="w-11 h-11 rounded-xl bg-blue-50 group-hover:bg-blue-100 flex items-center justify-center text-blue-600 transition-colors shadow-sm">
-              <Plus size={20} className="stroke-[2.5]" />
+              <Package size={20} className="stroke-[2.5]" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-secondary-800">Add Product</h3>
-              <p className="text-xs text-secondary-400 font-semibold mt-0.5">List new item</p>
+              <h3 className="font-bold text-sm text-secondary-800">Add & Edit Products</h3>
+              <p className="text-xs text-secondary-400 font-semibold mt-0.5">Manage catalog</p>
             </div>
           </Link>
 
           <Link
-            to="/business/orders"
+            to="/assistant/orders"
             className="p-4 rounded-xl border border-secondary-100 hover:border-emerald-500 hover:bg-emerald-50/50 transition-all duration-150 flex items-center gap-3.5 group"
           >
             <div className="w-11 h-11 rounded-xl bg-emerald-50 group-hover:bg-emerald-100 flex items-center justify-center text-emerald-600 transition-colors shadow-sm">
-              <ClipboardList size={20} />
+              <ShoppingCart size={20} />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-secondary-800">Manage Orders</h3>
-              <p className="text-xs text-secondary-400 font-semibold mt-0.5">View and process</p>
+              <h3 className="font-bold text-sm text-secondary-800">Process Orders</h3>
+              <p className="text-xs text-secondary-400 font-semibold mt-0.5">View and update</p>
             </div>
           </Link>
 
           <Link
-            to="/business/wallet"
+            to="/assistant/notifications"
             className="p-4 rounded-xl border border-secondary-100 hover:border-indigo-500 hover:bg-indigo-50/50 transition-all duration-150 flex items-center gap-3.5 group"
           >
             <div className="w-11 h-11 rounded-xl bg-indigo-50 group-hover:bg-indigo-100 flex items-center justify-center text-indigo-600 transition-colors shadow-sm">
-              <Wallet size={20} />
+              <Bell size={20} />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-secondary-800">Wallet Control</h3>
-              <p className="text-xs text-secondary-400 font-semibold mt-0.5">Manage earnings</p>
+              <h3 className="font-bold text-sm text-secondary-800">Notifications</h3>
+              <p className="text-xs text-secondary-400 font-semibold mt-0.5">View inbox alerts</p>
             </div>
           </Link>
 
           <Link
-            to="/business/settings"
+            to="/assistant/help"
             className="p-4 rounded-xl border border-secondary-100 hover:border-amber-500 hover:bg-amber-50/50 transition-all duration-150 flex items-center gap-3.5 group"
           >
             <div className="w-11 h-11 rounded-xl bg-amber-50 group-hover:bg-amber-100 flex items-center justify-center text-amber-600 transition-colors shadow-sm">
-              <Bell size={20} />
+              <HelpCircle size={20} />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-secondary-800">Profile Settings</h3>
-              <p className="text-xs text-secondary-400 font-semibold mt-0.5">Configure account</p>
+              <h3 className="font-bold text-sm text-secondary-800">Help Center</h3>
+              <p className="text-xs text-secondary-400 font-semibold mt-0.5">Support coordinates</p>
             </div>
           </Link>
         </div>
@@ -617,7 +484,7 @@ const BusinessDashboard = () => {
       <div className="card p-6 bg-white border border-secondary-100 rounded-2xl shadow-sm">
         <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
           <h2 className="text-lg font-bold text-secondary-800 tracking-tight">Recent Business Orders</h2>
-          <Link to="/business/orders" className="text-primary-600 hover:text-primary-700 text-xs font-bold flex items-center gap-1 transition-colors">
+          <Link to="/assistant/orders" className="text-primary-600 hover:text-primary-700 text-xs font-bold flex items-center gap-1 transition-colors">
             View All Orders
             <ArrowRight size={14} />
           </Link>
@@ -663,152 +530,8 @@ const BusinessDashboard = () => {
           </div>
         )}
       </div>
-
-      {/* Guided Walkthrough */}
-      {showWalkthrough && (
-        <GuidedWalkthrough
-          steps={walkthroughSteps}
-          onComplete={handleWalkthroughComplete}
-          onSkip={handleWalkthroughComplete}
-        />
-      )}
-
-      {/* Assistant Invitation Modal */}
-      {isInviteModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-neutral-900 bg-opacity-60 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-xl border border-neutral-100 max-w-md w-full overflow-hidden">
-            <div className="p-6 border-b border-neutral-100 flex justify-between items-center">
-              <h3 className="text-lg font-black text-neutral-950 flex items-center gap-2">
-                <UserPlus className="w-5 h-5 text-blue-600" />
-                Invite Business Assistant
-              </h3>
-              <button
-                onClick={() => setIsInviteModalOpen(false)}
-                className="p-1 rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-950 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              {!generatedInviteLink ? (
-                <form onSubmit={handleGenerateInvitation} className="space-y-4">
-                  <p className="text-sm text-neutral-500 font-medium">
-                    Invite assistants to manage your business operations, products, and orders without revealing financial data.
-                  </p>
-                  <div>
-                    <label className="block text-xs font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
-                      Assistant Name (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={assistantName}
-                      onChange={(e) => setAssistantName(e.target.value)}
-                      placeholder="e.g. John Doe"
-                      className="w-full px-4 py-3 rounded-xl border border-neutral-200 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
-                      Assistant Phone Number (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={assistantPhone}
-                      onChange={(e) => setAssistantPhone(e.target.value)}
-                      placeholder="e.g. 07XXXXXXXX"
-                      className="w-full px-4 py-3 rounded-xl border border-neutral-200 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={generatingInvite}
-                    className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2"
-                  >
-                    {generatingInvite ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        Generating Link...
-                      </>
-                    ) : (
-                      'Generate Invitation'
-                    )}
-                  </button>
-                </form>
-              ) : (
-                <div className="space-y-4">
-                  <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl">
-                    <p className="text-xs text-blue-700 font-black uppercase tracking-wider mb-2">
-                      Secure Invitation Link Generated
-                    </p>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        readOnly
-                        value={generatedInviteLink}
-                        className="flex-1 bg-white border border-blue-200 px-3 py-2 rounded-lg text-xs font-medium text-neutral-700 outline-none"
-                      />
-                      <button
-                        onClick={handleCopyLink}
-                        className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors shadow-sm"
-                        title="Copy Link"
-                      >
-                        <Copy className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider">
-                      Share Invitation Via
-                    </p>
-                    <div className="grid grid-cols-3 gap-2">
-                      {/* WhatsApp */}
-                      <a
-                        href={`https://wa.me/?text=You%20are%20invited%20to%20join%20my%20business%20as%20an%20assistant.%20Register%20and%20join%20here%3A%20${encodeURIComponent(generatedInviteLink)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-neutral-100 hover:bg-green-50 hover:border-green-100 transition-all group"
-                      >
-                        <MessageSquare className="w-5 h-5 text-neutral-500 group-hover:text-green-600 transition-colors" />
-                        <span className="text-[11px] font-bold text-neutral-600 group-hover:text-green-700">WhatsApp</span>
-                      </a>
-
-                      {/* SMS */}
-                      <a
-                        href={`sms:?body=You%20are%20invited%20to%20join%20my%20business%20as%20an%20assistant.%20Register%20and%20join%20here%3A%20${encodeURIComponent(generatedInviteLink)}`}
-                        className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-neutral-100 hover:bg-blue-50 hover:border-blue-100 transition-all group"
-                      >
-                        <MessageSquare className="w-5 h-5 text-neutral-500 group-hover:text-blue-600 transition-colors" />
-                        <span className="text-[11px] font-bold text-neutral-600 group-hover:text-blue-700">SMS</span>
-                      </a>
-
-                      {/* Email */}
-                      <a
-                        href={`mailto:?subject=Join%20as%20Business%20Assistant&body=You%20are%20invited%20to%20join%20my%20business%20as%20an%20assistant.%20Register%20and%20accept%20here%3A%20${encodeURIComponent(generatedInviteLink)}`}
-                        className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-neutral-100 hover:bg-red-50 hover:border-red-100 transition-all group"
-                      >
-                        <Mail className="w-5 h-5 text-neutral-500 group-hover:text-red-600 transition-colors" />
-                        <span className="text-[11px] font-bold text-neutral-600 group-hover:text-red-700">Email</span>
-                      </a>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => setIsInviteModalOpen(false)}
-                    className="w-full py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded-xl font-bold text-sm transition-colors"
-                  >
-                    Done
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
 
-export default BusinessDashboard;
+export default AssistantDashboard;

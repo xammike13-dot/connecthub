@@ -21,12 +21,12 @@ router.get('/', getProducts);
 // Protected routes - define BEFORE public routes with dynamic params
 router.use(protect);
 
-// Business only routes - use specific paths that don't conflict with ID patterns
-router.get('/my-products', authorize('business'), getMyProducts);
-router.post('/', authorize('business'), createProduct);
-router.patch('/:productId/stock', authorize('business'), updateProductStock);
-router.put('/:productId', authorize('business'), updateProduct);
-router.delete('/:productId', authorize('business'), deleteProduct);
+// Business and Assistant routes - use specific paths that don't conflict with ID patterns
+router.get('/my-products', authorize('business', 'assistant'), getMyProducts);
+router.post('/', authorize('business', 'assistant'), createProduct);
+router.patch('/:productId/stock', authorize('business', 'assistant'), updateProductStock);
+router.put('/:productId', authorize('business', 'assistant'), updateProduct);
+router.delete('/:productId', authorize('business', 'assistant'), deleteProduct);
 
 // Public routes with dynamic params (after protected routes)
 router.get('/:productId', validateObjectId('productId'), getProduct);

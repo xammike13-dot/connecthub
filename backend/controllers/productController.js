@@ -1,15 +1,16 @@
 import Product from '../models/Product.js';
 import User from '../models/User.js';
 import { asyncHandler, ResponseError } from '../middleware/error.js';
+import { getActiveBusinessId } from './assistantController.js';
 
 /**
  * Create a new product
  */
 export const createProduct = asyncHandler(async (req, res) => {
-  const businessId = req.user._id;
+  const businessId = getActiveBusinessId(req.user);
 
-  if (req.user.role !== 'business') {
-    throw new ResponseError('Only business users can create products', 403);
+  if (!businessId) {
+    throw new ResponseError('Only business users or active assistants can create products', 403);
   }
 
   const {
@@ -151,7 +152,7 @@ export const getProduct = asyncHandler(async (req, res) => {
  */
 export const updateProduct = asyncHandler(async (req, res) => {
   const { productId } = req.params;
-  const businessId = req.user._id;
+  const businessId = getActiveBusinessId(req.user);
 
   const product = await Product.findById(productId);
 
@@ -159,7 +160,7 @@ export const updateProduct = asyncHandler(async (req, res) => {
     throw new ResponseError('Product not found', 404);
   }
 
-  if (product.business.toString() !== businessId.toString()) {
+  if (!businessId || product.business.toString() !== businessId.toString()) {
     throw new ResponseError('Not authorized to update this product', 403);
   }
 
@@ -193,7 +194,7 @@ export const updateProduct = asyncHandler(async (req, res) => {
  */
 export const deleteProduct = asyncHandler(async (req, res) => {
   const { productId } = req.params;
-  const businessId = req.user._id;
+  const businessId = getActiveBusinessId(req.user);
 
   const product = await Product.findById(productId);
 
@@ -201,7 +202,7 @@ export const deleteProduct = asyncHandler(async (req, res) => {
     throw new ResponseError('Product not found', 404);
   }
 
-  if (product.business.toString() !== businessId.toString()) {
+  if (!businessId || product.business.toString() !== businessId.toString()) {
     throw new ResponseError('Not authorized to delete this product', 403);
   }
 
@@ -231,7 +232,7 @@ export const deleteProduct = asyncHandler(async (req, res) => {
 export const updateProductStock = asyncHandler(async (req, res) => {
   const { productId } = req.params;
   const { stock, isActive } = req.body;
-  const businessId = req.user._id;
+  const businessId = getActiveBusinessId(req.user);
 
   const product = await Product.findById(productId);
 
@@ -239,7 +240,7 @@ export const updateProductStock = asyncHandler(async (req, res) => {
     throw new ResponseError('Product not found', 404);
   }
 
-  if (product.business.toString() !== businessId.toString()) {
+  if (!businessId || product.business.toString() !== businessId.toString()) {
     throw new ResponseError('Not authorized to update this product', 403);
   }
 
@@ -322,12 +323,17 @@ export const trackProductView = asyncHandler(async (req, res) => {
     throw new ResponseError('Product not found', 404);
   }
 
-  // Don't count views from business owners viewing their own products
-  if (userRole === 'business' && product.business.toString() === userId.toString()) {
-    console.log('[VIEW BACKEND] View not counted (business owner viewing own product):', productId);
+  // Don't count views from business owners/assistants viewing their own products
+  const activeBusinessId = getActiveBusinessId(req.user);
+  if (
+    (userRole === 'business' || userRole === 'assistant') &&
+    activeBusinessId &&
+    product.business.toString() === activeBusinessId.toString()
+  ) {
+    console.log('[VIEW BACKEND] View not counted (business/assistant viewing own product):', productId);
     return res.status(200).json({
       success: true,
-      message: 'View not counted (business owner)',
+      message: 'View not counted (business/assistant)',
     });
   }
 
@@ -377,11 +383,14 @@ export const trackProductView = asyncHandler(async (req, res) => {
  * Get current business user's products
  */
 export const getMyProducts = asyncHandler(async (req, res) => {
-  if (!req.user || req.user.role !== 'business') {
-    throw new ResponseError('Only business users can access this endpoint', 403);
+  if (!req.user || (req.user.role !== 'business' && req.user.role !== 'assistant')) {
+    throw new ResponseError('Only business users or assistants can access this endpoint', 403);
   }
 
-  const businessId = req.user._id;
+  const businessId = getActiveBusinessId(req.user);
+  if (!businessId) {
+    throw new ResponseError('No active business association found', 403);
+  }
   const { page = 1, limit = 20, category, subcategory, isActive, search } = req.query;
 
   let query = { business: businessId };
