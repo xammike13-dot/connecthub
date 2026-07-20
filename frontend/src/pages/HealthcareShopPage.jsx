@@ -18,6 +18,7 @@ import Input from '../components/ui/Input';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../components/Toast';
 import { productAPI } from '../services/api';
 
 const sortOptions = [
@@ -32,6 +33,7 @@ const HealthcareShopPage = () => {
   const { addToCart, cartItemCount, cartTotal } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
   const { user } = useAuth();
+  const { success: toastSuccess, info: toastInfo } = useToast();
 
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -167,13 +169,14 @@ const HealthcareShopPage = () => {
             return product;
           })
         );
+        toastSuccess('Product view recorded.');
       } catch (error) {
         console.error('Failed to track view:', error);
       }
     } else {
       console.log('[VIEW ALREADY TRACKED] Product:', productId);
+      toastInfo('Product already viewed.');
     }
-    navigate(`/marketplace/${productId}`);
   };
 
   const handleLoadMore = () => {
