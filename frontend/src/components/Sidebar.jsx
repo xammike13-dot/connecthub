@@ -79,12 +79,12 @@ const Sidebar = ({ isOpen, onClose }) => {
         return [
           { path: '/admin/dashboard', label: 'Dashboard', icon: 'home' },
           { path: '/admin/users', label: 'Users', icon: 'users' },
-          { path: '/admin/products', label: 'Products', icon: 'shopping' },
-          { path: '/admin/rentals', label: 'Rentals', icon: 'building' },
           { path: '/admin/orders', label: 'Orders', icon: 'orders' },
-          { path: '/admin/payments', label: 'Payments', icon: 'money' },
-          { path: '/admin/withdrawals', label: 'Withdrawals', icon: 'chart' },
-          { path: '/admin/analytics', label: 'Analytics', icon: 'chart' },
+          { path: '/admin/rentals', label: 'Rentals', icon: 'building' },
+          { path: '/admin/rides', label: 'Rides', icon: 'transport' },
+          { path: '/admin/reports', label: 'Reports', icon: 'help' },
+          { path: '/admin/broadcast', label: 'Broadcast', icon: 'megaphone' },
+          { path: '/admin/monitoring', label: 'Monitoring', icon: 'chart' },
           { path: '/admin/settings', label: 'Settings', icon: 'settings' },
         ];
       default:
