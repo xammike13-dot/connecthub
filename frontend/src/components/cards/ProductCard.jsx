@@ -28,6 +28,11 @@ const ProductCard = ({
   const { user } = useAuth();
   const [imageLoaded, setImageLoaded] = useState(false);
 
+  if (!product) {
+    console.warn('[ProductCard] Received null or undefined product');
+    return null;
+  }
+
   const {
     _id,
     name,
@@ -45,6 +50,8 @@ const ProductCard = ({
     views = 0,
     favoritesCount = 0,
   } = product;
+
+  const isHealthcareProduct = category?.toLowerCase() === 'healthcare';
 
   const mainImage = (images?.[0] && typeof images[0] === 'string' && images[0].trim() !== '')
     ? images[0]
@@ -162,11 +169,22 @@ const ProductCard = ({
         </p>
 
         {/* Product Name (clamped & with exact line height minimums to align the card bodies perfectly) */}
-        <Link to={`/marketplace/${_id}`} onClick={() => onView?.(_id)} className="block mb-2 flex-grow">
-          <h3 className="font-semibold text-neutral-900 line-clamp-2 hover:text-blue-600 transition-colors text-xs sm:text-sm md:text-base leading-snug min-h-[2.5rem]">
-            {name}
-          </h3>
-        </Link>
+        {isHealthcareProduct ? (
+          <div
+            onClick={() => onView?.(_id)}
+            className="block mb-2 flex-grow cursor-pointer"
+          >
+            <h3 className="font-semibold text-neutral-900 line-clamp-2 hover:text-blue-600 transition-colors text-xs sm:text-sm md:text-base leading-snug min-h-[2.5rem]">
+              {name}
+            </h3>
+          </div>
+        ) : (
+          <Link to={`/marketplace/${_id}`} onClick={() => onView?.(_id)} className="block mb-2 flex-grow">
+            <h3 className="font-semibold text-neutral-900 line-clamp-2 hover:text-blue-600 transition-colors text-xs sm:text-sm md:text-base leading-snug min-h-[2.5rem]">
+              {name}
+            </h3>
+          </Link>
+        )}
 
         {/* Ratings, Views & Favorites Stats */}
         <div className="flex items-center justify-between mb-2 pb-2 border-b border-neutral-50">
@@ -275,7 +293,7 @@ const ProductCard = ({
             disabled={isOutOfStock}
             onClick={() => {
               if (!user) {
-                navigate('/login', { state: { from: `/marketplace/${_id}` } });
+                navigate('/login', { state: { from: isHealthcareProduct ? '/healthcare' : `/marketplace/${_id}` } });
                 return;
               }
               if (!isInCart(_id)) {
