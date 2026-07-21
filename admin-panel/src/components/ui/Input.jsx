@@ -36,10 +36,10 @@ const Input = forwardRef(({
           ref={ref}
           type={inputType}
           className={`
-            w-full px-4 py-3 bg-white border rounded-lg text-neutral-900 placeholder-neutral-400
+            w-full px-4 py-3 border rounded-lg
             transition-all duration-200
-            focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white
-            disabled:bg-neutral-50 disabled:cursor-not-allowed
+            focus:outline-none focus:ring-2 focus:ring-offset-2
+            disabled:cursor-not-allowed
             ${leftIcon ? 'pl-10' : ''}
             ${showPasswordToggle ? 'pr-10' : ''}
             ${error
@@ -47,6 +47,10 @@ const Input = forwardRef(({
               : 'border-neutral-300 focus:ring-blue-500 focus:border-blue-500'
             }
             ${fullWidth ? 'w-full' : ''}
+            ${className.includes('bg-') ? '' : 'bg-white disabled:bg-neutral-50'}
+            ${className.includes('text-') ? '' : 'text-neutral-900'}
+            ${className.includes('placeholder-') ? '' : 'placeholder-neutral-400'}
+            ${className.includes('focus:ring-offset-') ? '' : 'focus:ring-offset-white'}
             ${className}
           `}
           {...props}
