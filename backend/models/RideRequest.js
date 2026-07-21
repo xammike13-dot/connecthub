@@ -20,7 +20,6 @@ const rideRequestSchema = new mongoose.Schema(
       landmark: String,
       coordinates: {
         type: [Number], // [longitude, latitude]
-        index: '2dsphere'
       }
     },
     dropoffLocation: {
@@ -32,7 +31,6 @@ const rideRequestSchema = new mongoose.Schema(
       landmark: String,
       coordinates: {
         type: [Number], // [longitude, latitude]
-        index: '2dsphere'
       }
     },
     currentLocation: {
