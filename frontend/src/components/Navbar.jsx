@@ -27,7 +27,7 @@ const Navbar = () => {
       case 'rider':
         return '/rider/dashboard';
       case 'admin':
-        return '/admin/dashboard';
+        return '/';
       default:
         return '/';
     }
