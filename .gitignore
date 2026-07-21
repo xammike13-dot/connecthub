@@ -1,8 +1,3 @@
 node_modules
-*.log
-admin-panel/dist/
-backend_mem.log
 frontend_dev.log
-.env
-.env.local
-.env.*.local
+*.log
