@@ -1,5 +1,6 @@
 import Product from '../models/Product.js';
 import User from '../models/User.js';
+import Wishlist from '../models/Wishlist.js';
 import { asyncHandler, ResponseError } from '../middleware/error.js';
 import { getActiveBusinessId } from './assistantController.js';
 
@@ -207,6 +208,10 @@ export const deleteProduct = asyncHandler(async (req, res) => {
   }
 
   await Product.findByIdAndDelete(productId);
+
+  // Remove product from all customer wishlists
+  console.log('[WISHLIST CLEANUP] Removing deleted product from all customer wishlists:', productId);
+  await Wishlist.updateMany({}, { $pull: { products: { product: productId } } });
 
   // Update business profile
   await User.findByIdAndUpdate(
