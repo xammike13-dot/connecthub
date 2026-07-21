@@ -86,7 +86,7 @@ const LoginPage = () => {
                 placeholder="admin@connecthub.website"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="pl-10 w-full bg-slate-950 border-slate-700 text-white placeholder-slate-500"
+                className="pl-10 w-full bg-slate-950 border-slate-700 text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900 caret-white"
                 required
               />
             </div>
@@ -103,7 +103,7 @@ const LoginPage = () => {
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="pl-10 w-full bg-slate-950 border-slate-700 text-white placeholder-slate-500"
+                className="pl-10 w-full bg-slate-950 border-slate-700 text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900 caret-white"
                 required
               />
             </div>
