@@ -45,7 +45,7 @@ const DashboardLayout = ({ allowedRoles }) => {
       landlord: '/landlord/dashboard',
       business: '/business/dashboard',
       rider: '/rider/dashboard',
-      admin: '/admin/dashboard',
+      admin: '/',
       caretaker: '/caretaker/dashboard',
       assistant: '/assistant/dashboard',
     };

@@ -33,7 +33,6 @@ import PaymentConfirmationPage from './pages/PaymentConfirmationPage';
 import WalletPage from './pages/WalletPage';
 import TransactionHistoryPage from './pages/TransactionHistoryPage';
 import EarningsDashboardPage from './pages/EarningsDashboardPage';
-import AdminDashboard from './pages/AdminDashboard';
 import BusinessProductsPage from './pages/BusinessProductsPage';
 import BusinessOrdersPage from './pages/BusinessOrdersPage';
 import BusinessProfilePage from './pages/BusinessProfilePage';
@@ -68,14 +67,6 @@ import CaretakerBookingsPage from './pages/CaretakerBookingsPage';
 import AssistantInvitePage from './pages/AssistantInvitePage';
 import BusinessAssistantsPage from './pages/BusinessAssistantsPage';
 import AssistantDashboard from './pages/AssistantDashboard';
-import AdminUsersPage from './pages/AdminUsersPage';
-import AdminOrdersPage from './pages/AdminOrdersPage';
-import AdminRentalsPage from './pages/AdminRentalsPage';
-import AdminRidesPage from './pages/AdminRidesPage';
-import AdminReportsPage from './pages/AdminReportsPage';
-import AdminBroadcastPage from './pages/AdminBroadcastPage';
-import AdminMonitoringPage from './pages/AdminMonitoringPage';
-import AdminSettingsPage from './pages/AdminSettingsPage';
 
 
 function App() {
@@ -216,19 +207,6 @@ function App() {
                   <Route path="chat" element={<ChatPage />} />
                   <Route path="chat/:conversationId" element={<ChatPage />} />
                   <Route path="help" element={<RiderHelpPage />} />
-                </Route>
-
-                {/* Admin Routes */}
-                <Route path="/admin" element={<DashboardLayout allowedRoles={['admin']} />}>
-                  <Route path="dashboard" element={<AdminDashboard />} />
-                  <Route path="users" element={<AdminUsersPage />} />
-                  <Route path="orders" element={<AdminOrdersPage />} />
-                  <Route path="rentals" element={<AdminRentalsPage />} />
-                  <Route path="rides" element={<AdminRidesPage />} />
-                  <Route path="reports" element={<AdminReportsPage />} />
-                  <Route path="broadcast" element={<AdminBroadcastPage />} />
-                  <Route path="monitoring" element={<AdminMonitoringPage />} />
-                  <Route path="settings" element={<AdminSettingsPage />} />
                 </Route>
 
                 {/* Fallback */}

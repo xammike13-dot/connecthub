@@ -75,18 +75,6 @@ const Sidebar = ({ isOpen, onClose }) => {
           { path: '/rider/settings', label: 'Settings', icon: 'settings' },
           { path: '/rider/help', label: 'Help Center', icon: 'help' },
         ];
-      case 'admin':
-        return [
-          { path: '/admin/dashboard', label: 'Dashboard', icon: 'home' },
-          { path: '/admin/users', label: 'Users', icon: 'users' },
-          { path: '/admin/orders', label: 'Orders', icon: 'orders' },
-          { path: '/admin/rentals', label: 'Rentals', icon: 'building' },
-          { path: '/admin/rides', label: 'Rides', icon: 'transport' },
-          { path: '/admin/reports', label: 'Reports', icon: 'help' },
-          { path: '/admin/broadcast', label: 'Broadcast', icon: 'megaphone' },
-          { path: '/admin/monitoring', label: 'Monitoring', icon: 'chart' },
-          { path: '/admin/settings', label: 'Settings', icon: 'settings' },
-        ];
       default:
         return [];
     }
