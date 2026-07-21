@@ -35,7 +35,7 @@ const LoginPage = () => {
         landlord: '/landlord/dashboard',
         business: '/business/dashboard',
         rider: '/rider/dashboard',
-        admin: '/admin/dashboard',
+        admin: '/',
         assistant: '/assistant/dashboard',
       };
       targetPath = from || dashboardMap[user.role] || '/';
@@ -134,7 +134,7 @@ const LoginPage = () => {
         landlord: '/landlord/dashboard',
         business: '/business/dashboard',
         rider: '/rider/dashboard',
-        admin: '/admin/dashboard',
+        admin: '/',
         assistant: '/assistant/dashboard',
       };
       

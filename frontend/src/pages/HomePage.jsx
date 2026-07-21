@@ -106,7 +106,7 @@ const HomePage = () => {
         landlord: '/landlord/dashboard',
         business: '/business/dashboard',
         rider: '/rider/dashboard',
-        admin: '/admin/dashboard',
+        admin: '/',
         assistant: '/assistant/dashboard',
       };
       const targetPath = dashboardMap[user.role] || '/';
