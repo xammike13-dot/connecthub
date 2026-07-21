@@ -125,17 +125,25 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       if ('serviceWorker' in navigator && 'PushManager' in window) {
-        const registration = await navigator.serviceWorker.ready;
-        const subscription = await registration.pushManager.getSubscription();
-        if (subscription) {
-          // Send request to backend to unsubscribe before clearing token
-          await api.post('/notifications/unsubscribe', { endpoint: subscription.endpoint }).catch(() => {});
-          // Unsubscribe from browser PushManager
-          await subscription.unsubscribe().catch(() => {});
-        }
+        const unsubscribeWork = async () => {
+          const registration = await navigator.serviceWorker.ready;
+          const subscription = await registration.pushManager.getSubscription();
+          if (subscription) {
+            // Send request to backend to unsubscribe before clearing token
+            await api.post('/notifications/unsubscribe', { endpoint: subscription.endpoint }).catch(() => {});
+            // Unsubscribe from browser PushManager
+            await subscription.unsubscribe().catch(() => {});
+          }
+        };
+
+        const timeout = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Unsubscribe timeout')), 1500)
+        );
+
+        await Promise.race([unsubscribeWork(), timeout]);
       }
     } catch (err) {
-      console.error('[AuthContext] Unsubscribe push on logout failed:', err);
+      console.error('[AuthContext] Unsubscribe push on logout failed or timed out:', err);
     } finally {
       localStorage.removeItem('token');
       setToken(null);

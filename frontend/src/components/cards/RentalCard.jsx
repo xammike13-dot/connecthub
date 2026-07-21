@@ -183,16 +183,21 @@ const RentalCard = ({
 
         {/* Action Buttons Bar */}
         <div className="flex gap-2 mt-4 pt-3 border-t border-neutral-200">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
+          <button
+            disabled={isViewed}
+            onClick={(e) => {
+              e.preventDefault();
               onView?.(_id);
             }}
-            className="flex-1 justify-center py-2"
+            className={`flex-1 justify-center py-2 text-sm font-semibold rounded-lg transition-all duration-200 flex items-center justify-center gap-1 border ${
+              isViewed
+                ? 'bg-[#2563EB] text-white border-[#2563EB] cursor-default opacity-100 shadow-none'
+                : 'border-neutral-300 text-neutral-700 bg-white hover:bg-neutral-50 hover:border-neutral-400 focus:outline-none focus:ring-2 focus:ring-blue-500'
+            }`}
           >
-            <Eye size={14} /> View Details
-          </Button>
+            {!isViewed && <Eye size={14} />}
+            {isViewed ? 'Viewed' : 'View'}
+          </button>
           {isAvailable && (
             <Button
               size="sm"

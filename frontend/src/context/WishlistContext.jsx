@@ -92,7 +92,7 @@ export const WishlistProvider = ({ children }) => {
       console.log('[WISHLIST REMOVE] Product:', productId);
       await wishlistAPI.remove(productId);
       console.log('[WISHLIST REMOVE SUCCESS] Product:', productId);
-      setWishlistItems(prev => prev.filter(item => item.product._id !== productId));
+      setWishlistItems(prev => prev.filter(item => item.product?._id !== productId));
       setWishlistCount(prev => Math.max(0, prev - 1));
       return true;
     } catch (error) {
@@ -107,7 +107,7 @@ export const WishlistProvider = ({ children }) => {
       // For rentals, check backend state
       return favoriteRentals.includes(itemId);
     }
-    return wishlistItems.some(item => item.product._id === itemId);
+    return wishlistItems.some(item => item.product?._id === itemId);
   }, [wishlistItems, favoriteRentals]);
 
   // Toggle wishlist item (supports both products and rentals)

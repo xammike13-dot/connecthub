@@ -1,1 +1,9 @@
 node_modules
+*.log
+frontend/dist/
+admin-panel/dist/
+backend_mem.log
+frontend_dev.log
+.env
+.env.local
+.env.*.local
