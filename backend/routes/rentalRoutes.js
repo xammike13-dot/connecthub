@@ -22,7 +22,7 @@ import {
   trackRentalView,
 } from '../controllers/rentalController.js';
 
-import { protect, authorize } from '../middleware/auth.js';
+import { protect, authorize, optionalAuth } from '../middleware/auth.js';
 import { validateObjectId } from '../middleware/validateObjectId.js';
 
 const router = express.Router();
@@ -30,7 +30,7 @@ const router = express.Router();
 /**
  * PUBLIC ROUTES
  */
-router.get('/', getRentals);
+router.get('/', optionalAuth, getRentals);
 
 router.get(
   '/landlord/:landlordId',
@@ -184,6 +184,7 @@ router.put(
  */
 router.get(
   '/:rentalId',
+  optionalAuth,
   validateObjectId('rentalId'),
   getRental
 );
