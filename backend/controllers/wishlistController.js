@@ -26,6 +26,29 @@ export const getWishlist = asyncHandler(async (req, res) => {
     });
   }
 
+  // Filter out products that were deleted and are now null
+  const initialLength = wishlist.products.length;
+  const validProducts = wishlist.products.filter(p => p && p.product);
+
+  if (validProducts.length !== initialLength) {
+    console.log(`[WISHLIST CLEANUP] Removing ${initialLength - validProducts.length} deleted products from wishlist for customer ${customerId}`);
+    wishlist.products = validProducts.map(p => ({
+      product: p.product._id || p.product,
+      addedAt: p.addedAt,
+    }));
+    await wishlist.save();
+
+    // Re-fetch populated wishlist to ensure clean client output
+    wishlist = await Wishlist.findOne({ customer: customerId })
+      .populate({
+        path: 'products.product',
+        populate: {
+          path: 'business',
+          select: 'name email phone',
+        },
+      });
+  }
+
   const skip = (page - 1) * limit;
   const paginatedProducts = wishlist.products.slice(skip, skip + parseInt(limit));
 
