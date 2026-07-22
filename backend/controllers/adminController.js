@@ -33,8 +33,9 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
   const transactions = await Transaction.find({ createdAt: { $gte: startDate } });
   const completedTransactions = transactions.filter(t => t.status === 'completed');
 
-  // Total platform commission revenue
-  const totalRevenue = completedTransactions.reduce((sum, t) => sum + (t.commission?.totalCommission || 0), 0);
+  // Total platform commission revenue (all-time)
+  const allCompletedTransactionsForRevenue = await Transaction.find({ status: 'completed' });
+  const totalRevenue = allCompletedTransactionsForRevenue.reduce((sum, t) => sum + (t.commission?.totalCommission || 0), 0);
 
   // Order statistics
   const pendingOrders = await Order.countDocuments({ status: 'pending' });
@@ -348,31 +349,44 @@ export const getAdminOrders = asyncHandler(async (req, res) => {
   let query = {};
   if (status) query.status = status;
 
-  const skip = (page - 1) * limit;
-
-  let ordersQuery = Order.find(query)
-    .populate('customer', 'name email phone')
-    .populate('business', 'name email phone businessProfile')
-    .sort('-createdAt');
-
-  const orders = await ordersQuery.skip(skip).limit(parseInt(limit));
-
-  let filteredOrders = orders;
   if (search) {
-    const lowerSearch = search.toLowerCase();
-    filteredOrders = orders.filter(o =>
-      o._id.toString().toLowerCase().includes(lowerSearch) ||
-      o.customer?.name?.toLowerCase().includes(lowerSearch) ||
-      o.business?.name?.toLowerCase().includes(lowerSearch) ||
-      o.business?.businessProfile?.businessName?.toLowerCase().includes(lowerSearch)
-    );
+    const isObjectId = mongoose.Types.ObjectId.isValid(search);
+    const matchingUsers = await User.find({
+      $or: [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { phone: { $regex: search, $options: 'i' } },
+        { 'businessProfile.businessName': { $regex: search, $options: 'i' } }
+      ]
+    }).select('_id');
+
+    const userIds = matchingUsers.map(u => u._id);
+
+    const orQuery = [
+      { customer: { $in: userIds } },
+      { business: { $in: userIds } }
+    ];
+
+    if (isObjectId) {
+      orQuery.push({ _id: search });
+    }
+
+    query.$or = orQuery;
   }
 
+  const skip = (page - 1) * limit;
   const total = await Order.countDocuments(query);
+
+  const orders = await Order.find(query)
+    .populate('customer', 'name email phone')
+    .populate('business', 'name email phone businessProfile')
+    .sort('-createdAt')
+    .skip(skip)
+    .limit(parseInt(limit));
 
   res.status(200).json({
     success: true,
-    data: filteredOrders,
+    data: orders,
     pagination: {
       total,
       pages: Math.ceil(total / limit),
@@ -424,19 +438,32 @@ export const getAdminProperties = asyncHandler(async (req, res) => {
 
   let query = {};
   if (location) query.location = location;
+
   if (search) {
-    query.rentalName = { $regex: search, $options: 'i' };
+    const matchingLandlords = await User.find({
+      $or: [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { phone: { $regex: search, $options: 'i' } }
+      ]
+    }).select('_id');
+
+    const landlordIds = matchingLandlords.map(l => l._id);
+
+    query.$or = [
+      { rentalName: { $regex: search, $options: 'i' } },
+      { landlord: { $in: landlordIds } }
+    ];
   }
 
   const skip = (page - 1) * limit;
+  const total = await Rental.countDocuments(query);
 
   const properties = await Rental.find(query)
     .populate('landlord', 'name email phone landlordProfile')
     .sort('-createdAt')
     .skip(skip)
     .limit(parseInt(limit));
-
-  const total = await Rental.countDocuments(query);
 
   res.status(200).json({
     success: true,
@@ -532,7 +559,32 @@ export const getAdminRides = asyncHandler(async (req, res) => {
   let query = {};
   if (status) query.status = status;
 
+  if (search) {
+    const isObjectId = mongoose.Types.ObjectId.isValid(search);
+    const matchingUsers = await User.find({
+      $or: [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { phone: { $regex: search, $options: 'i' } }
+      ]
+    }).select('_id');
+
+    const userIds = matchingUsers.map(u => u._id);
+
+    const orQuery = [
+      { customer: { $in: userIds } },
+      { rider: { $in: userIds } }
+    ];
+
+    if (isObjectId) {
+      orQuery.push({ _id: search });
+    }
+
+    query.$or = orQuery;
+  }
+
   const skip = (page - 1) * limit;
+  const total = await RideRequest.countDocuments(query);
 
   const rides = await RideRequest.find(query)
     .populate('customer', 'name email phone')
@@ -541,21 +593,9 @@ export const getAdminRides = asyncHandler(async (req, res) => {
     .skip(skip)
     .limit(parseInt(limit));
 
-  let filteredRides = rides;
-  if (search) {
-    const lowerSearch = search.toLowerCase();
-    filteredRides = rides.filter(r =>
-      r._id.toString().toLowerCase().includes(lowerSearch) ||
-      r.customer?.name?.toLowerCase().includes(lowerSearch) ||
-      r.rider?.name?.toLowerCase().includes(lowerSearch)
-    );
-  }
-
-  const total = await RideRequest.countDocuments(query);
-
   res.status(200).json({
     success: true,
-    data: filteredRides,
+    data: rides,
     pagination: {
       total,
       pages: Math.ceil(total / limit),
