@@ -12,8 +12,21 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
+  const [user, setUser] = useState(() => {
+    const storedUser = localStorage.getItem('admin_user');
+    try {
+      if (storedUser) {
+        const parsed = JSON.parse(storedUser);
+        if (parsed && parsed.role === 'admin') {
+          return parsed;
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  });
+  const [token, setToken] = useState(() => localStorage.getItem('admin_token'));
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
 
@@ -26,8 +39,15 @@ export const AuthProvider = ({ children }) => {
         }
       });
       // Backend returns { success: true, user: { ... } }
-      setUser(data.user || data);
-      return true;
+      const fetchedUser = data.user || data;
+      if (fetchedUser && fetchedUser.role === 'admin') {
+        setUser(fetchedUser);
+        localStorage.setItem('admin_user', JSON.stringify(fetchedUser));
+        return true;
+      } else {
+        console.warn('Fetched user is not an admin:', fetchedUser);
+        return false;
+      }
     } catch (error) {
       console.error('Failed to fetch user profile:', error);
       return false;
@@ -37,7 +57,7 @@ export const AuthProvider = ({ children }) => {
   // Initialize auth state on mount
   useEffect(() => {
     const initializeAuth = async () => {
-      const storedToken = localStorage.getItem('token');
+      const storedToken = localStorage.getItem('admin_token');
 
       if (storedToken) {
         setToken(storedToken);
@@ -48,12 +68,17 @@ export const AuthProvider = ({ children }) => {
         const success = await fetchUserProfile(storedToken);
 
         if (!success) {
-          // Token is invalid, clear everything
-          localStorage.removeItem('token');
+          // Token is invalid or not admin, clear everything
+          localStorage.removeItem('admin_token');
+          localStorage.removeItem('admin_user');
           delete api.defaults.headers.common['Authorization'];
           setToken(null);
           setUser(null);
         }
+      } else {
+        // No token, clear user just in case
+        localStorage.removeItem('admin_user');
+        setUser(null);
       }
 
       setInitialized(true);
@@ -77,8 +102,17 @@ export const AuthProvider = ({ children }) => {
         };
       }
 
+      // Check if user is admin
+      if (data.user && data.user.role !== 'admin') {
+        return {
+          success: false,
+          message: 'Access denied. Only platform administrators can log in here.'
+        };
+      }
+
       // Save token to localStorage
-      localStorage.setItem('token', data.token);
+      localStorage.setItem('admin_token', data.token);
+      localStorage.setItem('admin_user', JSON.stringify(data.user));
       setToken(data.token);
 
       // Set authorization header
@@ -99,12 +133,15 @@ export const AuthProvider = ({ children }) => {
   };
 
   const authenticateWithToken = (authToken, userData) => {
-    localStorage.setItem('token', authToken);
-    setToken(authToken);
-    api.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
-    setUser(userData);
-    setInitialized(true);
-    setLoading(false);
+    if (userData && userData.role === 'admin') {
+      localStorage.setItem('admin_token', authToken);
+      localStorage.setItem('admin_user', JSON.stringify(userData));
+      setToken(authToken);
+      api.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
+      setUser(userData);
+      setInitialized(true);
+      setLoading(false);
+    }
   };
 
   const register = async (userData) => {
@@ -137,13 +174,14 @@ export const AuthProvider = ({ children }) => {
               await subscription.unsubscribe().catch(() => {});
             }
           })(),
-          new Promise((resolve) => setTimeout(resolve, 1000))
+          new Promise((resolve) => setTimeout(resolve, 1500))
         ]);
       }
     } catch (err) {
       console.error('[AuthContext] Unsubscribe push on logout failed:', err);
     } finally {
-      localStorage.removeItem('token');
+      localStorage.removeItem('admin_token');
+      localStorage.removeItem('admin_user');
       setToken(null);
       delete api.defaults.headers.common['Authorization'];
       setUser(null);
@@ -153,7 +191,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const refreshProfile = async () => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('admin_token');
     if (token) {
       const success = await fetchUserProfile(token);
       if (!success) {

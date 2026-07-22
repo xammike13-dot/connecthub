@@ -17,7 +17,7 @@ api.interceptors.request.use(
       config.url = config.url.substring(4);
     }
 
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('admin_token');
     // Don't add token for login endpoint to avoid 401 errors
     if (token && !config.url.includes('/auth/login') && !config.url.includes('/api/auth/login')) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -36,7 +36,8 @@ api.interceptors.response.use(
                               error.config?.url?.includes('/auth/register') ||
                               error.config?.url?.includes('/api/auth/register');
     if (error.response?.status === 401 && !isLoginOrRegister) {
-      localStorage.removeItem('token');
+      localStorage.removeItem('admin_token');
+      localStorage.removeItem('admin_user');
       window.dispatchEvent(new CustomEvent('auth-error', { detail: { status: 401 } }));
     }
     return Promise.reject(error);
