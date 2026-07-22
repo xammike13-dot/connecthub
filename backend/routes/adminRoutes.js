@@ -35,6 +35,16 @@ const router = express.Router();
 router.use(protect);
 router.use(restrictTo('admin'));
 
+// Disable caching for all admin responses
+router.use((req, res, next) => {
+  res.set({
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0'
+  });
+  next();
+});
+
 // Dashboard stats
 router.get('/stats', getDashboardStats);
 router.get('/dashboard/stats', getDashboardStats);
