@@ -1,6 +1,7 @@
 import webpush from 'web-push';
 import PushSubscription from '../models/PushSubscription.js';
 import Notification from '../models/Notification.js';
+import SystemLog from '../models/SystemLog.js';
 
 // VAPID Keys - loaded from env if present, with reliable fallbacks
 export const vapidPublicKey = process.env.VAPID_PUBLIC_KEY || 'BGixtKJV9Uh2ov9bXcNo-9IanofbeUOJcIV2pZ6R4fBk478mbbZwYd5DNowJ-GExxlBUQaCt9Ba1Ybv74zALyvE';
@@ -47,6 +48,23 @@ export const sendPushToSubscription = async (subDoc, payload) => {
     const endpointUrl = subDoc.endpoint || subDoc.subscription?.endpoint || 'unknown';
     console.error(`[WebPush] Failed for endpoint: ${endpointUrl}. Status: ${error.statusCode}`);
 
+    // Log failure to SystemLog collection
+    try {
+      SystemLog.create({
+        type: 'push_notification_failure',
+        message: `WebPush delivery failed for endpoint: ${endpointUrl.slice(0, 100)}`,
+        details: {
+          statusCode: error.statusCode,
+          subId: subDoc._id,
+          userId: subDoc.userId,
+          payload
+        },
+        user: subDoc.userId || null
+      }).catch(e => console.error('Failed to log SystemLog push failure:', e.message));
+    } catch (logErr) {
+      console.error('Failed to log push failure inside catch:', logErr.message);
+    }
+
     // If subscription is expired, revoked, or gone (410 Gone or 404 Not Found), delete it
     if (error.statusCode === 410 || error.statusCode === 404) {
       console.log(`[WebPush] Subscription expired/revoked. Removing from DB.`);
@@ -86,6 +104,18 @@ export const sendPushToUser = async (userId, payload) => {
     await Promise.all(sendPromises);
   } catch (error) {
     console.error(`[WebPush] Error sending push to user ${userId}:`, error);
+
+    // Log top-level dispatch failure
+    try {
+      SystemLog.create({
+        type: 'push_notification_failure',
+        message: `WebPush dispatch error for user: ${userId}`,
+        details: { error: error.message, stack: error.stack, payload },
+        user: userId
+      }).catch(e => console.error('Failed to write SystemLog top push failure:', e.message));
+    } catch (logErr) {
+      console.error('Failed to write top push failure log:', logErr.message);
+    }
   }
 };
 

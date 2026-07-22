@@ -7,6 +7,8 @@ import RideRequest from '../models/RideRequest.js';
 import Wallet from '../models/Wallet.js';
 import Notification from '../models/Notification.js';
 import SupportTicket from '../models/SupportTicket.js';
+import SystemLog from '../models/SystemLog.js';
+import mongoose from 'mongoose';
 import { asyncHandler, ResponseError } from '../middleware/error.js';
 import { sendPushToUser } from '../utils/webPush.js';
 
@@ -84,8 +86,6 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
       }
     }
   ]);
-  // Populate landlords/customers in Aggregation manually or via a quick mapping if needed,
-  // let's do a quick inline population for aggregation:
   const populatedBookings = await User.populate(recentBookings, { path: 'customer', select: 'name' });
 
   const recentRideRequests = await RideRequest.find()
@@ -335,7 +335,7 @@ export const deleteUser = asyncHandler(async (req, res) => {
 
 /**
  * ==========================================
- * FEATURE 4: ORDERS MANAGEMENT
+ * ORDERS MANAGEMENT
  * ==========================================
  */
 
@@ -357,8 +357,6 @@ export const getAdminOrders = asyncHandler(async (req, res) => {
 
   const orders = await ordersQuery.skip(skip).limit(parseInt(limit));
 
-  // Handle client search manually or with Regex inside populated fields if necessary,
-  // we can do a simple filter over the retrieved data or apply mongoose queries.
   let filteredOrders = orders;
   if (search) {
     const lowerSearch = search.toLowerCase();
@@ -400,7 +398,6 @@ export const updateAdminOrder = asyncHandler(async (req, res) => {
 
   if (status) order.status = status;
   if (markForReview !== undefined) {
-    // We can add dynamic review field to metadata/notes
     order.notes = `[ADMIN REVIEW FLAG: ${markForReview}] ${order.notes || ''}`;
   }
 
@@ -415,7 +412,7 @@ export const updateAdminOrder = asyncHandler(async (req, res) => {
 
 /**
  * ==========================================
- * FEATURE 5: RENTALS & BOOKINGS MANAGEMENT
+ * RENTALS & BOOKINGS MANAGEMENT
  * ==========================================
  */
 
@@ -484,7 +481,6 @@ export const getAdminBookings = asyncHandler(async (req, res) => {
     );
   }
 
-  // Handle simple pagination manually on aggregated arrays
   const skip = (parseInt(page) - 1) * parseInt(limit);
   const paginated = filtered.slice(skip, skip + parseInt(limit));
 
@@ -523,7 +519,7 @@ export const flagAdminProperty = asyncHandler(async (req, res) => {
 
 /**
  * ==========================================
- * FEATURE 6: RIDES & RIDE REQUESTS MANAGEMENT
+ * RIDES & RIDE REQUESTS MANAGEMENT
  * ==========================================
  */
 
@@ -592,7 +588,7 @@ export const updateAdminRide = asyncHandler(async (req, res) => {
 
 /**
  * ==========================================
- * FEATURE 7: REPORTS, COMPLAINTS & WORKFLOWS
+ * REPORTS, COMPLAINTS & WORKFLOWS
  * ==========================================
  */
 
@@ -679,7 +675,7 @@ export const updateAdminReportStatus = asyncHandler(async (req, res) => {
 
 /**
  * ==========================================
- * FEATURE 8: BROADCAST NOTIFICATIONS
+ * BROADCAST NOTIFICATIONS
  * ==========================================
  */
 
@@ -703,7 +699,6 @@ export const broadcastNotification = asyncHandler(async (req, res) => {
     throw new ResponseError('No target users found for this audience', 400);
   }
 
-  // Create notifications and send push immediately
   const notificationPromises = usersToNotify.map(async (u) => {
     const notif = await Notification.create({
       user: u._id,
@@ -716,7 +711,6 @@ export const broadcastNotification = asyncHandler(async (req, res) => {
       data: { actionUrl },
     });
 
-    // Fire actual device push notification
     try {
       await sendPushToUser(u._id, {
         title,
@@ -724,7 +718,6 @@ export const broadcastNotification = asyncHandler(async (req, res) => {
         data: { actionUrl },
       });
     } catch (pushErr) {
-      // Gracefully handle push notification token failures
     }
 
     return notif;
@@ -740,35 +733,111 @@ export const broadcastNotification = asyncHandler(async (req, res) => {
 
 /**
  * ==========================================
- * FEATURE 9: PLATFORM HEALTH & MONITORING
+ * PLATFORM HEALTH & MONITORING
  * ==========================================
  */
 
 /**
- * Get overall server and live MongoDB/Redis health
+ * Get overall server and live MongoDB health (fully connected to DB logs)
  */
 export const getPlatformHealth = asyncHandler(async (req, res) => {
-  // Let's count some active transactions or failures to mock the log statistics
-  const failedPayments = await Transaction.countDocuments({ status: 'failed' });
+  const failedPayments = await SystemLog.countDocuments({ type: 'payment_failure' });
+  const failedApiRequests = await SystemLog.countDocuments({ type: 'api_error' });
+  const unhandledErrors = await SystemLog.countDocuments({ type: 'unhandled_error' });
   const pendingSupport = await SupportTicket.countDocuments({ status: { $in: ['Open', 'In Progress'] } });
+
+  // Calculate active users online dynamically (users logged in / active in the last 15 mins)
+  const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+  const activeUsersOnline = await User.countDocuments({
+    isDeleted: { $ne: true },
+    $or: [
+      { lastLogin: { $gte: fifteenMinutesAgo } },
+      { 'sessions.lastActive': { $gte: fifteenMinutesAgo } }
+    ]
+  });
+
+  // Latest errors feed
+  const recentErrors = await SystemLog.find()
+    .populate('user', 'name email role')
+    .sort({ timestamp: -1 })
+    .limit(10);
+
+  // Check database connection state
+  let dbStatus = 'disconnected';
+  if (mongoose.connection.readyState === 1) {
+    dbStatus = 'connected';
+  } else if (mongoose.connection.readyState === 2) {
+    dbStatus = 'connecting';
+  }
 
   res.status(200).json({
     success: true,
     data: {
       serverStatus: 'healthy',
-      databaseStatus: 'connected',
+      databaseStatus: dbStatus,
       uptime: process.uptime(),
       memoryUsage: process.memoryUsage(),
       apiHealth: '100% online',
+      activeUsersOnline,
       failedPayments,
+      failedApiRequests,
+      unhandledErrors,
       pendingSupport,
       systemAlerts: failedPayments > 10 ? 'High number of failed transactions detected' : 'All systems clear',
+      recentErrors
     },
   });
 });
 
 /**
- * ==========================================
+ * Get recent activity across all system entities
+ */
+export const getRecentActivity = asyncHandler(async (req, res) => {
+  const registrations = await User.find({ isDeleted: { $ne: true } })
+    .select('name email role createdAt')
+    .sort({ createdAt: -1 })
+    .limit(10);
+
+  const orders = await Order.find()
+    .populate('customer', 'name email')
+    .populate('business', 'name businessProfile')
+    .sort({ createdAt: -1 })
+    .limit(10);
+
+  const bookings = await Rental.aggregate([
+    { $unwind: '$bookings' },
+    { $sort: { 'bookings.bookedAt': -1 } },
+    { $limit: 10 },
+    {
+      $project: {
+        rentalName: '$rentalName',
+        customer: '$bookings.customer',
+        status: '$bookings.status',
+        totalPrice: '$bookings.totalPrice',
+        bookedAt: '$bookings.bookedAt'
+      }
+    }
+  ]);
+  const populatedBookings = await User.populate(bookings, { path: 'customer', select: 'name email' });
+
+  const rides = await RideRequest.find()
+    .populate('customer', 'name email')
+    .populate('rider', 'name email')
+    .sort({ createdAt: -1 })
+    .limit(10);
+
+  res.status(200).json({
+    success: true,
+    data: {
+      registrations,
+      orders,
+      bookings: populatedBookings,
+      rides
+    }
+  });
+});
+
+/**
  * OTHER ADMINISTRATIVE LOGICS
  * ==========================================
  */
@@ -902,7 +971,6 @@ export const rejectWithdrawal = asyncHandler(async (req, res) => {
     throw new ResponseError('Withdrawal is not pending', 400);
   }
 
-  // Refund to wallet
   const wallet = await Wallet.findById(withdrawal.wallet);
   wallet.balance += withdrawal.amount;
   await wallet.save();

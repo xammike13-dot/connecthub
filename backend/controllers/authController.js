@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import Wallet from '../models/Wallet.js';
 import VerificationToken from '../models/VerificationToken.js';
+import SystemLog from '../models/SystemLog.js';
 import { generateVerificationCode } from '../utils/phoneService.js';
 import { 
   sendVerificationEmail, 
@@ -36,6 +37,15 @@ const handleLoginSuccess = async (user, password, req, res) => {
   
   if (!isMatch) {
     console.log('[LOGIN FAILED] Password mismatch for email:', user.email);
+
+    // Log auth failure
+    SystemLog.create({
+      type: 'auth_failure',
+      message: `Failed login attempt (password mismatch) for email: ${user.email}`,
+      details: { email: user.email, ip: req.ip || req.connection.remoteAddress },
+      user: user._id
+    }).catch(e => console.error('Failed to log SystemLog auth mismatch:', e.message));
+
     return res.status(401).json({
       success: false,
       message: 'Invalid credentials',
@@ -45,6 +55,15 @@ const handleLoginSuccess = async (user, password, req, res) => {
   // Check email verification status - users must verify email before logging in
   if (!user.emailVerified) {
     console.log('[LOGIN FAILED] Email not verified for:', user.email);
+
+    // Log email unverified
+    SystemLog.create({
+      type: 'auth_failure',
+      message: `Failed login attempt (email unverified) for email: ${user.email}`,
+      details: { email: user.email, ip: req.ip || req.connection.remoteAddress },
+      user: user._id
+    }).catch(e => console.error('Failed to log SystemLog email unverified:', e.message));
+
     return res.status(403).json({
       success: false,
       message: 'Please verify your email before logging in.',
@@ -240,6 +259,14 @@ export const login = async (req, res, next) => {
     
     if (!user) {
       console.log('[LOGIN FAILED] User not found for email:', email);
+
+      // Log auth failure (non-existent user)
+      SystemLog.create({
+        type: 'auth_failure',
+        message: `Failed login attempt (user not found) for email: ${email}`,
+        details: { email, ip: req.ip || req.headers['x-forwarded-for'] || null }
+      }).catch(e => console.error('Failed to log SystemLog auth mismatch:', e.message));
+
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials',

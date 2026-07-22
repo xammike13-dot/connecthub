@@ -10,6 +10,7 @@ import Order from '../models/Order.js';
 import Product from '../models/Product.js';
 import Rental from '../models/Rental.js';
 import RideRequest from '../models/RideRequest.js';
+import SystemLog from '../models/SystemLog.js';
 import { asyncHandler } from '../middleware/error.js';
 import { ResponseError } from '../middleware/error.js';
 import { createPaymentNotification, createNotification } from './notificationController.js';
@@ -202,21 +203,9 @@ const handleRentalPaymentSuccess = async (transaction, pendingEntityData, req) =
 
   // Update booking with payment confirmation
   booking.paymentStatus = 'paid';
-  // DO NOT automatically change status to 'confirmed' - landlord must manually accept
-  // booking.status = booking.status === 'pending' ? 'confirmed' : booking.status;
   booking.transaction = transaction._id;
   booking.escrowStatus = 'held'; // Money held in escrow until move-in confirmed
   booking.fundsReleased = false;
-
-  // DO NOT set automatic booking start date on payment confirmation
-  // This should only be set after customer confirms move-in date
-  // const now = new Date();
-  // booking.bookingStartDate = now;
-  // booking.lastRentPaymentDate = now;
-
-  // DO NOT calculate next rent due date on payment confirmation
-  // This should be calculated based on actual move-in date after customer confirms
-  // booking.nextRentDueDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
   await rental.save();
 
@@ -330,7 +319,6 @@ const handleMonthlyRentPaymentSuccess = async (transaction, pendingEntityData, r
   booking.lastRentPaymentDate = new Date();
 
   // Calculate next rent due date (30 days from current due date)
-  // This ensures the cycle is maintained based on the original move-in date
   const currentDueDate = booking.nextRentDueDate ? new Date(booking.nextRentDueDate) : new Date();
   const nextRentDue = new Date(currentDueDate);
   nextRentDue.setDate(nextRentDue.getDate() + 30);
@@ -470,7 +458,6 @@ const getRoutingDistance = async (pickup, dropoff) => {
 
 /**
  * Determine if current time is night rate
- * Night hours: 20:00:00 through 04:59:59
  */
 const isNightTime = () => {
   const hour = new Date().getHours();
@@ -479,20 +466,16 @@ const isNightTime = () => {
 
 /**
  * STEP 1: Calculate fare estimate for ride booking
- * This is called BEFORE payment to show customer the estimated fare.
- * Uses default rates since no rider is selected yet.
  */
 export const calculateRideFareEstimate = asyncHandler(async (req, res) => {
   const { pickupLocation, dropoffLocation } = req.body;
 
   console.log('[calculateRideFareEstimate] Request:', { pickupLocation, dropoffLocation });
 
-  // Validate required fields
   if (!pickupLocation || !dropoffLocation) {
     throw new ResponseError('Pickup and dropoff locations are required', 400);
   }
 
-  // Validate coordinates
   if (!pickupLocation.coordinates || !Array.isArray(pickupLocation.coordinates.coordinates) || pickupLocation.coordinates.coordinates.length !== 2) {
     throw new ResponseError('Invalid pickup location coordinates', 400);
   }
@@ -501,11 +484,8 @@ export const calculateRideFareEstimate = asyncHandler(async (req, res) => {
     throw new ResponseError('Invalid dropoff location coordinates', 400);
   }
 
-  // Calculate distance
   const distanceInMeters = await getRoutingDistance(pickupLocation, dropoffLocation);
-
-  // Calculate fare with default rate (no rider selected yet)
-  const fareBreakdown = calculateFare(distanceInMeters, 60); // Use default day rate for estimate
+  const fareBreakdown = calculateFare(distanceInMeters, 60);
 
   console.log('[calculateRideFareEstimate] Fare calculated:', fareBreakdown);
 
@@ -521,17 +501,6 @@ export const calculateRideFareEstimate = asyncHandler(async (req, res) => {
 
 /**
  * Initiate M-Pesa STK Push with specific rider
- * This is the PAYMENT-FIRST workflow entry point when a rider has been selected.
- * 
- * Flow:
- * 1. Customer selects pickup/dropoff
- * 2. Customer selects a rider
- * 3. System calculates fare with selected rider's rates
- * 4. Customer enters M-Pesa number and clicks Pay
- * 5. This endpoint initiates STK Push
- * 6. Customer enters PIN on phone
- * 7. Backend waits for callback
- * 8. Only AFTER payment success: Create RideRequest and notify ONLY the selected rider
  */
 export const initiateMpesaPaymentWithRider = asyncHandler(async (req, res) => {
   const customerId = req.user._id;
@@ -551,7 +520,6 @@ export const initiateMpesaPaymentWithRider = asyncHandler(async (req, res) => {
     riderId,
   });
 
-  // Validate required fields
   if (!pickupLocation || !dropoffLocation) {
     throw new ResponseError('Pickup and dropoff locations are required', 400);
   }
@@ -564,7 +532,6 @@ export const initiateMpesaPaymentWithRider = asyncHandler(async (req, res) => {
     throw new ResponseError('Selected rider ID is required', 400);
   }
 
-  // Validate coordinates
   if (!pickupLocation.coordinates || !Array.isArray(pickupLocation.coordinates.coordinates) || pickupLocation.coordinates.coordinates.length !== 2) {
     throw new ResponseError('Invalid pickup location coordinates', 400);
   }
@@ -573,7 +540,6 @@ export const initiateMpesaPaymentWithRider = asyncHandler(async (req, res) => {
     throw new ResponseError('Invalid dropoff location coordinates', 400);
   }
 
-  // Validate rider exists and has configured rates
   const rider = await User.findById(riderId);
   if (!rider) {
     throw new ResponseError('Selected rider not found', 404);
@@ -590,54 +556,24 @@ export const initiateMpesaPaymentWithRider = asyncHandler(async (req, res) => {
     throw new ResponseError('Rider has not configured day/night rates', 400);
   }
 
-  // STEP 1: Calculate distance
   const distanceInMeters = await getRoutingDistance(pickupLocation, dropoffLocation);
   const distanceInKm = Math.round(distanceInMeters / 1000 * 100) / 100;
 
-  // STEP 2: Determine if night time
   const isNight = isNightTime();
   console.log('[initiateMpesaPaymentWithRider] Time check:', { hour: new Date().getHours(), isNight });
 
-  // STEP 3: Calculate fare with selected rider's actual rates
   const fareBreakdown = calculateFareWithRiderRate(distanceInMeters, dayRate, nightRate);
-
-  // The amount customer pays
   const totalAmount = fareBreakdown.totalFare;
 
-  console.log('[initiateMpesaPaymentWithRider] Fare calculation:', {
-    distanceInKm,
-    riderId,
-    dayRate,
-    nightRate,
-    isNight,
-    baseFare: fareBreakdown.baseFare,
-    platformFee: fareBreakdown.platformFee,
-    customerPays: fareBreakdown.customerPays,
-    riderReceives: fareBreakdown.riderReceives,
-    totalAmount,
-  });
-
-  // STEP 4: Create a PENDING transaction record
   const transactionRef = `TXN-${uuidv4().slice(0, 8).toUpperCase()}`;
 
-  console.log('[initiateMpesaPaymentWithRider] Creating transaction:', {
-    transactionRef,
-    relatedEntityType: 'RideRequest',
-    relatedEntityId: null,
-    amount: totalAmount,
-    type: 'ride',
-    customer: customerId,
-    provider: riderId,
-  });
-
-  // STEP 5: Create transaction payload with validation logging
   const transactionPayload = {
     transactionRef,
     type: 'ride',
     customer: customerId,
-    provider: riderId, // Pre-assign to selected rider
+    provider: riderId,
     status: 'pending',
-    paymentMethod: 'mpesa', // Required field - ConnectHub only supports M-Pesa
+    paymentMethod: 'mpesa',
     amount: {
       baseAmount: fareBreakdown.baseFare,
       deliveryFee: 0,
@@ -657,9 +593,8 @@ export const initiateMpesaPaymentWithRider = asyncHandler(async (req, res) => {
     },
     customerPaid: totalAmount,
     providerReceives: fareBreakdown.riderReceives,
-    relatedEntity: null, // Will be set after payment success
+    relatedEntity: null,
     relatedEntityType: 'RideRequest',
-    // Store ride details for later use when creating RideRequest
     pendingRideData: {
       pickupLocation,
       dropoffLocation,
@@ -684,24 +619,10 @@ export const initiateMpesaPaymentWithRider = asyncHandler(async (req, res) => {
     },
   };
 
-  // Validate transaction payload before creation
-  console.log('[TRANSACTION PAYLOAD]', JSON.stringify({
-    transactionRef: transactionPayload.transactionRef,
-    type: transactionPayload.type,
-    customer: transactionPayload.customer,
-    provider: transactionPayload.provider,
-    paymentMethod: transactionPayload.paymentMethod,
-    relatedEntityType: transactionPayload.relatedEntityType,
-    amount: transactionPayload.amount,
-    customerPaid: transactionPayload.customerPaid,
-    providerReceives: transactionPayload.providerReceives,
-  }, null, 2));
-
   const transaction = await Transaction.create(transactionPayload);
 
   console.log('[initiateMpesaPaymentWithRider] Transaction created:', transactionRef);
 
-  // STEP 6: Initiate M-Pesa STK Push via Daraja API
   const customer = await User.findById(customerId);
   if (!customer) {
     throw new ResponseError('Customer not found', 404);
@@ -723,19 +644,21 @@ export const initiateMpesaPaymentWithRider = asyncHandler(async (req, res) => {
     transaction.status = 'failed';
     transaction.errorMessage = mpesaResponse.message;
     await transaction.save();
+
+    // Log payment failure to SystemLog
+    SystemLog.create({
+      type: 'payment_failure',
+      message: `Rider STK Push initiation failed: ${mpesaResponse.message}`,
+      details: { mpesaResponse, transactionRef, phoneNumber: stkPhone, riderId },
+      user: customerId
+    }).catch(e => console.error('Failed to log payment_failure in initiateMpesaPaymentWithRider:', e.message));
+
     throw new ResponseError(mpesaResponse.message || 'STK Push failed', 400);
   }
 
-  // Update transaction with MPesa Daraja references
   transaction.mpesaReceiptNumber = mpesaResponse.data?.CheckoutRequestID;
   transaction.darajaResponse = mpesaResponse.data;
   await transaction.save();
-
-  console.log('[initiateMpesaPaymentWithRider] STK Push initiated successfully:', {
-    transactionRef,
-    checkoutRequestID: mpesaResponse.data?.CheckoutRequestID,
-    amount: totalAmount,
-  });
 
   res.status(200).json({
     success: true,
@@ -745,7 +668,6 @@ export const initiateMpesaPaymentWithRider = asyncHandler(async (req, res) => {
       checkoutRequestID: mpesaResponse.data?.CheckoutRequestID,
       amount: totalAmount,
       phone: stkPhone,
-      // Store fare breakdown for frontend display
       fare: fareBreakdown,
     },
   });
@@ -753,16 +675,6 @@ export const initiateMpesaPaymentWithRider = asyncHandler(async (req, res) => {
 
 /**
  * STEP 2: Initiate M-Pesa STK Push for ride payment
- * This is the PAYMENT-FIRST workflow entry point.
- * 
- * Flow:
- * 1. Customer selects pickup/dropoff
- * 2. System calculates fare estimate
- * 3. Customer enters M-Pesa number and clicks Pay
- * 4. This endpoint initiates STK Push
- * 5. Customer enters PIN on phone
- * 6. Backend waits for callback
- * 7. Only AFTER payment success: Create RideRequest
  */
 export const initiateMpesaPayment = asyncHandler(async (req, res) => {
   const customerId = req.user._id;
@@ -780,7 +692,6 @@ export const initiateMpesaPayment = asyncHandler(async (req, res) => {
     phoneNumber,
   });
 
-  // Validate required fields
   if (!pickupLocation || !dropoffLocation) {
     throw new ResponseError('Pickup and dropoff locations are required', 400);
   }
@@ -789,7 +700,6 @@ export const initiateMpesaPayment = asyncHandler(async (req, res) => {
     throw new ResponseError('M-Pesa phone number is required', 400);
   }
 
-  // Validate coordinates
   if (!pickupLocation.coordinates || !Array.isArray(pickupLocation.coordinates.coordinates) || pickupLocation.coordinates.coordinates.length !== 2) {
     throw new ResponseError('Invalid pickup location coordinates', 400);
   }
@@ -798,48 +708,22 @@ export const initiateMpesaPayment = asyncHandler(async (req, res) => {
     throw new ResponseError('Invalid dropoff location coordinates', 400);
   }
 
-  // STEP 1: Calculate distance
   const distanceInMeters = await getRoutingDistance(pickupLocation, dropoffLocation);
   const distanceInKm = Math.round(distanceInMeters / 1000 * 100) / 100;
 
-  // STEP 2: Determine if night time
   const isNight = isNightTime();
   console.log('[initiateMpesaPayment] Time check:', { hour: new Date().getHours(), isNight });
 
-  // STEP 3: Calculate fare with default rate (estimate - will be recalculated when rider accepts)
-  const fareBreakdown = calculateFare(distanceInMeters, 60); // Default rate for estimate
-
-  // The amount customer pays
+  const fareBreakdown = calculateFare(distanceInMeters, 60);
   const totalAmount = fareBreakdown.totalFare;
 
-  console.log('[initiateMpesaPayment] Fare calculation:', {
-    distanceInKm,
-    baseFare: fareBreakdown.baseFare,
-    platformFee: fareBreakdown.platformFee,
-    customerPays: fareBreakdown.customerPays,
-    riderReceives: fareBreakdown.riderReceives,
-    totalAmount,
-  });
-
-  // STEP 4: Create a PENDING transaction record
-  // This transaction is NOT linked to any RideRequest yet - payment comes first!
   const transactionRef = `TXN-${uuidv4().slice(0, 8).toUpperCase()}`;
-
-  console.log('[initiateMpesaPayment] Creating transaction:', {
-    transactionRef,
-    relatedEntityType: 'RideRequest',
-    relatedEntityId: null,
-    amount: totalAmount,
-    type: 'ride',
-    customer: customerId,
-    provider: null,
-  });
 
   const transaction = await Transaction.create({
     transactionRef,
     type: 'ride',
     customer: customerId,
-    provider: null, // No rider assigned yet
+    provider: null,
     status: 'pending',
     amount: {
       baseAmount: fareBreakdown.baseFare,
@@ -860,9 +744,8 @@ export const initiateMpesaPayment = asyncHandler(async (req, res) => {
     },
     customerPaid: totalAmount,
     providerReceives: fareBreakdown.riderReceives,
-    relatedEntity: null, // Will be set after payment success
+    relatedEntity: null,
     relatedEntityType: 'RideRequest',
-    // Store ride details for later use when creating RideRequest
     pendingRideData: {
       pickupLocation,
       dropoffLocation,
@@ -882,15 +765,11 @@ export const initiateMpesaPayment = asyncHandler(async (req, res) => {
     },
   });
 
-  console.log('[initiateMpesaPayment] Transaction created:', transactionRef);
-
-  // STEP 5: Initiate M-Pesa STK Push via Daraja API
   const customer = await User.findById(customerId);
   if (!customer) {
     throw new ResponseError('Customer not found', 404);
   }
 
-  // Use the phone number provided by customer (or fallback to their account phone)
   const stkPhone = phoneNumber || customer.phone;
 
   console.log('[initiateMpesaPayment] Initiating STK Push to:', stkPhone, 'Amount:', totalAmount);
@@ -907,19 +786,21 @@ export const initiateMpesaPayment = asyncHandler(async (req, res) => {
     transaction.status = 'failed';
     transaction.errorMessage = mpesaResponse.message;
     await transaction.save();
+
+    // Log payment failure to SystemLog
+    SystemLog.create({
+      type: 'payment_failure',
+      message: `Default STK Push initiation failed: ${mpesaResponse.message}`,
+      details: { mpesaResponse, transactionRef, phoneNumber: stkPhone },
+      user: customerId
+    }).catch(e => console.error('Failed to log payment_failure in initiateMpesaPayment:', e.message));
+
     throw new ResponseError(mpesaResponse.message || 'STK Push failed', 400);
   }
 
-  // Update transaction with MPesa Daraja references
   transaction.mpesaReceiptNumber = mpesaResponse.data?.CheckoutRequestID;
   transaction.darajaResponse = mpesaResponse.data;
   await transaction.save();
-
-  console.log('[initiateMpesaPayment] STK Push initiated successfully:', {
-    transactionRef,
-    checkoutRequestID: mpesaResponse.data?.CheckoutRequestID,
-    amount: totalAmount,
-  });
 
   res.status(200).json({
     success: true,
@@ -929,7 +810,6 @@ export const initiateMpesaPayment = asyncHandler(async (req, res) => {
       checkoutRequestID: mpesaResponse.data?.CheckoutRequestID,
       amount: totalAmount,
       phone: stkPhone,
-      // Store fare breakdown for frontend display
       fare: {
         baseFare: fareBreakdown.baseFare,
         totalFare: fareBreakdown.totalFare,
@@ -944,7 +824,6 @@ export const initiateMpesaPayment = asyncHandler(async (req, res) => {
 
 /**
  * STEP 3: Verify M-Pesa payment status
- * Called by frontend to poll for payment completion.
  */
 export const verifyMpesaPayment = asyncHandler(async (req, res) => {
   const { transactionRef } = req.params;
@@ -958,9 +837,7 @@ export const verifyMpesaPayment = asyncHandler(async (req, res) => {
     throw new ResponseError('Transaction not found', 404);
   }
 
-  // If already paid, return success immediately
   if (transaction.status === 'paid') {
-    console.log('[verifyMpesaPayment] Payment already confirmed:', transactionRef);
     return res.status(200).json({
       success: true,
       data: {
@@ -973,9 +850,7 @@ export const verifyMpesaPayment = asyncHandler(async (req, res) => {
     });
   }
 
-  // If failed or cancelled, return failure
   if (transaction.status === 'failed' || transaction.status === 'cancelled') {
-    console.log('[verifyMpesaPayment] Payment failed/cancelled:', transactionRef);
     return res.status(200).json({
       success: true,
       data: {
@@ -986,25 +861,15 @@ export const verifyMpesaPayment = asyncHandler(async (req, res) => {
     });
   }
 
-  // Still pending - check with Daraja STK status
   const darajaResponse = await mpesaService.checkSTKStatus(transaction.mpesaReceiptNumber);
-
-  // Use Number() conversion because Daraja often returns ResultCode as string "0"
   const darajaResultCode = darajaResponse.data?.ResultCode;
+
   if (darajaResponse.success && Number(darajaResultCode) === 0) {
-    // Payment confirmed!
     transaction.status = 'paid';
     transaction.paidAt = new Date();
     transaction.darajaCallbackData = darajaResponse.data;
     await transaction.save();
 
-    console.log('[verifyMpesaPayment] Payment confirmed via Daraja:', {
-      transactionRef,
-      mpesaReceipt: transaction.mpesaReceiptNumber,
-    });
-
-    // Handle Order payment confirmation
-    // Check if this is an order payment (either already linked or has pending entity data)
     const pendingEntityData = transaction.pendingEntityData;
     if (transaction.type === 'order' && (transaction.relatedEntity || pendingEntityData)) {
       const orderId = transaction.relatedEntity || pendingEntityData?.entityId;
@@ -1042,7 +907,6 @@ export const verifyMpesaPayment = asyncHandler(async (req, res) => {
       }
     }
 
-    // STEP 4: NOW create the RideRequest (only after payment success!)
     const pendingRideData = transaction.pendingRideData;
     if (pendingRideData && transaction.type !== 'order' && transaction.type !== 'rental') {
       const selectedRiderId = pendingRideData.selectedRiderId;
@@ -1079,23 +943,18 @@ export const verifyMpesaPayment = asyncHandler(async (req, res) => {
         estimatedDistance: pendingRideData.estimatedDistance,
         rideType: pendingRideData.rideType || 'bodaboda',
         passengers: 1,
-        status: 'waiting_rider', // Changed from 'pending' to 'waiting_rider' - payment already confirmed
+        status: 'waiting_rider',
         paymentStatus: 'paid',
-        paymentMethod: 'mpesa', // Required field - ConnectHub only supports M-Pesa
+        paymentMethod: 'mpesa',
         transaction: transaction._id,
         fare: pendingRideData.fareBreakdown,
-        // Escrow system - money held until customer confirms arrival
         escrowStatus: 'held',
         fundsReleased: false,
-        // Pre-assign to the selected rider (only they will be notified)
         ...(selectedRiderId && { rider: selectedRiderId }),
       };
 
-      // IDEMPOTENCY CHECK: Prevent duplicate ride creation
       const existingRide = await RideRequest.findOne({ transaction: transaction._id });
       if (existingRide) {
-        console.log('[IDEMPOTENCY] Ride already exists for transaction:', transaction._id, 'Ride ID:', existingRide._id);
-        // Return existing ride instead of creating duplicate
         return res.status(200).json({
           success: true,
           data: {
@@ -1109,57 +968,17 @@ export const verifyMpesaPayment = asyncHandler(async (req, res) => {
         });
       }
 
-      // Validate booking payload before creation
-      console.log('[BOOKING PAYLOAD] RideRequest:', JSON.stringify({
-        customer: ridePayload.customer,
-        pickupLocation: ridePayload.pickupLocation?.address,
-        dropoffLocation: ridePayload.dropoffLocation?.address,
-        estimatedDistance: ridePayload.estimatedDistance,
-        rideType: ridePayload.rideType,
-        status: ridePayload.status,
-        paymentStatus: ridePayload.paymentStatus,
-        paymentMethod: ridePayload.paymentMethod,
-        fare: ridePayload.fare,
-      }, null, 2));
-
       const rideRequest = await RideRequest.create(ridePayload);
-
-      console.log('[RIDE STATUS TRANSITION]', {
-        previousStatus: null,
-        newStatus: 'waiting_rider',
-        rideId: rideRequest._id,
-        customerId: ridePayload.customer,
-        event: 'ride_created_after_payment',
-        paymentStatus: 'paid',
-        escrowStatus: 'held'
-      });
-
-      console.log("[NEWLY CREATED RIDE]", {
-        id: rideRequest._id,
-        status: rideRequest.status,
-        rider: rideRequest.rider,
-        customer: rideRequest.customer,
-        paymentStatus: rideRequest.paymentStatus,
-        selectedRiderId: selectedRiderId
-      });
 
       if (transaction.provider && transaction.providerReceives > 0) {
         await creditPendingEscrow(transaction.provider, transaction.providerReceives, 'ride_payment');
       }
 
-      // Link transaction to ride
       transaction.relatedEntity = rideRequest._id;
       await transaction.save();
 
-      console.log('[verifyMpesaPayment] RideRequest created after payment:', rideRequest._id);
-
-      // Notify ONLY the selected rider via Socket.io (not all nearby riders)
       const io = req.app.get('io');
       if (io && selectedRiderId) {
-        // Get rider details for the notification
-        const rider = await User.findById(selectedRiderId);
-
-        // Send notification ONLY to the selected rider
         io.to(`rider_${selectedRiderId}`).emit('ride_request', {
           rideId: rideRequest._id,
           customer: transaction.customer,
@@ -1171,12 +990,10 @@ export const verifyMpesaPayment = asyncHandler(async (req, res) => {
             riderReceives: rideRequest.fare.riderReceives,
             platformFee: rideRequest.fare.platformFee,
           },
-          // Include rider's own rates info for transparency
           yourRate: rideRequest.fare.ratePerKm,
           isNightRate: rideRequest.fare.isNightRate,
         });
 
-        // Create notification record for the rider
         try {
           await createNotification(
             selectedRiderId,
@@ -1193,7 +1010,6 @@ export const verifyMpesaPayment = asyncHandler(async (req, res) => {
           console.error('[Rider ride request notification failed]', err);
         }
       } else if (io) {
-        // Fallback: if no specific rider was selected, emit to all nearby riders
         io.emit('new_ride_request', {
           rideId: rideRequest._id,
           pickupLocation: rideRequest.pickupLocation,
@@ -1203,7 +1019,6 @@ export const verifyMpesaPayment = asyncHandler(async (req, res) => {
         });
       }
 
-      // Create notification for customer
       try {
         await createNotification(
           transaction.customer._id,
@@ -1244,8 +1059,6 @@ export const verifyMpesaPayment = asyncHandler(async (req, res) => {
     });
   }
 
-  // Still pending
-  console.log('[verifyMpesaPayment] Payment still pending:', transactionRef);
   res.status(200).json({
     success: true,
     data: {
@@ -1258,10 +1071,6 @@ export const verifyMpesaPayment = asyncHandler(async (req, res) => {
 
 /**
  * M-Pesa Daraja callback webhook
- * This endpoint receives callbacks from Safaricom Daraja API
- * 
- * When ResultCode = 0: Payment successful - create RideRequest and notify rider
- * When ResultCode != 0: Payment failed - NO RideRequest creation
  */
 export const mpesaCallback = asyncHandler(async (req, res) => {
   console.log('================ FULL MPESA CALLBACK ================');
@@ -1269,49 +1078,21 @@ export const mpesaCallback = asyncHandler(async (req, res) => {
   console.log('=====================================================');
 
   const payload = req.body;
-
-
-  // Process the Daraja callback
   const callbackResult = mpesaService.processCallback(payload);
 
   if (!callbackResult.success) {
     console.error('[MPESA] Invalid callback format');
-    console.log('[MPESA] Raw callback body:', JSON.stringify(payload, null, 2));
     return res.status(400).json({ success: false, message: 'Invalid callback format' });
   }
 
   const { checkoutRequestID, resultCode, mpesaReceiptNumber, merchantRequestID, transactionDate, phoneNumber, amount } = callbackResult.data;
 
-  console.log('[MPESA CALLBACK RESULT]', {
-    ResultCode: resultCode,
-    ResultDesc: callbackResult.data?.resultDesc,
-    CheckoutRequestID: checkoutRequestID,
-    MerchantRequestID: merchantRequestID,
-  });
-
-  console.log('[CALLBACK SUCCESS CHECK]', {
-    rawResultCode: resultCode,
-    type: typeof resultCode,
-    numericResult: Number(resultCode),
-    isSuccess: Number(resultCode) === 0
-  });
-
-  // Check success condition with number/string normalization
   const isSuccess = Number(resultCode) === 0;
-
 
   if (!isSuccess) {
     console.log('[MPESA] Payment failed with ResultCode:', resultCode);
   }
 
-  // Transaction lookup audit
-  console.log('[TRANSACTION SEARCH]', {
-    CheckoutRequestID: checkoutRequestID,
-    MerchantRequestID: merchantRequestID,
-    mpesaReceiptNumber: mpesaReceiptNumber
-  });
-
-  // Find transaction by CheckoutRequestID (stored in mpesaReceiptNumber field during STK push)
   const transaction = await Transaction.findOne({
     $or: [
       { mpesaReceiptNumber: checkoutRequestID },
@@ -1321,58 +1102,12 @@ export const mpesaCallback = asyncHandler(async (req, res) => {
     ],
   }).populate('customer', 'name email phone');
 
-  console.log('[TRANSACTION LOOKUP]', {
-    CheckoutRequestID: checkoutRequestID,
-    MerchantRequestID: merchantRequestID,
-    transactionFound: !!transaction,
-    transactionId: transaction?._id,
-    currentStatus: transaction?.status,
-  });
-
-
   if (!transaction) {
     console.error('[MPESA] Transaction not found for CheckoutRequestID:', checkoutRequestID);
     return res.status(404).json({ success: false, message: 'Transaction not found' });
   }
 
-  console.log('[TRANSACTION BEFORE UPDATE]', {
-    transactionRef: transaction.transactionRef,
-    status: transaction.status,
-    customerId: transaction.customer?._id
-  });
-
   if (Number(resultCode) === 0) {
-    console.log('=================================');
-    console.log('[PAYMENT SUCCESS BLOCK ENTERED]');
-    console.log('Transaction ID:', transaction._id);
-    console.log('Transaction Type:', transaction.type);
-    console.log('Pending Data Exists:', !!transaction.pendingEntityData);
-    console.log('Pending Entity Type:', transaction.pendingEntityData?.entityType);
-    console.log('=================================');
-
-    // Payment successful!
-    console.log('========== PAYMENT SUCCESS CALLBACK ==========');
-    console.log('Payment ID:', transaction._id);
-    console.log('Payment Status:', transaction.status);
-    console.log('Pending Entity Data:', JSON.stringify(transaction.pendingEntityData, null, 2));
-    console.log('========== END PAYMENT SUCCESS CALLBACK ==========');
-
-    console.log('[PAYMENT DOCUMENT]', {
-      transactionId: transaction._id,
-      transactionRef: transaction.transactionRef,
-      status: transaction.status,
-      paymentStatus: transaction.paymentStatus,
-      type: transaction.type,
-      customer: transaction.customer?._id,
-      business: transaction.business?._id,
-    });
-
-    console.log('[CALLBACK OVERRIDING STATUS]', {
-      previousStatus: transaction.status,
-      resultCode,
-      transactionRef: transaction.transactionRef,
-    });
-
     transaction.status = 'paid';
     transaction.paymentStatus = 'paid';
     transaction.completedAt = new Date();
@@ -1387,83 +1122,14 @@ export const mpesaCallback = asyncHandler(async (req, res) => {
     transaction.webhookData = payload;
 
     await transaction.save();
-
-    // Reload to verify persistence
-    const reloaded = await Transaction.findById(transaction._id);
-    console.log('[CALLBACK SAVE VERIFIED]', {
-      id: reloaded?._id,
-      status: reloaded?.status,
-      paymentStatus: reloaded?.paymentStatus,
-    });
-
-    if (reloaded?.status !== 'paid') {
-      console.error(
-        '[MPESA] CRITICAL: Transaction status not saved correctly! Expected: paid, Got:',
-        reloaded?.status
-      );
-    }
-
-    console.log('[TRANSACTION UPDATED]', {
-      transactionRef: transaction.transactionRef,
-      status: transaction.status,
-      paidAt: transaction.paidAt,
-    });
-
-    console.log('[PAYMENT SUCCESS]', {
-      transactionId: transaction._id,
-      transactionRef: transaction.transactionRef,
-      type: transaction.type,
-      customerId: transaction.customer?._id,
-      paymentStatus: 'paid',
-    });
   }
 
-
-  // Handle Order payment confirmation (only for successful payments that were just processed)
-  // This runs after the status has been updated to 'paid' above
   if (Number(resultCode) === 0 && transaction.status === 'paid') {
     const pendingEntityData = transaction.pendingEntityData;
 
-    console.log('[ORDER CREATION CONDITIONS]');
-    console.log({
-      paymentStatus: transaction.status,
-      resultCode: Number(resultCode),
-      shouldCreate:
-        (transaction.status === 'paid' ||
-          transaction.status === 'completed') &&
-        Number(resultCode) === 0
-    });
-
-    console.log('[MPESA CALLBACK] Checking payment type:', {
-      type: transaction.type,
-      hasRelatedEntity: !!transaction.relatedEntity,
-      hasPendingEntityData: !!pendingEntityData
-    });
-
     if (transaction.type === 'order' && (transaction.relatedEntity || pendingEntityData)) {
-      // CART-BASED PAYMENT: Create order first, then handle payment success
-      console.log('[CART ORDER CONDITION CHECK]');
-      console.log({
-        transactionType: transaction.type,
-        entityType: transaction.pendingEntityData?.entityType
-      });
-
       if (pendingEntityData?.entityType === 'cart') {
-        console.log('[ENTERED CART ORDER CREATION BLOCK]');
-        console.log('[PAYMENT SUCCESS CALLBACK]');
-        console.log('[PENDING ENTITY DATA]', JSON.stringify(pendingEntityData, null, 2));
-        console.log('[TRANSACTION CUSTOMER]', transaction.customer._id);
-        console.log('[TRANSACTION CUSTOMER POPULATED]', transaction.customer);
-
         const { items, deliveryAddress, deliveryFee, businessId, paymentBreakdown } = pendingEntityData;
-
-        console.log('[EXTRACTED DATA]', {
-          itemsCount: items?.length,
-          businessId,
-          deliveryAddress: deliveryAddress?.address,
-          totalAmount: paymentBreakdown?.baseAmount,
-          finalAmount: paymentBreakdown?.totalAmount,
-        });
 
         if (!businessId) {
           console.error('[ORDER CREATION FAILED] Missing businessId in pendingEntityData');
@@ -1480,8 +1146,8 @@ export const mpesaCallback = asyncHandler(async (req, res) => {
           finalAmount: paymentBreakdown.totalAmount,
           platformFee: paymentBreakdown.platformFee,
           orderType: 'marketplace',
-          status: 'pending', // Order is pending business acceptance, but payment is confirmed
-          paymentStatus: 'paid', // Payment is confirmed
+          status: 'pending',
+          paymentStatus: 'paid',
           paymentMethod: 'mpesa',
           deliveryAddress: {
             phone: deliveryAddress.phone,
@@ -1491,103 +1157,37 @@ export const mpesaCallback = asyncHandler(async (req, res) => {
           },
         };
 
-        console.log('[ORDER PAYLOAD]');
-        console.log({
-          customer: orderPayload.customer,
-          business: orderPayload.business,
-          items: orderPayload.items,
-          totalAmount: orderPayload.totalAmount,
-          paymentStatus: orderPayload.paymentStatus,
-          status: orderPayload.status
-        });
-
-        // Validate no undefined/null critical fields
-        if (!orderPayload.customer) console.error('[PAYLOAD VALIDATION ERROR] customer is undefined/null');
-        if (!orderPayload.business) console.error('[PAYLOAD VALIDATION ERROR] business is undefined/null');
-        if (!orderPayload.items || orderPayload.items.length === 0) console.error('[PAYLOAD VALIDATION ERROR] items is empty/undefined');
-        if (!orderPayload.totalAmount) console.error('[PAYLOAD VALIDATION ERROR] totalAmount is undefined/null');
-
-        console.log('========== ORDER DATA ==========');
-        console.log(JSON.stringify(orderPayload, null, 2));
-        console.log('========== END ORDER DATA ==========');
-
         try {
-          console.log('[SAVING ORDER TO DATABASE]');
-
-          console.log('[ABOUT TO CREATE ORDER]');
-          console.log(JSON.stringify(orderPayload, null, 2));
-
           const order = new Order(orderPayload);
-
-          console.log('[ORDER INSTANCE CREATED]', order);
-
           const savedOrder = await order.save();
-
-          console.log('[ORDER SAVED]');
-          console.log(savedOrder._id);
-
-          console.log('[ORDER SAVED SUCCESSFULLY]');
-          console.log(savedOrder);
 
           transaction.relatedEntity = savedOrder._id;
           transaction.relatedEntityType = 'order';
-
           await transaction.save();
 
-          console.log('[PAYMENT LINKED TO ORDER]');
-
-          // Now handle payment success (notify business, credit escrow, etc.)
           await handleOrderPaymentSuccess(transaction, savedOrder._id, req);
-          console.log('[CART ORDER PAYMENT SUCCESS HANDLED]', savedOrder._id);
         } catch (error) {
-          console.error('[ORDER CREATION FAILED]');
-          console.error(error);
-          console.error(error.stack);
-          console.error('========== ORDER SAVE FAILED ==========');
-          console.error(error);
-          console.error(error.errors);
-          console.error('========== END ORDER SAVE FAILED ==========');
+          console.error('[ORDER CREATION FAILED]', error);
           throw error;
         }
       } else {
-        // EXISTING ORDER PAYMENT: Handle payment success for existing order
         const orderId = transaction.relatedEntity || pendingEntityData?.entityId;
-        console.log('[MPESA CALLBACK] Calling handleOrderPaymentSuccess for existing orderId:', orderId);
-        const order = await handleOrderPaymentSuccess(transaction, orderId, req);
-        console.log('[MPESA CALLBACK] handleOrderPaymentSuccess completed, order:', order?._id);
+        await handleOrderPaymentSuccess(transaction, orderId, req);
       }
     }
 
     if (transaction.type === 'rental' && pendingEntityData) {
-      // Check if this is a monthly rent payment
       if (pendingEntityData.isMonthlyRent || transaction.metadata?.isMonthlyRent) {
-        console.log('[MPESA CALLBACK] Calling handleMonthlyRentPaymentSuccess');
         await handleMonthlyRentPaymentSuccess(transaction, pendingEntityData, req);
       } else {
-        // Initial rental booking payment
-        console.log('[MPESA CALLBACK] Calling handleRentalPaymentSuccess');
         await handleRentalPaymentSuccess(transaction, pendingEntityData, req);
       }
     }
 
-    // Create RideRequest ONLY for ride payments (never for marketplace orders)
     const pendingRideData = transaction.pendingRideData;
-    console.log('[MPESA CALLBACK] Checking ride payment:', {
-      hasPendingRideData: !!pendingRideData,
-      type: transaction.type,
-      shouldCreateRide: pendingRideData && transaction.type !== 'order'
-    });
-
-    console.log('[RIDE CALLBACK START]');
-    console.log('[RIDE CALLBACK] Transaction:', transaction._id);
-    console.log('[RIDE CALLBACK] pendingRideData:', JSON.stringify(pendingRideData, null, 2));
-
     if (pendingRideData && transaction.type !== 'order') {
-      // IDEMPOTENCY CHECK: Prevent duplicate ride creation
       const existingRide = await RideRequest.findOne({ transaction: transaction._id });
       if (existingRide) {
-        console.log('[IDEMPOTENCY] Ride already exists for transaction:', transaction._id, 'Ride ID:', existingRide._id);
-        // Skip ride creation, just send notification if needed
         return res.status(200).json({
           success: true,
           message: 'Payment processed successfully',
@@ -1603,9 +1203,6 @@ export const mpesaCallback = asyncHandler(async (req, res) => {
       }
 
       const selectedRiderId = pendingRideData.selectedRiderId;
-
-      console.log('[RIDE CALLBACK] Selected Rider ID:', selectedRiderId);
-      console.log('[RIDE CALLBACK] Customer ID:', transaction.customer._id);
 
       const formatCoordinates = (loc) => {
         if (!loc) return [];
@@ -1639,57 +1236,28 @@ export const mpesaCallback = asyncHandler(async (req, res) => {
         estimatedDistance: pendingRideData.estimatedDistance,
         rideType: pendingRideData.rideType || 'bodaboda',
         passengers: 1,
-        status: 'waiting_rider', // Changed from 'pending' to 'waiting_rider' per business rules
+        status: 'waiting_rider',
         paymentStatus: 'paid',
-        paymentMethod: 'mpesa', // Required field - ConnectHub only supports M-Pesa
+        paymentMethod: 'mpesa',
         transaction: transaction._id,
         fare: pendingRideData.fareBreakdown,
-        escrowStatus: 'held', // Set escrow status to held
-        fundsReleased: false, // Funds not released yet
-        // Pre-assign to the selected rider if one was selected
+        escrowStatus: 'held',
+        fundsReleased: false,
         ...(selectedRiderId && { rider: selectedRiderId }),
       };
 
-      console.log('[CREATING RIDE]', JSON.stringify(ridePayload, null, 2));
-
       const rideRequest = await RideRequest.create(ridePayload);
-
-      console.log('[RIDE STATUS TRANSITION]', {
-        previousStatus: null,
-        newStatus: 'waiting_rider',
-        rideId: rideRequest._id,
-        customerId: ridePayload.customer,
-        event: 'ride_created_after_payment_callback',
-        paymentStatus: 'paid',
-        escrowStatus: 'held'
-      });
-
-      console.log('[RIDE CREATED]', rideRequest._id);
-      console.log('[RIDE CREATED DATA]', JSON.stringify(rideRequest, null, 2));
-      console.log("[NEWLY CREATED RIDE]", {
-        id: rideRequest._id,
-        status: rideRequest.status,
-        rider: rideRequest.rider,
-        customer: rideRequest.customer,
-        paymentStatus: rideRequest.paymentStatus,
-        selectedRiderId: selectedRiderId
-      });
 
       if (transaction.provider && transaction.providerReceives > 0) {
         await creditPendingEscrow(transaction.provider, transaction.providerReceives, 'ride_payment');
       }
 
-      // Link transaction to ride
       transaction.relatedEntity = rideRequest._id;
       await transaction.save();
 
-      console.log('[mpesaCallback] RideRequest created after payment:', rideRequest._id);
-
-      // Notify riders via Socket.io
       const io = req.app.get('io');
       if (io) {
         if (selectedRiderId) {
-          // Notify ONLY the selected rider
           io.to(`rider_${selectedRiderId}`).emit('ride_request', {
             rideId: rideRequest._id,
             customer: transaction.customer,
@@ -1705,7 +1273,6 @@ export const mpesaCallback = asyncHandler(async (req, res) => {
             isNightRate: rideRequest.fare.isNightRate,
           });
 
-          // Create notification record for the selected rider
           try {
             await createNotification(
               selectedRiderId,
@@ -1721,7 +1288,6 @@ export const mpesaCallback = asyncHandler(async (req, res) => {
             console.error('[Selected rider notification failed]', err);
           }
         } else {
-          // Broadcast to all nearby riders
           io.emit('new_ride_request', {
             rideId: rideRequest._id,
             pickupLocation: rideRequest.pickupLocation,
@@ -1732,9 +1298,7 @@ export const mpesaCallback = asyncHandler(async (req, res) => {
           });
         }
 
-        // Emit payment_confirmed to customer via Socket.io for real-time redirect
         if (transaction.customer?._id) {
-          console.log('[SOCKET EMIT] Emitting payment_confirmed to customer:', transaction.customer._id);
           io.to(`user_${transaction.customer._id}`).emit('payment_confirmed', {
             transactionRef: transaction.transactionRef,
             status: 'paid',
@@ -1744,15 +1308,12 @@ export const mpesaCallback = asyncHandler(async (req, res) => {
             amount: transaction.amount.totalAmount,
             mpesaReceipt: mpesaReceiptNumber,
           });
-          console.log('[SOCKET EMIT] payment_confirmed emitted successfully');
         }
       }
 
-      // For order payments, emit payment_confirmed if not already emitted by handleOrderPaymentSuccess
       if (transaction.type === 'order' && transaction.customer?._id) {
         const io = req.app.get('io');
         if (io) {
-          console.log('[SOCKET EMIT] Emitting payment_confirmed for order payment to customer:', transaction.customer._id);
           io.to(`user_${transaction.customer._id}`).emit('payment_confirmed', {
             transactionRef: transaction.transactionRef,
             status: 'paid',
@@ -1761,11 +1322,9 @@ export const mpesaCallback = asyncHandler(async (req, res) => {
             amount: transaction.amount.totalAmount,
             mpesaReceipt: mpesaReceiptNumber,
           });
-          console.log('[SOCKET EMIT] payment_confirmed emitted successfully for order');
         }
       }
 
-      // Create notification for customer
       try {
         await createNotification(
           transaction.customer._id,
@@ -1782,26 +1341,25 @@ export const mpesaCallback = asyncHandler(async (req, res) => {
       }
     }
 
-    // Create payment notification
     try {
       await createPaymentNotification(transaction.customer, transaction, '/customer/rides', req);
     } catch (err) {
       console.error('[Payment notification failed]', err);
     }
   } else if (Number(resultCode) !== 0) {
-    // Payment failed - DO NOT create RideRequest
     transaction.status = 'failed';
     transaction.errorMessage = callbackResult.message;
     transaction.webhookData = payload;
     await transaction.save();
 
-    console.log('[mpesaCallback] Payment failed:', {
-      transactionRef: transaction.transactionRef,
-      resultCode,
-      resultDesc: callbackResult.data?.resultDesc,
-    });
+    // Log callback payment failure to SystemLog
+    SystemLog.create({
+      type: 'payment_failure',
+      message: `M-Pesa STK Callback Payment failed: ${callbackResult.message}`,
+      details: { callbackResult, payload },
+      user: transaction.customer?._id || transaction.customer
+    }).catch(e => console.error('Failed to log payment_failure in mpesaCallback:', e.message));
 
-    // Notify customer of failure
     if (transaction.customer) {
       const notificationType = transaction.type === 'order' ? 'order_payment_failed' :
         transaction.type === 'rental' ? 'rental_payment_failed' : 'ride_payment_failed';
@@ -1830,7 +1388,6 @@ export const mpesaCallback = asyncHandler(async (req, res) => {
 
 /**
  * Check payment status using Daraja STK status query
- * Returns: PENDING, SUCCESS, or FAILED based on Daraja result
  */
 export const checkPaymentStatus = asyncHandler(async (req, res) => {
   const { transactionRef } = req.params;
@@ -1842,22 +1399,10 @@ export const checkPaymentStatus = asyncHandler(async (req, res) => {
     .populate('provider', 'firstName lastName email phone');
 
   if (!transaction) {
-    console.log('[STATUS ENDPOINT] Transaction not found:', transactionRef);
     throw new ResponseError('Transaction not found', 404);
   }
 
-  console.log('[STATUS ENDPOINT]', {
-    requestedRef: req.params.transactionRef,
-    foundTransaction: transaction?.transactionRef,
-    status: transaction?.status,
-    paymentStatus: transaction?.paymentStatus,
-    paidAt: transaction?.paidAt,
-    completedAt: transaction?.completedAt
-  });
-
-  // CRITICAL: If already paid or completed, return immediately and NEVER overwrite
   if (transaction.status === 'completed' || transaction.status === 'paid') {
-    console.log('[STATUS ENDPOINT] Already paid/completed, returning paid. DO NOT OVERWRITE:', transactionRef);
     return res.status(200).json({
       success: true,
       data: {
@@ -1872,7 +1417,6 @@ export const checkPaymentStatus = asyncHandler(async (req, res) => {
     });
   }
 
-  // If failed, return failed status (but don't change it)
   if (transaction.status === 'failed') {
     return res.status(200).json({
       success: true,
@@ -1885,16 +1429,12 @@ export const checkPaymentStatus = asyncHandler(async (req, res) => {
     });
   }
 
-  // Only query Daraja if still pending
   const darajaResponse = await mpesaService.checkSTKStatus(transaction.mpesaReceiptNumber);
-
   const resultCode = darajaResponse.data?.ResultCode;
   const isSuccess = Number(resultCode) === 0;
 
-  // Re-check status after Daraja query in case callback updated it
   const freshTransaction = await Transaction.findById(transaction._id);
   if (freshTransaction && (freshTransaction.status === 'paid' || freshTransaction.status === 'completed')) {
-    console.log('[STATUS ENDPOINT] Transaction was updated by callback during polling. Returning paid:', transactionRef);
     return res.status(200).json({
       success: true,
       data: {
@@ -1910,7 +1450,6 @@ export const checkPaymentStatus = asyncHandler(async (req, res) => {
   }
 
   if (darajaResponse.success && isSuccess) {
-    // Payment confirmed!
     transaction.status = 'paid';
     transaction.paymentStatus = 'paid';
     transaction.completedAt = new Date();
@@ -1918,19 +1457,14 @@ export const checkPaymentStatus = asyncHandler(async (req, res) => {
     transaction.mpesaReceiptNumber = darajaResponse.data?.mpesaReceiptNumber || transaction.mpesaReceiptNumber;
     await transaction.save();
 
-    console.log('[STATUS ENDPOINT] Payment confirmed via Daraja poll:', transactionRef);
-
-    // Update provider's wallet with pending balance (escrow)
     if (transaction.provider && transaction.providerReceives > 0) {
       await creditPendingEscrow(transaction.provider, transaction.providerReceives, 'payment_status_poll');
     }
 
-    // Create notification for customer
     const customerNavTarget = transaction.type === 'order' ? '/customer/orders' :
       transaction.type === 'rental' ? '/customer/rentals' : '/customer/rides';
     await createPaymentNotification(transaction.customer, transaction, customerNavTarget, req);
 
-    // Create notification for provider
     if (transaction.provider) {
       const providerNavTarget = transaction.type === 'order' ? '/business/orders' :
         transaction.type === 'rental' ? '/landlord/bookings' : '/rider/rides';
@@ -1949,12 +1483,9 @@ export const checkPaymentStatus = asyncHandler(async (req, res) => {
       },
     });
   } else {
-    // Handle non-zero ResultCodes
     const numericCode = Number(resultCode);
 
-    // ResultCode 4999 = transaction still processing, keep as pending
     if (numericCode === 4999) {
-      console.log('[STATUS ENDPOINT] Transaction still processing (ResultCode 4999):', transactionRef);
       return res.status(200).json({
         success: true,
         data: {
@@ -1966,17 +1497,20 @@ export const checkPaymentStatus = asyncHandler(async (req, res) => {
       });
     }
 
-    // Any other non-zero code = payment failed (1, 1032, 1037, 2001, etc.)
     if (darajaResponse.success && resultCode !== undefined && Number.isFinite(numericCode) && numericCode !== 0) {
-      // Only mark as failed if we're still pending (not paid by callback)
       const currentStatus = await Transaction.findById(transaction._id, 'status');
       if (currentStatus && currentStatus.status !== 'paid' && currentStatus.status !== 'completed') {
         transaction.status = 'failed';
         transaction.errorMessage = darajaResponse.data?.ResultDesc;
         await transaction.save();
-        console.log('[STATUS ENDPOINT] Marked as failed via Daraja poll:', transactionRef, 'ResultCode:', numericCode);
-      } else {
-        console.log('[STATUS ENDPOINT] Skipping failed update - already paid by callback:', transactionRef);
+
+        // Log polled payment failure to SystemLog
+        SystemLog.create({
+          type: 'payment_failure',
+          message: `M-Pesa Polled Payment failed: ${darajaResponse.data?.ResultDesc}`,
+          details: { darajaResponse, transactionRef },
+          user: transaction.customer?._id || transaction.customer
+        }).catch(e => console.error('Failed to log payment_failure in checkPaymentStatus:', e.message));
       }
 
       return res.status(200).json({
@@ -1991,8 +1525,6 @@ export const checkPaymentStatus = asyncHandler(async (req, res) => {
     }
   }
 
-
-  // Still pending
   return res.status(200).json({
     success: true,
     data: {
@@ -2004,22 +1536,16 @@ export const checkPaymentStatus = asyncHandler(async (req, res) => {
 });
 
 /**
- * Initialize a payment for an order or rental (PAYMENT-FIRST workflow)
- * 
- * IMPORTANT: This follows the same payment-first procedure as Bodaboda rides:
- * 1. Customer initiates payment (STK Push)
- * 2. Customer pays via M-Pesa
- * 3. ONLY after payment success: Order/Rental is confirmed and provider is notified
- * 4. Provider is NOT notified before payment succeeds
+ * Initialize a payment for an order or rental
  */
 export const initiatePayment = asyncHandler(async (req, res) => {
   const {
-    entityType, // 'Order', 'Rental', 'order', 'rental', 'cart'
+    entityType,
     entityId,
     deliveryFee = 0,
-    phoneNumber, // M-Pesa phone number for STK Push
-    items, // For cart-based payments (order doesn't exist yet)
-    deliveryAddress, // For cart-based payments
+    phoneNumber,
+    items,
+    deliveryAddress,
   } = req.body;
 
   console.log('[initiatePayment] INITIATING PAYMENT', req.body);
@@ -2027,16 +1553,12 @@ export const initiatePayment = asyncHandler(async (req, res) => {
   const customerId = req.user._id;
   const transactionRef = `TXN-${uuidv4().slice(0, 8).toUpperCase()}`;
 
-  // Validate phone number
   if (!phoneNumber) {
-    console.error('[initiatePayment] Missing phone number');
     throw new ResponseError('M-Pesa phone number is required', 400);
   }
 
-  // Validate phone number format
   const phoneRegex = /^254(7|8|9|1)\d{8}$/;
   if (!phoneRegex.test(phoneNumber.replace(/\D/g, ''))) {
-    // Try to format it
     let cleaned = phoneNumber.replace(/\D/g, '');
     if (cleaned.startsWith('0')) {
       cleaned = '254' + cleaned.substring(1);
@@ -2045,12 +1567,10 @@ export const initiatePayment = asyncHandler(async (req, res) => {
     }
 
     if (!phoneRegex.test(cleaned)) {
-      console.error('[initiatePayment] Invalid phone number:', phoneNumber);
       throw new ResponseError('Invalid phone number. Use format: 2547XXXXXXXX or 07XXXXXXXX', 400);
     }
   }
 
-  // CART-BASED PAYMENT (order doesn't exist yet)
   if (entityType?.toLowerCase() === 'cart') {
     if (!items || items.length === 0) {
       throw new ResponseError('Cart items are required for cart-based payment', 400);
@@ -2060,7 +1580,6 @@ export const initiatePayment = asyncHandler(async (req, res) => {
       throw new ResponseError('Delivery address and phone are required', 400);
     }
 
-    // Validate items and get prices
     let totalAmount = 0;
     const validatedItems = [];
 
@@ -2087,24 +1606,15 @@ export const initiatePayment = asyncHandler(async (req, res) => {
       });
     }
 
-    // Calculate payment breakdown with platform fee
     const paymentBreakdown = calculateShoppingPayment(totalAmount, deliveryFee);
     const finalAmount = paymentBreakdown.customerPays;
 
-    // Determine business from first product
     const firstProduct = await Product.findById(validatedItems[0].product);
     const businessId = firstProduct?.business;
 
     if (!businessId) {
       throw new ResponseError('Product has no associated business. Cannot process payment.', 400);
     }
-
-    console.log('[initiatePayment] CART PAYMENT:', {
-      totalAmount,
-      finalAmount,
-      businessId,
-      itemCount: validatedItems.length,
-    });
 
     const transaction = await Transaction.create({
       transactionRef,
@@ -2131,9 +1641,8 @@ export const initiatePayment = asyncHandler(async (req, res) => {
       },
       customerPaid: finalAmount,
       providerReceives: paymentBreakdown.providerReceives,
-      relatedEntity: null, // Will be set after payment success
+      relatedEntity: null,
       relatedEntityType: 'order',
-      // Store cart data for order creation after payment success
       pendingEntityData: {
         entityType: 'cart',
         items: validatedItems,
@@ -2168,6 +1677,15 @@ export const initiatePayment = asyncHandler(async (req, res) => {
     if (!mpesaResponse.success) {
       transaction.status = 'failed';
       await transaction.save();
+
+      // Log payment failure to SystemLog
+      SystemLog.create({
+        type: 'payment_failure',
+        message: `Cart payment STK push failed: ${mpesaResponse.message}`,
+        details: { mpesaResponse, transactionRef, phoneNumber: stkPhone },
+        user: customerId
+      }).catch(e => console.error('Failed to log payment_failure in initiatePayment:', e.message));
+
       throw new ResponseError(mpesaResponse.message, 400);
     }
 
@@ -2197,7 +1715,6 @@ export const initiatePayment = asyncHandler(async (req, res) => {
     });
   }
 
-  // EXISTING ENTITY PAYMENT (order/rental already exists)
   let entity;
   let providerId;
   let entityTypeLower;
@@ -2216,17 +1733,13 @@ export const initiatePayment = asyncHandler(async (req, res) => {
       entityTypeLower = 'rental';
       break;
     default:
-      console.error('[initiatePayment] Invalid entity type:', entityType);
       throw new ResponseError('Invalid entity type. Use: order, rental, or cart', 400);
   }
 
-  // Check if entity is already paid
   if (entity.status === 'paid' || entity.status === 'completed') {
-    console.error('[initiatePayment] Entity already paid:', entityId);
     throw new ResponseError(`${entityType} is already paid`, 400);
   }
 
-  // Determine the amount to charge
   let totalAmount;
   let paymentBreakdown;
   let baseAmount;
@@ -2244,27 +1757,6 @@ export const initiatePayment = asyncHandler(async (req, res) => {
     paymentBreakdown = calculatePayment(baseAmount, deliveryFee);
     totalAmount = paymentBreakdown.customerPays;
   }
-
-  console.log('[initiatePayment] Amount calculation:', {
-    entityType,
-    entityId,
-    orderFinalAmount: entity.finalAmount,
-    orderTotalAmount: entity.totalAmount,
-    baseAmount,
-    deliveryFee,
-    platformFee: paymentBreakdown.platformFee,
-    totalAmountToCharge: totalAmount,
-  });
-
-  console.log('[initiatePayment] Creating transaction:', {
-    transactionRef,
-    relatedEntityType: entityTypeLower,
-    relatedEntityId: entityId,
-    amount: totalAmount,
-    type: entityTypeLower,
-    customer: customerId,
-    provider: providerId,
-  });
 
   const transaction = await Transaction.create({
     transactionRef,
@@ -2325,6 +1817,15 @@ export const initiatePayment = asyncHandler(async (req, res) => {
   if (!mpesaResponse.success) {
     transaction.status = 'failed';
     await transaction.save();
+
+    // Log payment failure to SystemLog
+    SystemLog.create({
+      type: 'payment_failure',
+      message: `Existing payment STK push failed: ${mpesaResponse.message}`,
+      details: { mpesaResponse, transactionRef, phoneNumber: stkPhone },
+      user: customerId
+    }).catch(e => console.error('Failed to log payment_failure in initiatePayment (existing):', e.message));
+
     throw new ResponseError(mpesaResponse.message, 400);
   }
 
@@ -2355,7 +1856,7 @@ export const initiatePayment = asyncHandler(async (req, res) => {
 });
 
 /**
- * Complete a transaction (after customer confirms receipt/completion)
+ * Complete a transaction
  */
 export const completeTransaction = asyncHandler(async (req, res) => {
   const { transactionRef } = req.params;
@@ -2369,7 +1870,6 @@ export const completeTransaction = asyncHandler(async (req, res) => {
     throw new ResponseError('Transaction not found', 404);
   }
 
-  // Only customer can confirm completion
   if (transaction.customer._id.toString() !== userId.toString()) {
     throw new ResponseError('Only the customer can confirm completion', 403);
   }
@@ -2378,12 +1878,10 @@ export const completeTransaction = asyncHandler(async (req, res) => {
     throw new ResponseError('Payment must be confirmed before completion', 400);
   }
 
-  // Update transaction status
   transaction.status = 'completed';
   transaction.completedAt = new Date();
   await transaction.save();
 
-  // Update provider's wallet - move from pending to available balance
   if (transaction.provider && transaction.providerReceives > 0) {
     await releaseEscrow(transaction.provider, transaction.providerReceives, 'transaction_complete');
   }
@@ -2411,7 +1909,6 @@ export const completeTransaction = asyncHandler(async (req, res) => {
       break;
   }
 
-  // Create notification for transaction completion
   const customerNavTarget = transaction.type === 'order' ? '/customer/orders' :
     transaction.type === 'rental' ? '/customer/rentals' : '/customer/rides';
   await createPaymentNotification(transaction.customer, transaction, customerNavTarget, req);
@@ -2498,7 +1995,6 @@ export const getWalletSummary = asyncHandler(async (req, res) => {
     });
   }
 
-  // Get recent transactions summary
   const completedTransactions = await Transaction.find({
     provider: userId,
     status: 'completed',

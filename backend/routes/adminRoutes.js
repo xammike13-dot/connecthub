@@ -18,6 +18,7 @@ import {
   updateAdminReportStatus,
   broadcastNotification,
   getPlatformHealth,
+  getRecentActivity,
   getTransactions,
   getWithdrawals,
   getPendingWithdrawals,
@@ -37,6 +38,7 @@ router.use(restrictTo('admin'));
 // Dashboard stats
 router.get('/stats', getDashboardStats);
 router.get('/dashboard/stats', getDashboardStats);
+router.get('/dashboard', getDashboardStats); // Required alias endpoint
 
 // Analytics
 router.get('/analytics', getAnalytics);
@@ -53,8 +55,9 @@ router.delete('/users/:userId', deleteUser);
 router.get('/orders', getAdminOrders);
 router.put('/orders/:orderId', updateAdminOrder);
 
-// Rental management
+// Rental / Listing management
 router.get('/properties', getAdminProperties);
+router.get('/rentals', getAdminProperties); // Alias endpoint
 router.get('/bookings', getAdminBookings);
 router.put('/properties/:rentalId/flag', flagAdminProperty);
 
@@ -72,6 +75,10 @@ router.post('/broadcast', broadcastNotification);
 
 // Platform Monitoring
 router.get('/health', getPlatformHealth);
+router.get('/monitoring', getPlatformHealth); // Alias endpoint
+
+// Recent activity feed
+router.get('/recent-activity', getRecentActivity);
 
 // Transaction management
 router.get('/transactions', getTransactions);
