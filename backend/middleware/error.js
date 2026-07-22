@@ -1,3 +1,5 @@
+import SystemLog from '../models/SystemLog.js';
+
 console.log('Loading middleware/error.js');
 export class ResponseError extends Error {
   constructor(message, statusCode = 500) {
@@ -52,9 +54,33 @@ const errorHandler = (err, req, res, next) => {
     error.statusCode = 401;
   }
 
-  res.status(error.statusCode || 500).json({
+  const statusCode = error.statusCode || err.statusCode || 500;
+  const errorMessage = error.message || err.message || 'Server Error';
+
+  // Log the failed API request (4xx or 5xx response) into MongoDB
+  // We do this asynchronously without awaiting so it doesn't block the client response
+  try {
+    SystemLog.create({
+      type: statusCode >= 500 ? 'unhandled_error' : 'api_error',
+      message: errorMessage,
+      details: {
+        stack: err.stack,
+        errorName: err.name,
+        errorCode: err.code
+      },
+      statusCode,
+      path: req.originalUrl || req.path,
+      method: req.method,
+      user: req.user?._id || null,
+      ip: req.ip || req.headers['x-forwarded-for'] || null
+    }).catch(e => console.error('Failed to write SystemLog inside errorHandler:', e.message));
+  } catch (logErr) {
+    console.error('Failed to log error inside errorHandler:', logErr.message);
+  }
+
+  res.status(statusCode).json({
     success: false,
-    error: error.message || 'Server Error',
+    error: errorMessage,
   });
 };
 

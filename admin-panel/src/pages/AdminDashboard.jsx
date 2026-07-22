@@ -179,39 +179,75 @@ const AdminDashboard = () => {
             </div>
           </div>
 
-          {/* Recent Registrations Table */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl mb-8">
-            <h3 className="text-lg font-bold text-white mb-4">Recent Registrations</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-slate-800 text-slate-400 font-semibold">
-                    <th className="pb-3">Name</th>
-                    <th className="pb-3">Email</th>
-                    <th className="pb-3">Role</th>
-                    <th className="pb-3">Date Joined</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800 text-slate-300">
-                  {stats.recentRegistrations?.map((r) => (
-                    <tr key={r._id} className="hover:bg-slate-800/30 transition-colors">
-                      <td className="py-3 font-medium text-white">{r.name}</td>
-                      <td className="py-3">{r.email}</td>
-                      <td className="py-3 capitalize">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                          r.role === 'customer' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
-                          r.role === 'business' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
-                          r.role === 'landlord' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' :
-                          'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                        }`}>
-                          {r.role}
-                        </span>
-                      </td>
-                      <td className="py-3 text-slate-400">{new Date(r.createdAt).toLocaleDateString()}</td>
+          {/* Recent Registrations & Active Activity Summary */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl">
+              <h3 className="text-lg font-bold text-white mb-4">Recent Registrations</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400 font-semibold">
+                      <th className="pb-3">Name</th>
+                      <th className="pb-3">Email</th>
+                      <th className="pb-3">Role</th>
+                      <th className="pb-3">Date Joined</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800 text-slate-300">
+                    {stats.recentRegistrations?.map((r) => (
+                      <tr key={r._id} className="hover:bg-slate-800/30 transition-colors">
+                        <td className="py-3 font-medium text-white">{r.name}</td>
+                        <td className="py-3">{r.email}</td>
+                        <td className="py-3 capitalize">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                            r.role === 'customer' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
+                            r.role === 'business' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
+                            r.role === 'landlord' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' :
+                            'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                          }`}>
+                            {r.role}
+                          </span>
+                        </td>
+                        <td className="py-3 text-slate-400">{new Date(r.createdAt).toLocaleDateString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl">
+              <h3 className="text-lg font-bold text-white mb-4">Recent Activity (Latest Orders)</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400 font-semibold">
+                      <th className="pb-3">Order ID</th>
+                      <th className="pb-3">Customer</th>
+                      <th className="pb-3">Total</th>
+                      <th className="pb-3">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800 text-slate-300">
+                    {stats.recentOrders?.map((o) => (
+                      <tr key={o._id} className="hover:bg-slate-800/30 transition-colors">
+                        <td className="py-3 font-mono text-white text-xs">{o._id.toString().slice(-6).toUpperCase()}</td>
+                        <td className="py-3">{o.customer?.name || 'Deleted'}</td>
+                        <td className="py-3 font-semibold text-green-400">{formatCurrency(o.finalAmount || o.totalAmount)}</td>
+                        <td className="py-3 capitalize">
+                          <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                            o.status === 'completed' || o.status === 'delivered' ? 'bg-green-500/10 text-green-400' :
+                            o.status === 'pending' || o.status === 'processing' ? 'bg-yellow-500/10 text-yellow-400' :
+                            'bg-red-500/10 text-red-400'
+                          }`}>
+                            {o.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </>

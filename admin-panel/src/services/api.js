@@ -48,7 +48,6 @@ export const rentalAPI = {
   getFavorites: () => api.get('/rentals/favorites/my-favorites'),
   trackView: (rentalId) => api.post(`/rentals/${rentalId}/view`),
   getById: (rentalId) => api.get(`/rentals/${rentalId}`),
-  // Note: booking a rental should create an order via `/orders` endpoint
 };
 
 
@@ -58,20 +57,18 @@ export const rideAPI = {
   getAll: (params) => api.get('/rides', { params }),
   getById: (id) => api.get(`/rides/${id}`),
   accept: (id) => api.post(`/rides/${id}/accept`),
-  decline: (id, data) => api.post(`/rides/${id}/decline`, data), // Added data parameter for reason
+  decline: (id, data) => api.post(`/rides/${id}/decline`, data),
   updateStatus: (id, status) => api.put(`/rides/${id}/status`, { status }),
   confirmCompletion: (id) => api.put(`/rides/${id}/confirm-completion`),
   cancel: (id) => api.delete(`/rides/${id}/cancel`),
   archive: (id) => api.put(`/rides/${id}/archive`),
-  delete: (id) => api.delete(`/rides/${id}/delete`), // Added delete endpoint for riders
+  delete: (id) => api.delete(`/rides/${id}/delete`),
   getMyRides: (params) => api.get('/rides/rider/my-rides', { params }),
   getAvailableRides: (params) => api.get('/rides/rider/available', { params }),
   getCustomerRides: (params) => api.get('/rides/customer/my-rides', { params }),
   getNearbyRiders: (params) => api.get('/rides/nearby-riders', { params }),
   updateLocation: (rideId, data) => api.post(`/rides/${rideId}/location`, data),
   completeRide: (id, data) => api.put(`/rides/${id}/status`, { status: 'completed', ...data }),
-
-  // Fare calculation (backend is single source of truth)
   calculateFare: (data) => api.post('/rides/calculate-fare', data),
   calculateFareWithRider: (data) => api.post('/rides/calculate-fare-with-rider', data),
   getFareEstimate: (params) => api.get('/rides/estimate-fare', { params }),
@@ -79,33 +76,18 @@ export const rideAPI = {
 
 // Rider APIs
 export const riderAPI = {
-  // Dashboard
   getDashboardStats: () => api.get('/rider/dashboard/stats'),
-
-  // Profile
   getProfile: () => api.get('/rider/profile'),
   updateProfile: (data) => api.put('/rider/profile', data),
   removeProfilePhoto: () => api.delete('/rider/profile/photo'),
   removeMotorcyclePhoto: () => api.delete('/rider/profile/motorcycle/photo'),
-
-  // Earnings
   getEarnings: (params) => api.get('/rider/earnings', { params }),
   getEarningsTrend: (params) => api.get('/rider/analytics/earnings-trend', { params }),
-
-  // Location
   getLocation: () => api.get('/rider/location'),
   updateLocation: (data) => api.post('/rider/location/update', data),
-
-  // Online status
   updateOnlineStatus: (data) => api.post('/rider/status/online', data),
-
-  // Active ride
   getActiveRide: () => api.get('/rider/active-ride'),
-
-  // Notifications
   getNotifications: (params) => api.get('/rider/notifications', { params }),
-
-  // Nearby riders (for customers)
   getNearbyRiders: (params) => api.get('/rider/nearby', { params }),
 };
 
@@ -130,7 +112,6 @@ export const chatAPI = {
   getConversations: () => api.get('/chat'),
   getMessages: (conversationId) => api.get(`/chat/${conversationId}`),
   sendMessage: (data) => api.post('/chat', data),
-  // checkAccess endpoint handled server-side when sending message (transaction check)
   markAsRead: (messageId) => api.put(`/chat/${messageId}/read`),
 };
 
@@ -159,7 +140,8 @@ export const adminAPI = {
   getReports: (params) => api.get('/admin/reports', { params }),
   updateReportStatus: (id, data) => api.put(`/admin/reports/${id}`, data),
   broadcastNotification: (data) => api.post('/admin/broadcast', data),
-  getPlatformHealth: () => api.get('/admin/health'),
+  getPlatformHealth: () => api.get('/admin/monitoring'), // Update to use new monitoring endpoint
+  getRecentActivity: () => api.get('/admin/recent-activity'), // Added recent-activity API
   getWithdrawals: (params) => api.get('/admin/withdrawals', { params }),
   approveWithdrawal: (id) => api.put(`/admin/withdrawals/${id}/approve`),
   rejectWithdrawal: (id, reason) => api.put(`/admin/withdrawals/${id}/reject`, { reason }),
@@ -223,7 +205,6 @@ export const assistantAPI = {
   registerAndAccept: (token, data) => api.post(`/assistants/invite/${token}/register`, data),
   acceptExisting: (token) => api.post(`/assistants/invite/${token}/accept`),
   getDashboardStats: () => api.get('/assistants/dashboard/stats'),
-  // Business owner managing assistants
   getAssistants: () => api.get('/assistants'),
   generateInvite: (data) => api.post('/assistants/invite', data),
   remove: (id) => api.delete(`/assistants/${id}`),
@@ -259,38 +240,24 @@ export const uploadAPI = {
     return axios.post(signature.uploadUrl, formData);
   },
   uploadSingle: (file) => {
-    console.log('[uploadAPI] uploadSingle - File:', file.name, 'Size:', file.size, 'Type:', file.type);
     const formData = new FormData();
     formData.append('image', file);
-    console.log('[uploadAPI] uploadSingle - FormData entries:');
-    for (const pair of formData.entries()) {
-      console.log('[uploadAPI] ', pair[0], pair[1]);
-    }
-    const response = api.post('/upload/single', formData, {
+    return api.post('/upload/single', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
     });
-    console.log('[uploadAPI] uploadSingle - Request sent to /api/upload/single');
-    return response;
   },
   uploadMultiple: (files) => {
-    console.log('[uploadAPI] uploadMultiple - Files:', files.map(f => ({ name: f.name, size: f.size, type: f.type })));
     const formData = new FormData();
     files.forEach((file) => {
       formData.append('images', file);
     });
-    console.log('[uploadAPI] uploadMultiple - FormData entries:');
-    for (const pair of formData.entries()) {
-      console.log('[uploadAPI] ', pair[0], pair[1] instanceof File ? { name: pair[1].name, size: pair[1].size } : pair[1]);
-    }
-    const response = api.post('/upload/multiple', formData, {
+    return api.post('/upload/multiple', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
     });
-    console.log('[uploadAPI] uploadMultiple - Request sent to /api/upload/multiple');
-    return response;
   },
 };
 
