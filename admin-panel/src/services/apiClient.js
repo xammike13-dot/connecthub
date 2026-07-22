@@ -22,6 +22,20 @@ api.interceptors.request.use(
     if (token && !config.url.includes('/auth/login') && !config.url.includes('/api/auth/login')) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // Set headers to disable caching on client-side requests/intermediaries
+    config.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+    config.headers['Pragma'] = 'no-cache';
+    config.headers['Expires'] = '0';
+
+    // Append cache-busting timestamp parameter for GET requests
+    if (config.method && config.method.toLowerCase() === 'get') {
+      config.params = {
+        ...config.params,
+        _t: Date.now(),
+      };
+    }
+
     return config;
   },
   (error) => Promise.reject(error)

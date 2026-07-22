@@ -19,7 +19,8 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
   // User statistics
   const totalUsers = await User.countDocuments({ isDeleted: { $ne: true } });
   const activeRiders = await User.countDocuments({ role: 'rider', 'riderProfile.isOnline': true, isDeleted: { $ne: true } });
-  const activeBusinesses = await User.countDocuments({ role: 'business', isDeleted: { $ne: true } });
+  const totalBusinesses = await User.countDocuments({ role: 'business', isDeleted: { $ne: true } });
+  const activeBusinesses = await User.countDocuments({ role: 'business', isDeleted: { $ne: true }, isActive: { $ne: false } });
   const totalCustomers = await User.countDocuments({ role: 'customer', isDeleted: { $ne: true } });
   const totalLandlords = await User.countDocuments({ role: 'landlord', isDeleted: { $ne: true } });
   const totalRiders = await User.countDocuments({ role: 'rider', isDeleted: { $ne: true } });
