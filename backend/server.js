@@ -143,6 +143,22 @@ const allowedOrigins = getEnvOrigins('FRONTEND_URL', 'CLIENT_URL', 'CORS_ORIGIN'
 
 const isAllowedOrigin = (origin) => {
   if (!origin) return true;
+
+  // Dynamically trust loopback origins for testing/development
+  if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+    return true;
+  }
+
+  // Explicitly allow secure production origins
+  const secureProductionOrigins = [
+    'https://connecthub.website',
+    'https://connecthubadmin.vercel.app'
+  ];
+
+  if (secureProductionOrigins.includes(origin)) {
+    return true;
+  }
+
   return allowedOrigins.includes(origin);
 };
 
