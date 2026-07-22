@@ -58,9 +58,6 @@ const walletSchema = new mongoose.Schema(
   }
 );
 
-// Index for efficient querying
-walletSchema.index({ user: 1 });
-
 const Wallet = mongoose.model('Wallet', walletSchema);
 
 export default Wallet;
