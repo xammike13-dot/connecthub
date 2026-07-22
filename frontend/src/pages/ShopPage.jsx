@@ -507,7 +507,7 @@ const ShopPage = () => {
                     : 'grid-cols-1'
                 }`}
               >
-                {products.map((product) => (
+                {products.map((product, idx) => (
                   <ProductCard
                     key={product._id}
                     product={product}
@@ -516,6 +516,7 @@ const ShopPage = () => {
                     isFavorite={isInWishlist(product._id)}
                     onView={handleViewProduct}
                     isViewed={viewedProducts.has(product._id)}
+                    priority={idx < 4} // Eagerly load the first 4 visible images above-the-fold
                   />
                 ))}
               </div>
@@ -562,7 +563,7 @@ const ShopPage = () => {
                           : 'grid-cols-1'
                       }`}
                     >
-                      {categoryProducts.map((product) => (
+                      {categoryProducts.map((product, idx) => (
                         <ProductCard
                           key={product._id}
                           product={product}
@@ -571,6 +572,7 @@ const ShopPage = () => {
                           isFavorite={isInWishlist(product._id)}
                           onView={handleViewProduct}
                           isViewed={viewedProducts.has(product._id)}
+                          priority={idx < 4} // Eagerly load above-the-fold category images
                         />
                       ))}
                     </div>

@@ -20,6 +20,7 @@ import Button from '../components/ui/Button';
 import LoadingSpinner from '../components/LoadingSpinner';
 import PhotoGallery from '../components/ui/PhotoGallery';
 import Avatar from '../components/ui/Avatar';
+import OptimizedImage from '../components/ui/OptimizedImage';
 import { rentalAPI } from '../services/api';
 import { useToast } from '../components/Toast';
 
@@ -149,12 +150,13 @@ const RentalDetailPage = () => {
               animate={{ opacity: 1, y: 0 }}
               className="rounded-xl overflow-hidden"
             >
-              <div className="relative">
-                <img
+              <div className="relative cursor-pointer" onClick={() => handleOpenGallery(0)}>
+                <OptimizedImage
                   src={mainImage}
                   alt={rental.rentalName}
-                  className="w-full h-96 object-cover cursor-pointer"
-                  onClick={() => handleOpenGallery(0)}
+                  priority={true} // Eager load above-the-fold detail hero image
+                  aspectRatioClass="aspect-[16/9]"
+                  className="w-full h-96 object-cover"
                 />
 
                 {/* Gallery Button */}
@@ -186,9 +188,11 @@ const RentalDetailPage = () => {
                             : 'border-neutral-300 hover:border-blue-400'
                         }`}
                       >
-                        <img
+                        <OptimizedImage
                           src={thumbUrl}
                           alt={`Thumbnail ${index + 1}`}
+                          priority={false}
+                          aspectRatioClass="aspect-square"
                           className="w-full h-full object-cover"
                         />
                       </button>

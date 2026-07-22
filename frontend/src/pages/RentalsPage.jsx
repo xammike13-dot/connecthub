@@ -471,7 +471,7 @@ const RentalsPage = () => {
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {rentals.map(
-                (rental) => (
+                (rental, idx) => (
                   <RentalCard
                     key={
                       rental._id
@@ -483,6 +483,7 @@ const RentalsPage = () => {
                     onFavorite={handleFavorite}
                     onView={handleViewRental}
                     isViewed={rental.hasViewed || false}
+                    priority={idx < 3} // Eagerly load the first 3 visible images above-the-fold
                   />
                 )
               )}
