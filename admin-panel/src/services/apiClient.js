@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
+const API_URL = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'https://connecthub-60j4.onrender.com/api')).replace(/\/$/, '');
 
 const api = axios.create({
   baseURL: API_URL,
@@ -30,6 +30,15 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Centralized detailed error logging for all failed requests
+    console.error('[API Error Interceptor] Request failed:', {
+      url: error.config?.url,
+      method: error.config?.method,
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message
+    });
+
     // Only clear token on 401 for protected routes, not for login/register
     const isLoginOrRegister = error.config?.url?.includes('/auth/login') ||
                               error.config?.url?.includes('/api/auth/login') ||
