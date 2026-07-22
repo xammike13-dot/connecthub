@@ -15,10 +15,17 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 test('Admin Login & Role-Restriction Integration Test', async (t) => {
-  console.log('Starting MongoMemoryServer for Admin Login test...');
-  const mongoServer = await MongoMemoryServer.create();
-  const mongoUri = mongoServer.getUri();
-  process.env.MONGODB_URI = mongoUri;
+  let mongoServer;
+  let mongoUri = process.env.MONGODB_URI;
+
+  if (!mongoUri) {
+    console.log('Starting MongoMemoryServer for Admin Login test...');
+    mongoServer = await MongoMemoryServer.create();
+    mongoUri = mongoServer.getUri();
+    process.env.MONGODB_URI = mongoUri;
+  } else {
+    console.log('Using existing MONGODB_URI for Admin Login test:', mongoUri);
+  }
 
   console.log('Connecting to MongoDB...');
   await connectDB();
@@ -192,10 +199,24 @@ test('Admin Login & Role-Restriction Integration Test', async (t) => {
       assert.equal(nextCalled, true);
     });
 
+    await t.test('5. Rejection of invalid credentials', async () => {
+      const { responseStatus, responseJson, errorThrown } = await runLogin({
+        email: 'admin@connecthub.website',
+        password: 'wrongpassword',
+      });
+
+      assert.equal(errorThrown, null);
+      assert.equal(responseStatus, 401);
+      assert.equal(responseJson.success, false);
+      assert.equal(responseJson.message, 'Invalid credentials');
+    });
+
   } finally {
     console.log('Closing database connection...');
     await mongoose.disconnect();
-    console.log('Stopping MongoMemoryServer...');
-    await mongoServer.stop();
+    if (mongoServer) {
+      console.log('Stopping MongoMemoryServer...');
+      await mongoServer.stop();
+    }
   }
 });
