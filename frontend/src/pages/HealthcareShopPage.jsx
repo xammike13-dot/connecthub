@@ -362,7 +362,7 @@ const HealthcareShopPage = () => {
                 : 'grid-cols-1'
                 }`}
             >
-              {products.map((product) => (
+              {products.map((product, idx) => (
                 <ProductCard
                   key={product._id}
                   product={product}
@@ -371,6 +371,7 @@ const HealthcareShopPage = () => {
                   isFavorite={isInWishlist(product._id)}
                   onView={handleViewProduct}
                   isViewed={viewedProducts.has(product._id)}
+                  priority={idx < 4} // Eagerly load the first 4 visible images above-the-fold
                 />
               ))}
             </div>

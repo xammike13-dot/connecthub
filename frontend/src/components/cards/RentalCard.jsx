@@ -13,6 +13,7 @@ import { useAuth } from '../../context/AuthContext';
 import Button from '../ui/Button';
 import PhotoGallery from '../ui/PhotoGallery';
 import Avatar from '../ui/Avatar';
+import OptimizedImage from '../ui/OptimizedImage';
 
 const RentalCard = ({
   rental,
@@ -20,10 +21,10 @@ const RentalCard = ({
   isFavorite = false,
   onView,
   isViewed = false,
+  priority = false,
 }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [imageLoaded, setImageLoaded] = useState(false);
   const [showGallery, setShowGallery] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
 
@@ -65,12 +66,12 @@ const RentalCard = ({
     >
       {/* Image */}
       <div className="relative aspect-[4/3] overflow-hidden bg-neutral-100">
-        <img
+        <OptimizedImage
           src={mainImage}
           alt={rentalName}
-          className={`w-full h-full object-cover transition-all duration-500 group-hover:scale-105 ${imageLoaded ? 'opacity-100' : 'opacity-0'
-            }`}
-          onLoad={() => setImageLoaded(true)}
+          priority={priority}
+          aspectRatioClass="aspect-[4/3]"
+          className="transition-all duration-500 group-hover:scale-105 cursor-pointer"
           onClick={() => hasMultiplePhotos && handleOpenGallery(0)}
         />
 

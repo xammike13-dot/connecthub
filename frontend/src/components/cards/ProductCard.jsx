@@ -15,6 +15,7 @@ import { useCart } from '../../context/CartContext';
 import { useToast } from '../Toast';
 import { productAPI } from '../../services/api';
 import Avatar from '../ui/Avatar';
+import OptimizedImage from '../ui/OptimizedImage';
 
 const ProductCard = ({
   product,
@@ -23,10 +24,10 @@ const ProductCard = ({
   isFavorite = false,
   onView,
   isViewed = false,
+  priority = false,
 }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [imageLoaded, setImageLoaded] = useState(false);
 
   if (!product) {
     console.warn('[ProductCard] Received null or undefined product');
@@ -114,13 +115,12 @@ const ProductCard = ({
     >
       {/* Image Container with standard ratio */}
       <div className="relative aspect-square overflow-hidden bg-neutral-100">
-        <img
+        <OptimizedImage
           src={mainImage}
           alt={name}
-          className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 ${
-            imageLoaded ? 'opacity-100' : 'opacity-0'
-          }`}
-          onLoad={() => setImageLoaded(true)}
+          priority={priority}
+          aspectRatioClass="aspect-square"
+          className="transition-transform duration-500 group-hover:scale-105"
         />
 
         {/* Badges */}
