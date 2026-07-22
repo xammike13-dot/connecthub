@@ -93,7 +93,7 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       return {
         success: false,
-        message: error.response?.data?.message || 'Login failed'
+        message: error.response?.data?.message || error.message || 'Login failed'
       };
     }
   };
@@ -125,14 +125,20 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       if ('serviceWorker' in navigator && 'PushManager' in window) {
-        const registration = await navigator.serviceWorker.ready;
-        const subscription = await registration.pushManager.getSubscription();
-        if (subscription) {
-          // Send request to backend to unsubscribe before clearing token
-          await api.post('/notifications/unsubscribe', { endpoint: subscription.endpoint }).catch(() => {});
-          // Unsubscribe from browser PushManager
-          await subscription.unsubscribe().catch(() => {});
-        }
+        // Race the service worker readiness to prevent hanging if no service worker is registered
+        await Promise.race([
+          (async () => {
+            const registration = await navigator.serviceWorker.ready;
+            const subscription = await registration.pushManager.getSubscription();
+            if (subscription) {
+              // Send request to backend to unsubscribe before clearing token
+              await api.post('/notifications/unsubscribe', { endpoint: subscription.endpoint }).catch(() => {});
+              // Unsubscribe from browser PushManager
+              await subscription.unsubscribe().catch(() => {});
+            }
+          })(),
+          new Promise((resolve) => setTimeout(resolve, 1000))
+        ]);
       }
     } catch (err) {
       console.error('[AuthContext] Unsubscribe push on logout failed:', err);
