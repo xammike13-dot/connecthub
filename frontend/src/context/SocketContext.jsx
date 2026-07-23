@@ -79,10 +79,10 @@ export const SocketProvider = ({ children }) => {
         }
 
         // Request browser notification permission once after socket connects
-        if ('Notification' in window && !notificationPermissionRequested.current) {
+        if (typeof window !== 'undefined' && 'Notification' in window && !notificationPermissionRequested.current) {
           notificationPermissionRequested.current = true;
-          if (Notification.permission !== 'granted') {
-            Notification.requestPermission();
+          if (window.Notification.permission !== 'granted') {
+            window.Notification.requestPermission();
           }
         }
       });
@@ -128,7 +128,7 @@ export const SocketProvider = ({ children }) => {
         }
 
         // Show browser notification if permission granted
-        if ('Notification' in window && Notification.permission === 'granted') {
+        if (typeof window !== 'undefined' && 'Notification' in window && window.Notification.permission === 'granted') {
           try {
             const title = notification.title || 'New Notification';
             const body = notification.message || '';
@@ -138,7 +138,7 @@ export const SocketProvider = ({ children }) => {
             if (document.visibilityState === 'visible' && document.hasFocus()) {
               // User is looking at the app, skip browser notification to avoid annoyance
             } else {
-              const browserNotif = new Notification(title, {
+              const browserNotif = new window.Notification(title, {
                 body,
                 icon,
                 tag: notification._id, // Use tag to prevent duplicates

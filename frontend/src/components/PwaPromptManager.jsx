@@ -63,8 +63,8 @@ export default function PwaPromptManager() {
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated) {
-      const permission = Notification.permission;
+    if (isAuthenticated && typeof window !== 'undefined' && 'Notification' in window) {
+      const permission = window.Notification.permission;
       const alreadyAsked = localStorage.getItem('connecthub_push_asked');
 
       if (permission === 'default' && alreadyAsked !== 'denied' && alreadyAsked !== 'granted') {
@@ -167,8 +167,12 @@ export default function PwaPromptManager() {
 
   const handleAllowNotifications = async () => {
     setShowPermissionBanner(false);
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      console.warn('[PWA Prompt] Notification API is not supported in this environment.');
+      return;
+    }
     try {
-      const permission = await Notification.requestPermission();
+      const permission = await window.Notification.requestPermission();
       if (permission === 'granted') {
         localStorage.setItem('connecthub_push_asked', 'granted');
         await syncPushSubscription();
