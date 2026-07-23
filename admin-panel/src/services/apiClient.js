@@ -24,8 +24,11 @@ if (!import.meta.env.DEV) {
 // Ensure the baseURL always ends with /api so that relative paths
 // like /admin/users resolve to /api/admin/users. If VITE_API_URL is
 // set to just the origin (e.g. https://host.com without /api), append it.
-if (rawApiUrl && rawApiUrl.startsWith('http') && !rawApiUrl.endsWith('/api')) {
-  rawApiUrl = rawApiUrl.replace(/\/$/, '') + '/api';
+if (rawApiUrl && rawApiUrl.startsWith('http')) {
+  rawApiUrl = rawApiUrl.replace(/\/$/, '');
+  if (!rawApiUrl.endsWith('/api')) {
+    rawApiUrl = rawApiUrl + '/api';
+  }
 }
 
 const API_URL = rawApiUrl.replace(/\/$/, '');
