@@ -13,13 +13,19 @@ if (!import.meta.env.DEV) {
   }
 } else {
   // In development, require VITE_API_URL to be explicitly set.
-  // Silent fallback to "/api" is explicitly disabled to prevent unsafe connections/unexpected empty states.
   if (!rawApiUrl || !rawApiUrl.startsWith('http')) {
     isConfigError = true;
     configErrorMessage = 'VITE_API_URL must be explicitly configured in development mode (e.g., in admin-panel/.env). Dynamic fallback to "/api" has been disabled to protect live production database integrity and prevent silent empty states.';
     console.error(`[Configuration Error] ${configErrorMessage}`);
     rawApiUrl = 'INVALID_CONFIG';
   }
+}
+
+// Ensure the baseURL always ends with /api so that relative paths
+// like /admin/users resolve to /api/admin/users. If VITE_API_URL is
+// set to just the origin (e.g. https://host.com without /api), append it.
+if (rawApiUrl && rawApiUrl.startsWith('http') && !rawApiUrl.endsWith('/api')) {
+  rawApiUrl = rawApiUrl.replace(/\/$/, '') + '/api';
 }
 
 const API_URL = rawApiUrl.replace(/\/$/, '');
@@ -43,14 +49,6 @@ api.interceptors.request.use(
     if (config.baseURL && config.baseURL.endsWith('/api') && config.url && config.url.startsWith('/api/')) {
       config.url = config.url.substring(4);
     }
-
-    // Temporary console logging to print the final absolute API URL before every request
-    const finalUrl = config.baseURL
-      ? (config.baseURL.endsWith('/') || (config.url && config.url.startsWith('/'))
-          ? `${config.baseURL.replace(/\/$/, '')}${config.url}`
-          : `${config.baseURL}/${config.url}`)
-      : (config.url || '');
-    console.log(`[API Request] Final URL: ${finalUrl}`);
 
     const token = localStorage.getItem('admin_token');
     // Don't add token for login endpoint to avoid 401 errors
