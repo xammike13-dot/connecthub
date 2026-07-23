@@ -8,6 +8,7 @@ import { isConfigError, configErrorMessage } from './services/apiClient.js';
 import LoginPage from './pages/LoginPage';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminUsersPage from './pages/AdminUsersPage';
+import AdminProductsPage from './pages/AdminProductsPage';
 import AdminOrdersPage from './pages/AdminOrdersPage';
 import AdminRentalsPage from './pages/AdminRentalsPage';
 import AdminRidesPage from './pages/AdminRidesPage';
@@ -54,6 +55,7 @@ function App() {
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<AdminDashboard />} />
               <Route path="users" element={<AdminUsersPage />} />
+              <Route path="products" element={<AdminProductsPage />} />
               <Route path="orders" element={<AdminOrdersPage />} />
               <Route path="rentals" element={<AdminRentalsPage />} />
               <Route path="rides" element={<AdminRidesPage />} />
