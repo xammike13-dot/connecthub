@@ -2,15 +2,23 @@ import axios from 'axios';
 
 let rawApiUrl = import.meta.env.VITE_API_URL;
 
-// Ensure production build never falls back to a relative /api URL on the Vercel domain.
-// If VITE_API_URL is missing, or is a relative URL (doesn't start with http), force-fallback in production.
+export let isConfigError = false;
+export let configErrorMessage = '';
+
+// Check configuration based on environment
 if (!import.meta.env.DEV) {
+  // In production, keep fallback to the live Render endpoint
   if (!rawApiUrl || !rawApiUrl.startsWith('http')) {
     rawApiUrl = 'https://connecthub-60j4.onrender.com/api';
   }
 } else {
-  if (!rawApiUrl) {
-    rawApiUrl = '/api';
+  // In development, require VITE_API_URL to be explicitly set.
+  // Silent fallback to "/api" is explicitly disabled to prevent unsafe connections/unexpected empty states.
+  if (!rawApiUrl || !rawApiUrl.startsWith('http')) {
+    isConfigError = true;
+    configErrorMessage = 'VITE_API_URL must be explicitly configured in development mode (e.g., in admin-panel/.env). Dynamic fallback to "/api" has been disabled to protect live production database integrity and prevent silent empty states.';
+    console.error(`[Configuration Error] ${configErrorMessage}`);
+    rawApiUrl = 'INVALID_CONFIG';
   }
 }
 
@@ -26,6 +34,11 @@ const api = axios.create({
 
 api.interceptors.request.use(
   (config) => {
+    if (isConfigError) {
+      console.error(`[API Request Blocked] Request to ${config.url} was blocked: ${configErrorMessage}`);
+      return Promise.reject(new Error(configErrorMessage));
+    }
+
     // If baseURL ends with /api and config.url starts with /api/, strip duplicate /api to avoid double /api/api
     if (config.baseURL && config.baseURL.endsWith('/api') && config.url && config.url.startsWith('/api/')) {
       config.url = config.url.substring(4);
