@@ -45,11 +45,6 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
 
-    // Set headers to disable caching on client-side requests/intermediaries
-    config.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
-    config.headers['Pragma'] = 'no-cache';
-    config.headers['Expires'] = '0';
-
     // Append cache-busting timestamp parameter for GET requests
     if (config.method && config.method.toLowerCase() === 'get') {
       config.params = {
