@@ -1,6 +1,20 @@
 import axios from 'axios';
 
-const API_URL = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'https://connecthub-60j4.onrender.com/api')).replace(/\/$/, '');
+let rawApiUrl = import.meta.env.VITE_API_URL;
+
+// Ensure production build never falls back to a relative /api URL on the Vercel domain.
+// If VITE_API_URL is missing, or is a relative URL (doesn't start with http), force-fallback in production.
+if (!import.meta.env.DEV) {
+  if (!rawApiUrl || !rawApiUrl.startsWith('http')) {
+    rawApiUrl = 'https://connecthub-60j4.onrender.com/api';
+  }
+} else {
+  if (!rawApiUrl) {
+    rawApiUrl = '/api';
+  }
+}
+
+const API_URL = rawApiUrl.replace(/\/$/, '');
 
 const api = axios.create({
   baseURL: API_URL,
@@ -16,6 +30,14 @@ api.interceptors.request.use(
     if (config.baseURL && config.baseURL.endsWith('/api') && config.url && config.url.startsWith('/api/')) {
       config.url = config.url.substring(4);
     }
+
+    // Temporary console logging to print the final absolute API URL before every request
+    const finalUrl = config.baseURL
+      ? (config.baseURL.endsWith('/') || (config.url && config.url.startsWith('/'))
+          ? `${config.baseURL.replace(/\/$/, '')}${config.url}`
+          : `${config.baseURL}/${config.url}`)
+      : (config.url || '');
+    console.log(`[API Request] Final URL: ${finalUrl}`);
 
     const token = localStorage.getItem('admin_token');
     // Don't add token for login endpoint to avoid 401 errors
