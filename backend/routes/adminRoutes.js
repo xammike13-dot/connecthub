@@ -26,6 +26,12 @@ import {
   rejectWithdrawal,
   getDailyRevenue,
   getDisputeReport,
+  getAdminProducts,
+  getAdminProductsStats,
+  getAdminProductById,
+  updateAdminProductStatus,
+  deleteAdminProduct,
+  flagAdminProduct,
 } from '../controllers/adminController.js';
 import { protect, restrictTo } from '../middleware/auth.js';
 
@@ -60,6 +66,14 @@ router.get('/users', getUsers);
 router.get('/users/:userId', getUser);
 router.put('/users/:userId/status', updateUserStatus);
 router.delete('/users/:userId', deleteUser);
+
+// Product management
+router.get('/products', getAdminProducts);
+router.get('/products/stats', getAdminProductsStats);
+router.get('/products/:id', getAdminProductById);
+router.patch('/products/:id/status', updateAdminProductStatus);
+router.delete('/products/:id', deleteAdminProduct);
+router.patch('/products/:id/flag', flagAdminProduct);
 
 // Order management
 router.get('/orders', getAdminOrders);

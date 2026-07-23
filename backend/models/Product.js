@@ -84,6 +84,10 @@ const productSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    isFlagged: {
+      type: Boolean,
+      default: false,
+    },
     isFeatured: {
       type: Boolean,
       default: false,

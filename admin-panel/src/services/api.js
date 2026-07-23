@@ -145,6 +145,12 @@ export const adminAPI = {
   getWithdrawals: (params) => api.get('/admin/withdrawals', { params }),
   approveWithdrawal: (id) => api.put(`/admin/withdrawals/${id}/approve`),
   rejectWithdrawal: (id, reason) => api.put(`/admin/withdrawals/${id}/reject`, { reason }),
+  getProducts: (params) => api.get('/admin/products', { params }),
+  getProductsStats: () => api.get('/admin/products/stats'),
+  getProductById: (id) => api.get(`/admin/products/${id}`),
+  updateProductStatus: (id, data) => api.patch(`/admin/products/${id}/status`, data),
+  deleteProduct: (id) => api.delete(`/admin/products/${id}`),
+  flagProduct: (id, data) => api.patch(`/admin/products/${id}/flag`, data),
 };
 
 // Withdrawal APIs

@@ -10,7 +10,8 @@ const systemLogSchema = new mongoose.Schema({
       'database_connection',
       'payment_failure',
       'push_notification_failure',
-      'auth_failure'
+      'auth_failure',
+      'admin_action'
     ]
   },
   message: {

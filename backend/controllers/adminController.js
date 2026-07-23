@@ -8,6 +8,8 @@ import Wallet from '../models/Wallet.js';
 import Notification from '../models/Notification.js';
 import SupportTicket from '../models/SupportTicket.js';
 import SystemLog from '../models/SystemLog.js';
+import Product from '../models/Product.js';
+import Wishlist from '../models/Wishlist.js';
 import mongoose from 'mongoose';
 import { asyncHandler, ResponseError } from '../middleware/error.js';
 import { sendPushToUser } from '../utils/webPush.js';
@@ -131,6 +133,368 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
         ? ((completedTransactions.length / transactions.length) * 100).toFixed(2) 
         : 0,
     },
+  });
+});
+
+/**
+ * ==========================================
+ * PRODUCTS MANAGEMENT
+ * ==========================================
+ */
+
+/**
+ * Get all products for admin with aggregation
+ */
+export const getAdminProducts = asyncHandler(async (req, res) => {
+  const { search, category, status, sortBy, page = 1, limit = 20 } = req.query;
+
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+  const parsedLimit = parseInt(limit);
+
+  const pipeline = [];
+
+  // Join business details from users collection
+  pipeline.push(
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'business',
+        foreignField: '_id',
+        as: 'businessDetails'
+      }
+    },
+    {
+      $unwind: {
+        path: '$businessDetails',
+        preserveNullAndEmptyArrays: true
+      }
+    },
+    {
+      $lookup: {
+        from: 'orders',
+        localField: '_id',
+        foreignField: 'items.product',
+        as: 'associatedOrders'
+      }
+    },
+    {
+      $addFields: {
+        ordersCount: { $size: '$associatedOrders' }
+      }
+    }
+  );
+
+  // Match stage filters
+  const matchStage = {};
+
+  if (category) {
+    matchStage.category = category;
+  }
+
+  if (search) {
+    matchStage.$or = [
+      { name: { $regex: search, $options: 'i' } },
+      { category: { $regex: search, $options: 'i' } },
+      { 'businessDetails.businessProfile.businessName': { $regex: search, $options: 'i' } },
+      { 'businessDetails.name': { $regex: search, $options: 'i' } }
+    ];
+  }
+
+  if (status) {
+    if (status === 'active') {
+      matchStage.isActive = true;
+      matchStage.stock = { $gt: 0 };
+      matchStage.isFlagged = { $ne: true };
+    } else if (status === 'inactive') {
+      matchStage.isActive = false;
+      matchStage.isFlagged = { $ne: true };
+    } else if (status === 'out_of_stock') {
+      matchStage.isActive = true;
+      matchStage.stock = 0;
+      matchStage.isFlagged = { $ne: true };
+    } else if (status === 'flagged') {
+      matchStage.isFlagged = true;
+    }
+  }
+
+  if (Object.keys(matchStage).length > 0) {
+    pipeline.push({ $match: matchStage });
+  }
+
+  // Count total matching items for pagination
+  const countPipeline = [...pipeline, { $count: 'total' }];
+  const countResult = await Product.aggregate(countPipeline);
+  const total = countResult[0]?.total || 0;
+
+  // Sorting
+  let sortStage = { createdAt: -1 };
+  if (sortBy) {
+    if (sortBy === 'newest') sortStage = { createdAt: -1 };
+    else if (sortBy === 'oldest') sortStage = { createdAt: 1 };
+    else if (sortBy === 'price_asc') sortStage = { price: 1 };
+    else if (sortBy === 'price_desc') sortStage = { price: -1 };
+    else if (sortBy === 'stock_asc') sortStage = { stock: 1 };
+    else if (sortBy === 'stock_desc') sortStage = { stock: -1 };
+  }
+  pipeline.push({ $sort: sortStage });
+
+  // Pagination
+  pipeline.push({ $skip: skip });
+  pipeline.push({ $limit: parsedLimit });
+
+  // Projection
+  pipeline.push({
+    $project: {
+      _id: 1,
+      name: 1,
+      description: 1,
+      category: 1,
+      price: 1,
+      stock: 1,
+      images: 1,
+      isActive: 1,
+      isFlagged: 1,
+      views: 1,
+      ordersCount: 1,
+      createdAt: 1,
+      updatedAt: 1,
+      business: {
+        _id: '$businessDetails._id',
+        name: '$businessDetails.name',
+        email: '$businessDetails.email',
+        phone: '$businessDetails.phone',
+        businessName: '$businessDetails.businessProfile.businessName'
+      }
+    }
+  });
+
+  const products = await Product.aggregate(pipeline);
+
+  res.status(200).json({
+    success: true,
+    data: products,
+    pagination: {
+      total,
+      pages: Math.ceil(total / parsedLimit),
+      currentPage: parseInt(page),
+      limit: parsedLimit
+    }
+  });
+});
+
+/**
+ * Get product statistics for dashboard
+ */
+export const getAdminProductsStats = asyncHandler(async (req, res) => {
+  const totalProducts = await Product.countDocuments();
+  const activeProducts = await Product.countDocuments({ isActive: true, stock: { $gt: 0 }, isFlagged: { $ne: true } });
+  const inactiveProducts = await Product.countDocuments({ isActive: false, isFlagged: { $ne: true } });
+  const outOfStockProducts = await Product.countDocuments({ isActive: true, stock: 0, isFlagged: { $ne: true } });
+  const flaggedProducts = await Product.countDocuments({ isFlagged: true });
+
+  // Sum of views
+  const viewsAggregation = await Product.aggregate([
+    { $group: { _id: null, totalViews: { $sum: '$views' } } }
+  ]);
+  const totalViews = viewsAggregation[0]?.totalViews || 0;
+
+  // Sum of orders
+  const totalOrders = await Order.countDocuments({ orderType: { $in: ['marketplace', 'healthcare'] } });
+
+  res.status(200).json({
+    success: true,
+    data: {
+      totalProducts,
+      activeProducts,
+      inactiveProducts,
+      outOfStockProducts,
+      flaggedProducts,
+      totalViews,
+      totalOrders
+    }
+  });
+});
+
+/**
+ * Get product details along with details and stats
+ */
+export const getAdminProductById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    throw new ResponseError('Invalid product ID format', 400);
+  }
+
+  const pipeline = [
+    { $match: { _id: new mongoose.Types.ObjectId(id) } },
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'business',
+        foreignField: '_id',
+        as: 'businessDetails'
+      }
+    },
+    {
+      $unwind: {
+        path: '$businessDetails',
+        preserveNullAndEmptyArrays: true
+      }
+    },
+    {
+      $lookup: {
+        from: 'orders',
+        localField: '_id',
+        foreignField: 'items.product',
+        as: 'associatedOrders'
+      }
+    },
+    {
+      $addFields: {
+        ordersCount: { $size: '$associatedOrders' }
+      }
+    },
+    {
+      $project: {
+        _id: 1,
+        name: 1,
+        description: 1,
+        category: 1,
+        price: 1,
+        stock: 1,
+        images: 1,
+        isActive: 1,
+        isFlagged: 1,
+        views: 1,
+        ordersCount: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        business: {
+          _id: '$businessDetails._id',
+          name: '$businessDetails.name',
+          email: '$businessDetails.email',
+          phone: '$businessDetails.phone',
+          businessName: '$businessDetails.businessProfile.businessName'
+        }
+      }
+    }
+  ];
+
+  const results = await Product.aggregate(pipeline);
+  if (results.length === 0) {
+    throw new ResponseError('Product not found', 404);
+  }
+
+  res.status(200).json({
+    success: true,
+    data: results[0]
+  });
+});
+
+/**
+ * Update product isActive status
+ */
+export const updateAdminProductStatus = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { isActive } = req.body;
+
+  if (isActive === undefined) {
+    throw new ResponseError('Please provide isActive status', 400);
+  }
+
+  const product = await Product.findById(id);
+  if (!product) {
+    throw new ResponseError('Product not found', 404);
+  }
+
+  product.isActive = isActive;
+  await product.save();
+
+  // Create audit system log
+  await SystemLog.create({
+    type: 'admin_action',
+    message: `Admin ${req.user.name} (${req.user.email}) ${isActive ? 'activated' : 'suspended'} product: "${product.name}" (ID: ${product._id})`,
+    details: { category: 'product_management', productId: product._id, action: isActive ? 'activate' : 'suspend' },
+    user: req.user._id,
+    timestamp: new Date()
+  });
+
+  res.status(200).json({
+    success: true,
+    message: `Product ${isActive ? 'activated' : 'suspended'} successfully`,
+    data: product
+  });
+});
+
+/**
+ * Delete product from platform database and wishlists
+ */
+export const deleteAdminProduct = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const product = await Product.findById(id);
+  if (!product) {
+    throw new ResponseError('Product not found', 404);
+  }
+
+  await Product.deleteOne({ _id: id });
+
+  // Clean up from all customer wishlists
+  await Wishlist.updateMany({}, { $pull: { products: { product: id } } });
+
+  // Create audit system log
+  await SystemLog.create({
+    type: 'admin_action',
+    message: `Admin ${req.user.name} (${req.user.email}) deleted product: "${product.name}" (ID: ${product._id})`,
+    details: { category: 'product_management', productId: product._id, action: 'delete' },
+    user: req.user._id,
+    timestamp: new Date()
+  });
+
+  res.status(200).json({
+    success: true,
+    message: 'Product deleted successfully'
+  });
+});
+
+/**
+ * Flag or unflag a product as suspicious
+ */
+export const flagAdminProduct = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { isFlagged } = req.body;
+
+  if (isFlagged === undefined) {
+    throw new ResponseError('Please provide isFlagged boolean', 400);
+  }
+
+  const product = await Product.findById(id);
+  if (!product) {
+    throw new ResponseError('Product not found', 404);
+  }
+
+  product.isFlagged = isFlagged;
+  if (isFlagged) {
+    product.isActive = false; // Flagging a product suspends it
+  } else {
+    product.isActive = true; // Unflagging it reactivates it
+  }
+
+  await product.save();
+
+  // Create audit system log
+  await SystemLog.create({
+    type: 'admin_action',
+    message: `Admin ${req.user.name} (${req.user.email}) ${isFlagged ? 'flagged' : 'unflagged'} product as suspicious: "${product.name}" (ID: ${product._id})`,
+    details: { category: 'product_management', productId: product._id, action: isFlagged ? 'flag' : 'unflag' },
+    user: req.user._id,
+    timestamp: new Date()
+  });
+
+  res.status(200).json({
+    success: true,
+    message: `Product successfully ${isFlagged ? 'flagged and suspended' : 'unflagged and activated'}`,
+    data: product
   });
 });
 
