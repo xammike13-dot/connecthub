@@ -44,7 +44,7 @@ if (!whatsappVerifyToken) {
   console.warn('');
 } else {
   console.log('');
-  console.log('═══════════════════════════════════════════════════���═══════');
+  console.log('═══════════════════════════════════════════════════════════');
   console.log('  WhatsApp Webhook Verification Token Loaded');
   console.log('═══════════════════════════════════════════════════════════');
   console.log('[Server] WHATSAPP_VERIFY_TOKEN: LOADED ✓');
@@ -222,7 +222,10 @@ io.on('connection', (socket) => {
 
 // Security Middleware
 app.set('trust proxy', 1);
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginEmbedderPolicy: false,
+}));
 
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
