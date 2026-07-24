@@ -170,7 +170,7 @@ export const getWithdrawal = asyncHandler(async (req, res) => {
   // Check authorization
   if (
     withdrawal.user._id.toString() !== req.user._id.toString() &&
-    !req.user.isAdmin
+    req.user.role !== 'admin'
   ) {
     throw new ResponseError('Not authorized to view this withdrawal', 403);
   }

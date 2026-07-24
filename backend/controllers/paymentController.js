@@ -1966,11 +1966,24 @@ export const getTransaction = asyncHandler(async (req, res) => {
   const { transactionRef } = req.params;
 
   const transaction = await Transaction.findOne({ transactionRef })
+    .select('-darajaResponse -darajaCallbackData -webhookData')
     .populate('customer', 'firstName lastName email phone')
     .populate('provider', 'firstName lastName email phone');
 
   if (!transaction) {
     throw new ResponseError('Transaction not found', 404);
+  }
+
+  // Ensure only transaction participants or an admin can view details
+  const customerId = (transaction.customer?._id || transaction.customer)?.toString();
+  const providerId = (transaction.provider?._id || transaction.provider)?.toString();
+
+  if (
+    customerId !== req.user._id.toString() &&
+    providerId !== req.user._id.toString() &&
+    req.user.role !== 'admin'
+  ) {
+    throw new ResponseError('Not authorized to access this transaction details', 403);
   }
 
   res.status(200).json({

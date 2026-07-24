@@ -158,6 +158,11 @@ export const getAllUsers = asyncHandler(async (req, res) => {
 export const getUserById = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
+  // Restrict access to: Admin, or the user's own profile
+  if (req.user.role !== 'admin' && req.user._id.toString() !== id) {
+    throw new ResponseError('Not authorized to access this user profile', 403);
+  }
+
   const user = await User.findById(id).select('-password');
 
   if (!user) {
@@ -177,9 +182,24 @@ export const updateUser = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const updates = req.body;
 
+  // Restrict access to: Admin, or the user's own profile
+  if (req.user.role !== 'admin' && req.user._id.toString() !== id) {
+    throw new ResponseError('Not authorized to update this user profile', 403);
+  }
+
   // Remove password from updates if present (use changePassword endpoint instead)
   if (updates.password) {
     delete updates.password;
+  }
+
+  // Strip sensitive administrative fields for non-admin updates to block Privilege Escalation
+  if (req.user.role !== 'admin') {
+    delete updates.role;
+    delete updates.isActive;
+    delete updates.isDeleted;
+    delete updates.emailVerified;
+    delete updates.phoneVerified;
+    delete updates.accountActive;
   }
 
   const user = await User.findByIdAndUpdate(id, updates, {

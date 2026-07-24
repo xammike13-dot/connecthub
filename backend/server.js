@@ -96,6 +96,7 @@ if (missingMpesaVars.length > 0) {
 
 import connectDB from './config/db.js';
 import errorHandler from './middleware/error.js';
+import { nosqlSanitize } from './middleware/nosqlSanitize.js';
 
 import authRoutes from './routes/auth.js';
 import uploadRoutes from './routes/uploadRoutes.js';
@@ -233,6 +234,7 @@ app.options('*', cors(corsOptions));
 // Body Parsers
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(nosqlSanitize);
 
 // Logger
 app.use(morgan('dev'));
