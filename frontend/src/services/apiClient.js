@@ -28,6 +28,7 @@ api.interceptors.response.use(
     // Only clear token on 401 for protected routes, not for login/register
     if (error.response?.status === 401 && !error.config?.url?.includes('/auth/login') && !error.config?.url?.includes('/auth/register')) {
       localStorage.removeItem('token');
+      localStorage.removeItem('user');
       window.dispatchEvent(new CustomEvent('auth-error', { detail: { status: 401 } }));
     }
     return Promise.reject(error);

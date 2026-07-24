@@ -12,8 +12,15 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
+  const [user, setUser] = useState(() => {
+    const storedUser = localStorage.getItem('user');
+    try {
+      return storedUser ? JSON.parse(storedUser) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [token, setToken] = useState(() => localStorage.getItem('token'));
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
 
@@ -26,11 +33,14 @@ export const AuthProvider = ({ children }) => {
         }
       });
       // Backend returns { success: true, user: { ... } }
-      setUser(data.user || data);
-      return true;
+      const fetchedUser = data.user || data;
+      setUser(fetchedUser);
+      localStorage.setItem('user', JSON.stringify(fetchedUser));
+      return { success: true };
     } catch (error) {
       console.error('Failed to fetch user profile:', error);
-      return false;
+      const isAuthError = error.response?.status === 401;
+      return { success: false, isAuthError };
     }
   }, []);
 
@@ -45,15 +55,20 @@ export const AuthProvider = ({ children }) => {
         api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
 
         // Fetch user profile to validate token
-        const success = await fetchUserProfile(storedToken);
+        const result = await fetchUserProfile(storedToken);
 
-        if (!success) {
-          // Token is invalid, clear everything
+        if (!result.success && result.isAuthError) {
+          // Token is genuinely invalid, clear everything
           localStorage.removeItem('token');
+          localStorage.removeItem('user');
           delete api.defaults.headers.common['Authorization'];
           setToken(null);
           setUser(null);
         }
+      } else {
+        // No token, ensure user is cleared
+        localStorage.removeItem('user');
+        setUser(null);
       }
 
       setInitialized(true);
@@ -79,6 +94,7 @@ export const AuthProvider = ({ children }) => {
 
       // Save token to localStorage
       localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
       setToken(data.token);
 
       // Set authorization header
@@ -100,6 +116,7 @@ export const AuthProvider = ({ children }) => {
 
   const authenticateWithToken = (authToken, userData) => {
     localStorage.setItem('token', authToken);
+    localStorage.setItem('user', JSON.stringify(userData));
     setToken(authToken);
     api.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
     setUser(userData);
@@ -146,6 +163,7 @@ export const AuthProvider = ({ children }) => {
       console.error('[AuthContext] Unsubscribe push on logout failed or timed out:', err);
     } finally {
       localStorage.removeItem('token');
+      localStorage.removeItem('user');
       setToken(null);
       delete api.defaults.headers.common['Authorization'];
       setUser(null);
@@ -157,8 +175,8 @@ export const AuthProvider = ({ children }) => {
   const refreshProfile = async () => {
     const token = localStorage.getItem('token');
     if (token) {
-      const success = await fetchUserProfile(token);
-      if (!success) {
+      const result = await fetchUserProfile(token);
+      if (!result.success && result.isAuthError) {
         logout();
       }
     }

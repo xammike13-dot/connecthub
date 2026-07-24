@@ -43,14 +43,15 @@ export const AuthProvider = ({ children }) => {
       if (fetchedUser && fetchedUser.role === 'admin') {
         setUser(fetchedUser);
         localStorage.setItem('admin_user', JSON.stringify(fetchedUser));
-        return true;
+        return { success: true };
       } else {
         console.warn('Fetched user is not an admin:', fetchedUser);
-        return false;
+        return { success: false, isAuthError: true };
       }
     } catch (error) {
       console.error('Failed to fetch user profile:', error);
-      return false;
+      const isAuthError = error.response?.status === 401;
+      return { success: false, isAuthError };
     }
   }, []);
 
@@ -65,9 +66,9 @@ export const AuthProvider = ({ children }) => {
         api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
 
         // Fetch user profile to validate token
-        const success = await fetchUserProfile(storedToken);
+        const result = await fetchUserProfile(storedToken);
 
-        if (!success) {
+        if (!result.success && result.isAuthError) {
           // Token is invalid or not admin, clear everything
           localStorage.removeItem('admin_token');
           localStorage.removeItem('admin_user');
@@ -193,8 +194,8 @@ export const AuthProvider = ({ children }) => {
   const refreshProfile = async () => {
     const token = localStorage.getItem('admin_token');
     if (token) {
-      const success = await fetchUserProfile(token);
-      if (!success) {
+      const result = await fetchUserProfile(token);
+      if (!result.success && result.isAuthError) {
         logout();
       }
     }
