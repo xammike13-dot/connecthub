@@ -159,6 +159,7 @@ const CaretakerInvitePage = () => {
                 </Button>
                 <Button variant="outline" fullWidth onClick={() => {
                   localStorage.removeItem('token');
+                  localStorage.removeItem('user');
                   window.location.reload();
                 }}>
                   Sign out & use another account
