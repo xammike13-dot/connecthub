@@ -596,6 +596,15 @@ export const resetPassword = async (req, res) => {
       });
     }
 
+    // Check if user is locked out from password resets
+    if (user.passwordResetLockoutUntil && user.passwordResetLockoutUntil > new Date()) {
+      const remainingMinutes = Math.ceil((user.passwordResetLockoutUntil - new Date()) / 60000);
+      return res.status(403).json({
+        success: false,
+        message: `Too many failed attempts. Please try again after ${remainingMinutes} minute(s).`,
+      });
+    }
+
     // Find valid reset token
     const resetToken = await VerificationToken.findOne({
       userId: user._id,
@@ -606,6 +615,30 @@ export const resetPassword = async (req, res) => {
     });
 
     if (!resetToken) {
+      user.passwordResetAttempts = (user.passwordResetAttempts || 0) + 1;
+
+      if (user.passwordResetAttempts >= 5) {
+        // Set lockout for 15 minutes
+        user.passwordResetLockoutUntil = new Date(Date.now() + 15 * 60 * 1000);
+        user.passwordResetAttempts = 0; // Reset counter for next cycle
+
+        // Invalidate current password reset tokens
+        await VerificationToken.deleteMany({
+          userId: user._id,
+          type: 'password_reset',
+          used: false,
+        });
+
+        await user.save();
+
+        return res.status(403).json({
+          success: false,
+          message: 'Too many failed attempts. Password reset is locked. Please request a new password reset link or code after 15 minutes.',
+        });
+      }
+
+      await user.save();
+
       return res.status(400).json({
         success: false,
         message: 'Invalid or expired reset code',
@@ -618,6 +651,8 @@ export const resetPassword = async (req, res) => {
 
     // Update password (will be hashed by pre-save hook)
     user.password = newPassword;
+    user.passwordResetAttempts = 0;
+    user.passwordResetLockoutUntil = undefined;
     await user.save();
 
     // Send confirmation email
@@ -636,39 +671,3 @@ export const resetPassword = async (req, res) => {
   }
 };
 
-// @desc    Debug login endpoint
-// @route   GET /api/auth/debug/test-login/:email
-// @access  Public (debug only)
-export const debugLogin = async (req, res, next) => {
-  try {
-    const { email } = req.params;
-    
-    console.log('[DEBUG LOGIN REQUEST]', { email });
-    
-    const user = await User.findOne({ email }).select('+password');
-    
-    const response = {
-      email,
-      userFound: !!user,
-      hasPassword: !!user?.password,
-      passwordLength: user?.password?.length,
-      passwordHash: user?.password,
-      isActive: user?.isActive,
-      isDeleted: user?.isDeleted,
-      userEmail: user?.email,
-      userName: user?.name,
-      userRole: user?.role,
-      emailVerified: user?.emailVerified
-    };
-    
-    console.log('[DEBUG LOGIN RESPONSE]', response);
-    
-    res.status(200).json(response);
-  } catch (error) {
-    console.error('[DEBUG LOGIN ERROR]', error.message);
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};

@@ -155,6 +155,15 @@ export const verifyEmailCode = async (req, res) => {
       });
     }
 
+    // Check if user is locked out from email verification
+    if (user.emailVerificationLockoutUntil && user.emailVerificationLockoutUntil > new Date()) {
+      const remainingMinutes = Math.ceil((user.emailVerificationLockoutUntil - new Date()) / 60000);
+      return res.status(403).json({
+        success: false,
+        message: `Too many failed attempts. Please try again after ${remainingMinutes} minute(s).`,
+      });
+    }
+
     // Check if email is already verified
     if (user.emailVerified) {
       // Generate token and log user in
@@ -213,6 +222,30 @@ export const verifyEmailCode = async (req, res) => {
     });
 
     if (!verificationToken) {
+      user.emailVerificationAttempts = (user.emailVerificationAttempts || 0) + 1;
+
+      if (user.emailVerificationAttempts >= 5) {
+        // Set lockout for 15 minutes
+        user.emailVerificationLockoutUntil = new Date(Date.now() + 15 * 60 * 1000);
+        user.emailVerificationAttempts = 0; // Reset counter for next cycle
+
+        // Invalidate current email verification tokens
+        await VerificationToken.deleteMany({
+          userId: user._id,
+          type: 'email',
+          used: false,
+        });
+
+        await user.save();
+
+        return res.status(403).json({
+          success: false,
+          message: 'Too many failed attempts. Account verification is locked. Please request a new verification code after 15 minutes.',
+        });
+      }
+
+      await user.save();
+
       return res.status(400).json({
         success: false,
         message: 'Invalid or expired verification code',
@@ -229,6 +262,7 @@ export const verifyEmailCode = async (req, res) => {
     user.emailVerificationToken = undefined;
     user.emailVerificationExpire = undefined;
     user.emailVerificationAttempts = 0;
+    user.emailVerificationLockoutUntil = undefined;
     user.emailVerificationLastResend = null;
     await user.save();
 

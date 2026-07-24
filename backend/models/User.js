@@ -72,6 +72,7 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    emailVerificationLockoutUntil: Date,
     emailVerificationResendAttempts: {
       type: Number,
       default: 0,
@@ -95,6 +96,11 @@ const userSchema = new mongoose.Schema(
     // Password reset fields
     resetPasswordToken: String,
     resetPasswordExpire: Date,
+    passwordResetAttempts: {
+      type: Number,
+      default: 0,
+    },
+    passwordResetLockoutUntil: Date,
     googleId: String,
     setupCompleted: {
       type: Boolean,

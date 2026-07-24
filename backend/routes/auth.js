@@ -8,7 +8,6 @@ import {
   logoutAllDevices, 
   deactivateAccount, 
   deleteAccount, 
-  debugLogin,
   forgotPassword,
   resetPassword
 } from '../controllers/authController.js';
@@ -23,7 +22,6 @@ router.post('/forgotpassword', forgotPassword);
 router.post('/resetpassword', resetPassword);
 router.post('/google', googleAuth);
 router.post('/google/complete', completeGoogleSignup);
-router.get('/debug/test-login/:email', debugLogin);
 router.get('/profile', protect, getProfile);
 router.put('/profile', protect, updateProfile);
 router.put('/updatepassword', protect, updatePassword);
