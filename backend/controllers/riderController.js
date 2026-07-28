@@ -659,14 +659,13 @@ export const getNearbyRiders = asyncHandler(async (req, res) => {
     throw new ResponseError('Invalid coordinates provided', 400);
   }
 
-  // Find riders who satisfy ALL availability conditions
+  // 1. Fetch nearby candidate riders from the database
   console.log(`[getNearbyRiders] Querying MongoDB for riders near: [${lng}, ${lat}] within ${maxDistance}m`);
   
   const riders = await User.find({
     role: 'rider',
-    isActive: true, // Account must be active
-    isDeleted: false, // Account must not be deleted
-    'riderProfile.isOnline': true, // Rider must be online
+    isActive: true,
+    isDeleted: false,
     'riderProfile.currentLocation': {
       $near: {
         $geometry: {
@@ -676,25 +675,11 @@ export const getNearbyRiders = asyncHandler(async (req, res) => {
         $maxDistance: parseInt(maxDistance),
       },
     },
-    // Rider must not be on another ride
-    'riderProfile.status': {
-      $in: ['online'], // Only riders with 'online' status (not 'busy' or 'on_trip')
-    },
-  }).select('name phone avatar riderProfile');
+  }).select('name phone avatar isVerified emailVerified isActive isDeleted riderProfile');
 
-  console.log(`[getNearbyRiders] MongoDB returned ${riders.length} riders`);
-  if (riders.length > 0) {
-    console.log(`[getNearbyRiders] Sample rider locations:`, 
-      riders.slice(0, 2).map(r => ({
-        name: r.name,
-        isOnline: r.riderProfile?.isOnline,
-        status: r.riderProfile?.status,
-        location: r.riderProfile?.currentLocation,
-      }))
-    );
-  }
+  console.log(`[getNearbyRiders] MongoDB returned ${riders.length} candidate riders`);
 
-  // Additional check: verify riders are not currently on an active ride
+  // 2. Fetch riders currently on active rides
   const riderIds = riders.map(r => r._id);
   const activeRideRiders = await RideRequest.find({
     rider: { $in: riderIds },
@@ -704,13 +689,6 @@ export const getNearbyRiders = asyncHandler(async (req, res) => {
   const activeRideRiderIds = activeRideRiders.map(id => id.toString());
   console.log(`[getNearbyRiders] Riders currently on active rides:`, activeRideRiderIds.length);
 
-  // Filter out riders who are currently on rides
-  const availableRiders = riders.filter(rider => 
-    !activeRideRiderIds.includes(rider._id.toString())
-  );
-
-  console.log(`[getNearbyRiders] Available riders after filtering:`, availableRiders.length);
-
   // Helper functions for matching working hours and working areas
   const getClosestWorkingArea = (latVal, lngVal) => {
     const areas = [
@@ -719,16 +697,27 @@ export const getNearbyRiders = asyncHandler(async (req, res) => {
       { name: 'Kesses', lat: 0.2900, lng: 35.3100 },
       { name: 'Mabs', lat: 0.2750, lng: 35.2850 },
     ];
-    let closestArea = areas[0].name;
+    let closestArea = areas[0];
     let minDistance = Infinity;
     for (const area of areas) {
-      const d = Math.sqrt(Math.pow(latVal - area.lat, 2) + Math.pow(lngVal - area.lng, 2));
-      if (d < minDistance) {
-        minDistance = d;
-        closestArea = area.name;
+      // Haversine calculation to get distance in km to campus working area
+      const riderLng = area.lng;
+      const riderLat = area.lat;
+      const R = 6371; // Earth's radius in km
+      const dLat = (latVal - riderLat) * Math.PI / 180;
+      const dLng = (lngVal - riderLng) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(riderLat * Math.PI / 180) * Math.cos(latVal * Math.PI / 180) *
+                Math.sin(dLng/2) * Math.sin(dLng/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      const distance = R * c;
+
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestArea = area;
       }
     }
-    return closestArea;
+    return { closestArea: closestArea.name, distanceToArea: minDistance };
   };
 
   const isTimeWithinHours = (current, start, end) => {
@@ -763,75 +752,145 @@ export const getNearbyRiders = asyncHandler(async (req, res) => {
   };
 
   const currentTimeStr = getKenyanTimeStr();
-  const closestArea = getClosestWorkingArea(lat, lng);
+  const { closestArea, distanceToArea } = getClosestWorkingArea(lat, lng);
 
-  console.log(`[getNearbyRiders] Current Kenyan time: ${currentTimeStr}, Closest area to request: ${closestArea}`);
+  console.log(`[getNearbyRiders] Current Kenyan time: ${currentTimeStr}, Closest campus working area: ${closestArea} (${distanceToArea.toFixed(2)} km away)`);
 
-  // Respect selected working areas and working hours
-  const activeMatchingRiders = availableRiders.filter(rider => {
+  const availableRidersWithDistance = [];
+  const debugLogs = [];
+
+  debugLogs.push(`Customer coordinates:\nLat: ${lat}, Lng: ${lng}\n`);
+  debugLogs.push(`Pickup coordinates:\nLat: ${lat}, Lng: ${lng}\n`);
+  debugLogs.push(`Searching within:\n${(parseFloat(maxDistance) / 1000).toFixed(1)} km\n`);
+
+  // 3. Process and filter each rider programmatically
+  for (const rider of riders) {
+    const riderName = rider.name || 'Unnamed Rider';
     const profile = rider.riderProfile || {};
+    const riderLoc = profile.currentLocation;
 
-    // Check working hours
-    if (profile.workingHours && profile.workingHours.start && profile.workingHours.end) {
-      const { start, end } = profile.workingHours;
-      const isWithinTime = isTimeWithinHours(currentTimeStr, start, end);
-      if (!isWithinTime) {
-        console.log(`[getNearbyRiders] Filtering out rider ${rider.name} because current time ${currentTimeStr} is outside hours ${start}-${end}`);
-        return false;
-      }
+    if (!riderLoc || !Array.isArray(riderLoc.coordinates) || riderLoc.coordinates.length < 2) {
+      debugLogs.push(`${riderName}:\n✗ Missing currentLocation\n\nExcluded\n`);
+      continue;
     }
 
-    // Check selected working areas
-    if (profile.workingArea && Array.isArray(profile.workingArea.selectedWorkingAreas) && profile.workingArea.selectedWorkingAreas.length > 0) {
-      const isAreaSupported = profile.workingArea.selectedWorkingAreas.includes(closestArea);
-      if (!isAreaSupported) {
-        console.log(`[getNearbyRiders] Filtering out rider ${rider.name} because closest area ${closestArea} is not in selected working areas ${JSON.stringify(profile.workingArea.selectedWorkingAreas)}`);
-        return false;
-      }
-    }
-
-    return true;
-  });
-
-  console.log(`[getNearbyRiders] Riders matching area/time constraints:`, activeMatchingRiders.length);
-
-  // Calculate distance for each rider
-  const ridersWithDistance = activeMatchingRiders.map(rider => {
-    const riderLoc = rider.riderProfile?.currentLocation;
-    if (!riderLoc || !Array.isArray(riderLoc.coordinates) || riderLoc.coordinates.length < 2) return null;
-
-    // Simple distance calculation (Haversine formula approximation)
     const riderLng = riderLoc.coordinates[0];
     const riderLat = riderLoc.coordinates[1];
-    const customerLng = lng;
-    const customerLat = lat;
 
+    // Haversine distance in km from customer to rider
     const R = 6371; // Earth's radius in km
-    const dLat = (customerLat - riderLat) * Math.PI / 180;
-    const dLng = (customerLng - riderLng) * Math.PI / 180;
+    const dLat = (lat - riderLat) * Math.PI / 180;
+    const dLng = (lng - riderLng) * Math.PI / 180;
     const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(riderLat * Math.PI / 180) * Math.cos(customerLat * Math.PI / 180) *
+              Math.cos(riderLat * Math.PI / 180) * Math.cos(lat * Math.PI / 180) *
               Math.sin(dLng/2) * Math.sin(dLng/2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     const distance = R * c;
 
-    return {
-      id: rider._id,
-      name: rider.name,
-      // Phone is NOT included for security - only revealed after rider accepts
-      avatar: rider.avatar || rider.riderProfile?.profilePhoto,
-      rating: rider.riderProfile?.rating || 0,
-      vehicleType: rider.riderProfile?.motorcycle?.brand || rider.riderProfile?.vehicleType || 'Bodaboda',
-      motorcycle: rider.riderProfile?.motorcycle,
-      distance: parseFloat(distance.toFixed(2)),
-      isOnline: rider.riderProfile?.isOnline,
-    };
-  }).filter(r => r !== null).sort((a, b) => a.distance - b.distance);
+    const riderExclusions = [];
+    const riderInclusions = [];
+
+    // Check online status
+    if (!profile.isOnline) {
+      riderExclusions.push('✗ Offline');
+    } else {
+      riderInclusions.push('✓ Online');
+    }
+
+    // Check status
+    if (profile.status !== 'online') {
+      riderExclusions.push(`✗ Status is ${profile.status || 'offline'}`);
+    } else {
+      riderInclusions.push('✓ Available');
+    }
+
+    // Check active
+    if (!rider.isActive || rider.isDeleted) {
+      riderExclusions.push('✗ Inactive account');
+    }
+
+    // Check verification
+    if (!rider.isVerified && !rider.emailVerified) {
+      riderExclusions.push('✗ Unverified account');
+    }
+
+    // Check working hours
+    let hoursOk = true;
+    if (profile.workingHours && profile.workingHours.start && profile.workingHours.end) {
+      const { start, end } = profile.workingHours;
+      hoursOk = isTimeWithinHours(currentTimeStr, start, end);
+      if (!hoursOk) {
+        riderExclusions.push(`✗ Outside working hours (${start}-${end})`);
+      } else {
+        riderInclusions.push('✓ Working hours OK');
+      }
+    }
+
+    // Check working area (only enforce if the request is close to the campus areas)
+    let areaOk = true;
+    if (distanceToArea <= 25) {
+      if (profile.workingArea && Array.isArray(profile.workingArea.selectedWorkingAreas) && profile.workingArea.selectedWorkingAreas.length > 0) {
+        areaOk = profile.workingArea.selectedWorkingAreas.includes(closestArea);
+        if (!areaOk) {
+          riderExclusions.push(`✗ Outside selected working areas (Closest is ${closestArea})`);
+        } else {
+          riderInclusions.push('✓ Working area OK');
+        }
+      }
+    }
+
+    // Check service radius
+    let radiusOk = true;
+    if (profile.workingArea && profile.workingArea.serviceRadius) {
+      const radiusKm = parseFloat(profile.workingArea.serviceRadius.replace(/[^0-9.]/g, ''));
+      if (!isNaN(radiusKm)) {
+        radiusOk = distance <= radiusKm;
+        if (!radiusOk) {
+          riderExclusions.push(`✗ Outside service radius (Distance: ${distance.toFixed(2)}km, Radius: ${radiusKm}km)`);
+        } else {
+          riderInclusions.push('✓ Service radius OK');
+        }
+      }
+    }
+
+    // Check active ride status
+    const isCurrentlyOnTrip = activeRideRiderIds.includes(rider._id.toString());
+    if (isCurrentlyOnTrip) {
+      riderExclusions.push('✗ Currently on an active ride');
+    }
+
+    if (riderExclusions.length === 0) {
+      availableRidersWithDistance.push({
+        id: rider._id,
+        name: rider.name,
+        avatar: rider.avatar || profile.profilePhoto,
+        rating: profile.rating || 0,
+        vehicleType: profile.motorcycle?.brand || profile.vehicleType || 'Bodaboda',
+        motorcycle: profile.motorcycle,
+        distance: parseFloat(distance.toFixed(2)),
+        isOnline: profile.isOnline,
+      });
+
+      debugLogs.push(`${riderName}:\n${riderInclusions.join('\n')}\n\nIncluded\n`);
+    } else {
+      debugLogs.push(`${riderName}:\n${riderExclusions.join('\n')}\n\nExcluded\n`);
+    }
+  }
+
+  // Sort by distance
+  availableRidersWithDistance.sort((a, b) => a.distance - b.distance);
+
+  debugLogs.push(`Final riders returned:\n${availableRidersWithDistance.length}\n`);
+
+  // Log the complete rider search audit report
+  console.log('================ RIDER SEARCH FLOW AUDIT ================');
+  console.log(debugLogs.join('\n'));
+  console.log('=========================================================');
 
   res.status(200).json({
     success: true,
-    data: ridersWithDistance,
-    count: ridersWithDistance.length,
+    data: availableRidersWithDistance,
+    count: availableRidersWithDistance.length,
   });
 });
 
