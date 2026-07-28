@@ -192,6 +192,8 @@ const BodabodaPage = () => {
             rating: r.rating,
             vehicleType: r.vehicleType,
             distance: r.distance,
+            isOnline: r.isOnline,
+            motorcycle: r.motorcycle,
             // NOTE: phone, email, and other personal details are NOT included
           }));
           setNearbyRiders(sanitizedRiders);
