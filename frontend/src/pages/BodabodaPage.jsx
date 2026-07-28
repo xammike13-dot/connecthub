@@ -23,12 +23,13 @@ import { useAuth } from '../context/AuthContext';
 import { rideAPI, riderAPI, paymentAPI } from '../services/api';
 import Modal from '../components/ui/Modal';
 import { useToast } from '../components/Toast';
-import { 
-  LocationSelector, 
-  NearbyRidersMap, 
+import {
+  LocationSelector,
+  LeafletMap,
   RouteDisplay,
-  fallbackLocations 
+  fallbackLocations
 } from '../components/maps';
+import RiderCard from '../components/cards/RiderCard';
 import { isValidLatLng, validateRouteCoordinates } from '../utils/mapValidation';
 import { useSocket } from '../context/SocketContext';
 
@@ -153,20 +154,11 @@ const BodabodaPage = () => {
       return;
     }
 
-    // STEP 1 — TRACE THE REQUEST logs
-    console.log('[TRACE-REQUEST] ===== FIND RIDERS CLICKED =====');
-    console.log('[TRACE-REQUEST] Customer Latitude:', userLocation?.lat);
-    console.log('[TRACE-REQUEST] Customer Longitude:', userLocation?.lng);
-    console.log('[TRACE-REQUEST] Pickup Latitude:', effectivePickup.lat);
-    console.log('[TRACE-REQUEST] Pickup Longitude:', effectivePickup.lng);
-    console.log('[TRACE-REQUEST] Search Radius:', 10000);
-    console.log('[TRACE-REQUEST] API Endpoint Called: GET /rider/nearby');
     const reqPayload = {
       latitude: effectivePickup.lat,
       longitude: effectivePickup.lng,
       maxDistance: 10000,
     };
-    console.log('[TRACE-REQUEST] Request Payload:', JSON.stringify(reqPayload, null, 2));
     
     try {
       setLoading(true);
@@ -189,13 +181,8 @@ const BodabodaPage = () => {
       // Get nearby riders with sanitized data (no phone numbers before payment)
       const response = await riderAPI.getNearbyRiders(reqPayload);
 
-      // STEP 4 — TRACE THE FRONTEND logs (part 1)
-      console.log('[TRACE-FRONTEND] Raw API Response Status:', response.status);
-      console.log('[TRACE-FRONTEND] Parsed Response Data:', JSON.stringify(response.data, null, 2));
-      
       if (response.data.success) {
         const riders = response.data.data || [];
-        console.log('[TRACE-FRONTEND] Extracted riders array length:', riders.length);
         if (riders.length === 0) {
           setMapError('No riders available in your area right now.');
           setBookingStep(BOOKING_STEP.LOCATION);
@@ -210,13 +197,9 @@ const BodabodaPage = () => {
             distance: r.distance,
             isOnline: r.isOnline,
             motorcycle: r.motorcycle,
-            // NOTE: phone, email, and other personal details are NOT included
           }));
 
-          console.log('[TRACE-FRONTEND] Sanitized riders before setRiders (length):', sanitizedRiders.length);
           setNearbyRiders(sanitizedRiders);
-
-          // React state is asynchronous, we log state updates/render lists as part of the state effects/render log below
           setBookingStep(BOOKING_STEP.RIDER_SELECTION);
         }
       }
@@ -254,7 +237,6 @@ const BodabodaPage = () => {
             type: 'Point',
             coordinates: [parseFloat(dropoffLocation.lng), parseFloat(dropoffLocation.lat)],
           },
-        },
         riderId: rider.id,
       });
       
@@ -371,10 +353,6 @@ const BodabodaPage = () => {
         phoneNumber: phoneNumber,
         riderId: selectedRider.id,
       };
-
-      console.log('[RIDE PAYMENT PAYLOAD]', payload);
-      console.log('[RIDE PAYMENT] User:', user);
-      console.log('[RIDE PAYMENT] Selected Rider:', selectedRider);
 
       const response = await paymentAPI.initiateWithRider(payload);
 
@@ -629,10 +607,6 @@ const BodabodaPage = () => {
 
   // Render rider selection list
   const renderRiderSelection = () => {
-    // STEP 4 — TRACE THE FRONTEND logs (part 2)
-    console.log('[TRACE-FRONTEND] React state after "setRiders" (nearbyRiders):', JSON.stringify(nearbyRiders, null, 2));
-    console.log('[TRACE-FRONTEND] Number of riders before rendering:', nearbyRiders.length);
-
     return (
       <motion.div
         key="rider-selection"
@@ -667,52 +641,21 @@ const BodabodaPage = () => {
         </div>
 
         {/* Rider List */}
-        <div className="divide-y max-h-96 overflow-y-auto">
-          {nearbyRiders.map((rider) => (
-            <div
-              key={rider.id}
-              onClick={() => selectRider(rider)}
-              className="p-4 hover:bg-blue-50 cursor-pointer transition-colors flex items-center gap-4"
-            >
-              {/* Profile Photo */}
-              <div className="relative">
-                {rider.avatar ? (
-                  <img 
-                    src={rider.avatar} 
-                    alt={rider.name}
-                    className="w-12 h-12 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
-                    <User className="text-gray-500" size={20} />
-                  </div>
-                )}
-                {/* Online Indicator */}
-                {rider.isOnline && (
-                  <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
-                )}
-              </div>
-              
-              <div className="flex-1">
-                <p className="font-semibold text-gray-900">{rider.name}</p>
-                <div className="flex items-center gap-3 text-sm text-gray-500">
-                  <span className="flex items-center gap-1">
-                    <Star className="text-yellow-400" size={14} fill="currentColor" />
-                    {rider.rating?.toFixed(1) || 'New'}
-                  </span>
-                  <span>{rider.distance?.toFixed(1)} km away</span>
-                  {rider.vehicleType && <span>• {rider.vehicleType}</span>}
-                </div>
-                {rider.motorcycle && (
-                  <p className="text-xs text-gray-400 mt-1">
-                    {rider.motorcycle.brand} {rider.motorcycle.model} • {rider.motorcycle.plateNumber}
-                  </p>
-                )}
-              </div>
-              <ChevronRight className="text-gray-400" size={20} />
-            </div>
-          ))}
-        </div>
+        {nearbyRiders.length === 0 ? (
+          <div className="p-8 text-center">
+            <p className="text-gray-500">No riders available in your area right now.</p>
+          </div>
+        ) : (
+          <div className="p-3 space-y-3 max-h-96 overflow-y-auto">
+            {nearbyRiders.map((rider) => (
+              <RiderCard
+                key={rider._id || rider.id}
+                rider={rider}
+                onSelect={() => selectRider(rider)}
+              />
+            ))}
+          </div>
+        )}
 
         {/* Actions */}
         <div className="p-4 border-t flex gap-3">
@@ -1056,24 +999,18 @@ const BodabodaPage = () => {
                 </div>
               )}
 
-              <div className="bg-white rounded-xl shadow-md overflow-hidden">
-                <div className="h-64 bg-gray-100 flex items-center justify-center">
-                  {userLocation ? (
-                    <NearbyRidersMap
-                      riders={[]}
-                      userLocation={userLocation}
-                      center={[userLocation.lat, userLocation.lng]}
-                      zoom={13}
-                      isLoading={false}
-                    />
-                  ) : (
-                    <div className="text-center text-gray-500">
-                      <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                      <p>Loading map...</p>
-                    </div>
-                  )}
+              {userLocation && (
+                <div className="bg-white rounded-xl shadow-md overflow-hidden">
+                  <LeafletMap
+                    center={[userLocation.lat, userLocation.lng]}
+                    zoom={14}
+                    markers={[]}
+                    showUserLocation
+                    userLocation={userLocation}
+                    height="16rem"
+                  />
                 </div>
-              </div>
+              )}
             </motion.div>
           )}
 
