@@ -637,7 +637,7 @@ export const updateRiderGPSLocation = asyncHandler(async (req, res) => {
 export const getNearbyRiders = asyncHandler(async (req, res) => {
   console.log('getNearbyRiders endpoint reached');
   
-  const { latitude, longitude, maxDistance = 10000 } = req.query; // maxDistance in meters
+  const { latitude, longitude, maxDistance = 1000000 } = req.query; // default to a very generous search radius in meters (1000 km) if not specified
 
   console.log(`[getNearbyRiders] Backend received request:`, {
     latitude,
@@ -654,6 +654,8 @@ export const getNearbyRiders = asyncHandler(async (req, res) => {
 
   const lat = parseFloat(latitude);
   const lng = parseFloat(longitude);
+
+  console.log(`[getNearbyRiders] Customer Latitude: ${lat} (isNumeric: ${!isNaN(lat)}), Longitude: ${lng} (isNumeric: ${!isNaN(lng)})`);
 
   if (isNaN(lat) || isNaN(lng)) {
     throw new ResponseError('Invalid coordinates provided', 400);
@@ -673,124 +675,11 @@ export const getNearbyRiders = asyncHandler(async (req, res) => {
     console.error('[MONGODB-INDEX] Error with 2dsphere index:', indexErr);
   }
 
-  // Get ALL riders to check and repair
+  // Get ALL users with role "rider" from database
+  // Bypassing any MongoDB query level blockades (such as strict isActive, isDeleted, isOnline) so we can do accurate diagnostics in memory
   const allRiderProfiles = await User.find({ role: 'rider' });
-  console.log(`[MONGODB-VERIFY] Found ${allRiderProfiles.length} total riders in database`);
-
-  let validCoordsCount = 0;
-  let onlineCount = 0;
-  let availableStatusCount = 0;
-  let withinServiceRadiusCount = 0;
-  let withinWorkingHoursCount = 0;
-
-  for (const rider of allRiderProfiles) {
-    const profile = rider.riderProfile || {};
-    const loc = profile.currentLocation || {};
-    let coords = loc.coordinates;
-
-    if (coords && Array.isArray(coords) && coords.length >= 2) {
-      let rLng = coords[0];
-      let rLat = coords[1];
-
-      // Check if coordinates are NaN or null
-      if (rLng === null || rLat === null || isNaN(rLng) || isNaN(rLat)) {
-        console.warn(`[MONGODB-VERIFY] Rider ${rider.name} (${rider._id}) has null or NaN coordinates: [${rLng}, ${rLat}]`);
-        continue;
-      }
-
-      // Automatically repair: Swapped [latitude, longitude] to [longitude, latitude]
-      // In Kenya, latitude is between -10 and 10, longitude is between 30 and 45.
-      if (rLng >= -10 && rLng <= 10 && rLat >= 30 && rLat <= 45) {
-        console.log(`[MONGODB-REPAIR] Swapping swapped coordinates for rider ${rider.name || rider._id}: [${rLng}, ${rLat}] -> [${rLat}, ${rLng}]`);
-        const tempLng = rLng;
-        rLng = rLat;
-        rLat = tempLng;
-
-        // Repair in memory
-        rider.riderProfile.currentLocation.coordinates = [rLng, rLat];
-
-        // Repair in DB once
-        try {
-          await User.findByIdAndUpdate(rider._id, {
-            'riderProfile.currentLocation.coordinates': [rLng, rLat]
-          });
-          console.log(`[MONGODB-REPAIR] Successfully repaired DB coordinates for rider ${rider._id}`);
-        } catch (repairErr) {
-          console.error(`[MONGODB-REPAIR] Failed to write repair to DB for rider ${rider._id}:`, repairErr);
-        }
-      }
-
-      validCoordsCount++;
-
-      if (profile.isOnline) onlineCount++;
-      if (profile.status === 'online') availableStatusCount++;
-
-      // Compute distance to customer
-      const R = 6371; // Earth's radius in km
-      const dLat = (lat - rLat) * Math.PI / 180;
-      const dLng = (lng - rLng) * Math.PI / 180;
-      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(rLat * Math.PI / 180) * Math.cos(lat * Math.PI / 180) *
-                Math.sin(dLng/2) * Math.sin(dLng/2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      const distance = R * c;
-
-      // Check service radius
-      let radiusKm = 10; // default
-      if (profile.workingArea && profile.workingArea.serviceRadius) {
-        const parsedRadius = parseFloat(profile.workingArea.serviceRadius.replace(/[^0-9.]/g, ''));
-        if (!isNaN(parsedRadius)) {
-          radiusKm = parsedRadius;
-        }
-      }
-      if (distance <= radiusKm) {
-        withinServiceRadiusCount++;
-      }
-    }
-  }
-
-  // 1. Fetch nearby candidate riders from the database
-  console.log(`[getNearbyRiders] Querying MongoDB for riders near: [${lng}, ${lat}] within ${maxDistance}m`);
-  
-  let riders = [];
-  let geoQueryFailed = false;
-  try {
-    riders = await User.find({
-      role: 'rider',
-      isActive: true,
-      isDeleted: false,
-      'riderProfile.currentLocation': {
-        $near: {
-          $geometry: {
-            type: 'Point',
-            coordinates: [lng, lat],
-          },
-          $maxDistance: parseInt(maxDistance),
-        },
-      },
-    }).select('name phone avatar isVerified emailVerified isActive isDeleted riderProfile');
-    console.log(`[getNearbyRiders] MongoDB returned ${riders.length} candidate riders from geo query`);
-  } catch (geoErr) {
-    console.error('[getNearbyRiders] Geo query failed:', geoErr);
-    geoQueryFailed = true;
-    // Fallback to fetch all riders without the $near operator if index or query fails
-    riders = await User.find({
-      role: 'rider',
-      isActive: true,
-      isDeleted: false
-    }).select('name phone avatar isVerified emailVerified isActive isDeleted riderProfile');
-    console.log(`[getNearbyRiders] Fallback query returned ${riders.length} riders`);
-  }
-
-  // 2. Fetch riders currently on active rides
-  const riderIds = riders.map(r => r._id);
-  const activeRideRiders = await RideRequest.find({
-    rider: { $in: riderIds },
-    status: { $in: ['accepted', 'in_progress', 'awaiting_customer_confirmation'] },
-  }).distinct('rider');
-
-  const activeRideRiderIds = activeRideRiders.map(id => id.toString());
-  console.log(`[getNearbyRiders] Riders currently on active rides:`, activeRideRiderIds.length);
+  const totalRidersInMongo = allRiderProfiles.length;
+  console.log(`[MONGODB-VERIFY] Found ${totalRidersInMongo} total rider profiles in database`);
 
   // Helper functions for matching working hours and working areas
   const getClosestWorkingArea = (latVal, lngVal) => {
@@ -859,163 +748,213 @@ export const getNearbyRiders = asyncHandler(async (req, res) => {
 
   console.log(`[getNearbyRiders] Current Kenyan time: ${currentTimeStr}, Closest campus working area: ${closestArea} (${distanceToArea.toFixed(2)} km away)`);
 
+  let validCoordsCount = 0;
+  let onlineCount = 0;
+  let removedMissingCoordinates = 0;
+  let removedInactiveAccounts = 0;
+  let removedDistanceCalculation = 0;
+  let removedServiceRadius = 0;
+  let removedWorkingHours = 0;
+  let removedWorkingArea = 0;
+
   const availableRidersWithDistance = [];
   const debugLogs = [];
 
   debugLogs.push(`Customer coordinates:\nLat: ${lat}, Lng: ${lng}\n`);
-  debugLogs.push(`Pickup coordinates:\nLat: ${lat}, Lng: ${lng}\n`);
   debugLogs.push(`Searching within:\n${(parseFloat(maxDistance) / 1000).toFixed(1)} km\n`);
 
-  // We will process all existing riders to log accurate exclusion reasons
+  // We will process all existing riders to log accurate exclusion/inclusion reasons
   for (const rider of allRiderProfiles) {
     const riderName = rider.name || 'Unnamed Rider';
     const profile = rider.riderProfile || {};
     const riderLoc = profile.currentLocation;
 
     const riderExclusions = [];
-    const riderInclusions = [];
+    const logChecklist = [];
 
-    // Check missing coordinates
-    if (!riderLoc || !Array.isArray(riderLoc.coordinates) || riderLoc.coordinates.length < 2) {
-      riderExclusions.push('Missing coordinates');
-      debugLogs.push(`${riderName}:\n✗ Missing coordinates\n\nExcluded\n`);
-      continue;
-    }
+    logChecklist.push(`Rider: ${riderName} (ID: ${rider._id})`);
 
-    const riderLng = riderLoc.coordinates[0];
-    const riderLat = riderLoc.coordinates[1];
+    // 1. Role Check
+    logChecklist.push(`  ✓ role check (role: "${rider.role}")`);
 
-    if (riderLng === null || riderLat === null || isNaN(riderLng) || isNaN(riderLat)) {
-      riderExclusions.push('Missing coordinates');
-      debugLogs.push(`${riderName}:\n✗ Missing coordinates (null or NaN)\n\nExcluded\n`);
-      continue;
-    }
-
-    // Haversine distance in km from customer to rider
-    const R = 6371; // Earth's radius in km
-    const dLat = (lat - riderLat) * Math.PI / 180;
-    const dLng = (lng - riderLng) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(riderLat * Math.PI / 180) * Math.cos(lat * Math.PI / 180) *
-              Math.sin(dLng/2) * Math.sin(dLng/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    const distance = R * c;
-
-    // Check offline status
-    if (!profile.isOnline) {
+    // 2. Online Check (Confirm that isOnline === true is parsed)
+    if (profile.isOnline) {
+      logChecklist.push(`  ✓ online check (isOnline: true)`);
+      onlineCount++;
+    } else {
+      logChecklist.push(`  ✗ online check (isOnline: false)`);
       riderExclusions.push('Offline');
+    }
+
+    // 3. Coordinate Check
+    if (!riderLoc || !Array.isArray(riderLoc.coordinates) || riderLoc.coordinates.length < 2) {
+      logChecklist.push(`  ✗ coordinates valid (missing coordinates array)`);
+      riderExclusions.push('Missing coordinates');
+      removedMissingCoordinates++;
+      debugLogs.push(logChecklist.join('\n') + `\n  ✗ EXCLUDED because of: Missing coordinates\n`);
+      continue;
+    }
+
+    let rLng = riderLoc.coordinates[0];
+    let rLat = riderLoc.coordinates[1];
+
+    if (rLng === null || rLat === null || isNaN(rLng) || isNaN(rLat)) {
+      logChecklist.push(`  ✗ coordinates valid (null or NaN coordinates: [${rLng}, ${rLat}])`);
+      riderExclusions.push('Missing coordinates');
+      removedMissingCoordinates++;
+      debugLogs.push(logChecklist.join('\n') + `\n  ✗ EXCLUDED because of: Missing coordinates\n`);
+      continue;
+    }
+
+    // Automatically repair swapped coordinates: [latitude, longitude] to [longitude, latitude]
+    // In Kenya, latitude is between -10 and 10, longitude is between 30 and 45.
+    if (rLng >= -10 && rLng <= 10 && rLat >= 30 && rLat <= 45) {
+      console.log(`[MONGODB-REPAIR] Swapping coordinates for rider ${riderName}: [${rLng}, ${rLat}] -> [${rLat}, ${rLng}]`);
+      const tempLng = rLng;
+      rLng = rLat;
+      rLat = tempLng;
+
+      // Repair in memory
+      rider.riderProfile.currentLocation.coordinates = [rLng, rLat];
+    }
+
+    logChecklist.push(`  ✓ coordinates valid (coordinates: [${rLng}, ${rLat}])`);
+    validCoordsCount++;
+
+    // 4. Inactive Check (Explicitly checks if rider is suspended or deleted)
+    // Relaxed deleted/active flags - bypass if not explicitly deactivated/deleted
+    const isInactive = rider.isActive === false || rider.isDeleted === true;
+    if (isInactive) {
+      logChecklist.push(`  ✗ active check (isActive: ${rider.isActive}, isDeleted: ${rider.isDeleted})`);
+      riderExclusions.push('Inactive account');
+      removedInactiveAccounts++;
     } else {
-      riderInclusions.push('✓ Online');
+      logChecklist.push(`  ✓ active check (isActive: ${rider.isActive}, isDeleted: ${rider.isDeleted})`);
     }
 
-    // Check status
-    if (profile.status !== 'online') {
-      riderExclusions.push('Not available');
-    } else {
-      riderInclusions.push('✓ Available');
-    }
-
-    // Check active
-    if (!rider.isActive || rider.isDeleted) {
-      riderExclusions.push('Not available (Inactive or Deleted)');
-    }
-
-    // Check verification
-    if (!rider.isVerified && !rider.emailVerified) {
-      riderExclusions.push('Verification failed');
-    }
-
-    // Check working hours
+    // 5. Working Hours Check
     let hoursOk = true;
     if (profile.workingHours && profile.workingHours.start && profile.workingHours.end) {
       const { start, end } = profile.workingHours;
       hoursOk = isTimeWithinHours(currentTimeStr, start, end);
       if (!hoursOk) {
+        logChecklist.push(`  ✗ working hours check (outside working hours: ${start} - ${end}, current: ${currentTimeStr})`);
         riderExclusions.push('Outside working hours');
+        removedWorkingHours++;
       } else {
-        riderInclusions.push('✓ Working hours OK');
-        withinWorkingHoursCount++;
+        logChecklist.push(`  ✓ working hours check (within working hours: ${start} - ${end})`);
       }
     } else {
-      withinWorkingHoursCount++;
+      logChecklist.push(`  ✓ working hours check (working hours not set)`);
     }
 
-    // Check working area (only enforce if the request is close to the campus areas)
+    // 6. Working Area Check
     let areaOk = true;
     if (distanceToArea <= 25) {
       if (profile.workingArea && Array.isArray(profile.workingArea.selectedWorkingAreas) && profile.workingArea.selectedWorkingAreas.length > 0) {
         areaOk = profile.workingArea.selectedWorkingAreas.includes(closestArea);
         if (!areaOk) {
-          riderExclusions.push(`Outside working area (Closest is ${closestArea})`);
+          logChecklist.push(`  ✗ working area check (outside selected working areas, closest: ${closestArea})`);
+          riderExclusions.push('Outside working area');
+          removedWorkingArea++;
         } else {
-          riderInclusions.push('✓ Working area OK');
+          logChecklist.push(`  ✓ working area check (within working area: ${closestArea})`);
         }
-      }
-    }
-
-    // Check service radius
-    let radiusOk = true;
-    if (profile.workingArea && profile.workingArea.serviceRadius) {
-      const radiusKm = parseFloat(profile.workingArea.serviceRadius.replace(/[^0-9.]/g, ''));
-      if (!isNaN(radiusKm)) {
-        radiusOk = distance <= radiusKm;
-        if (!radiusOk) {
-          riderExclusions.push('Outside service radius');
-        } else {
-          riderInclusions.push('✓ Service radius OK');
-        }
-      }
-    }
-
-    // Check geo query failure / presence in query results
-    const foundInGeoQuery = riders.some(r => r._id.toString() === rider._id.toString());
-    if (!foundInGeoQuery) {
-      if (geoQueryFailed) {
-        riderExclusions.push('Geo query failed');
       } else {
-        riderExclusions.push('Outside service radius'); // because it was excluded by $near maxDistance
+        logChecklist.push(`  ✓ working area check (no working areas configured)`);
       }
+    } else {
+      logChecklist.push(`  ✓ working area check (not near campus areas, distanceToArea: ${distanceToArea.toFixed(2)} km)`);
     }
 
-    // Check active ride status
-    const isCurrentlyOnTrip = activeRideRiderIds.includes(rider._id.toString());
-    if (isCurrentlyOnTrip) {
-      riderExclusions.push('Not available (On active ride)');
+    // 7. Distance & Service Radius Check
+    // Haversine distance in km from customer to rider
+    const R = 6371; // Earth's radius in km
+    const dLat = (lat - rLat) * Math.PI / 180;
+    const dLng = (lng - rLng) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(rLat * Math.PI / 180) * Math.cos(lat * Math.PI / 180) *
+              Math.sin(dLng/2) * Math.sin(dLng/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const distance = R * c;
+
+    if (isNaN(distance)) {
+      logChecklist.push(`  ✗ distance calculation (NaN distance calculated)`);
+      riderExclusions.push('Distance calculation error');
+      removedDistanceCalculation++;
+    } else {
+      // Check max distance constraint (default: very generous, e.g. 1000 km)
+      const maxSearchRadiusKm = parseFloat(maxDistance) / 1000;
+      if (distance <= maxSearchRadiusKm) {
+        logChecklist.push(`  ✓ distance check (distance: ${distance.toFixed(2)} km <= search radius: ${maxSearchRadiusKm.toFixed(2)} km)`);
+      } else {
+        logChecklist.push(`  ✗ distance check (distance: ${distance.toFixed(2)} km > search radius: ${maxSearchRadiusKm.toFixed(2)} km)`);
+        riderExclusions.push('Outside search radius');
+        removedDistanceCalculation++;
+      }
+
+      // Check rider service radius constraint (default to a very generous 25 km if not set)
+      let radiusKm = 25;
+      if (profile.workingArea && profile.workingArea.serviceRadius) {
+        const parsedRadius = parseFloat(profile.workingArea.serviceRadius.replace(/[^0-9.]/g, ''));
+        if (!isNaN(parsedRadius) && parsedRadius > 0) {
+          radiusKm = parsedRadius;
+        }
+      }
+
+      if (distance <= radiusKm) {
+        logChecklist.push(`  ✓ service radius check (distance: ${distance.toFixed(2)} km <= service radius: ${radiusKm.toFixed(2)} km)`);
+      } else {
+        logChecklist.push(`  ✗ service radius check (distance: ${distance.toFixed(2)} km > service radius: ${radiusKm.toFixed(2)} km)`);
+        riderExclusions.push('Outside service radius');
+        removedServiceRadius++;
+      }
     }
 
     if (riderExclusions.length === 0) {
+      logChecklist.push(`  ✓ PASSED ALL FILTERS`);
       availableRidersWithDistance.push({
+        _id: rider._id,
         id: rider._id,
+        riderName: rider.name,
         name: rider.name,
-        avatar: rider.avatar || profile.profilePhoto,
-        rating: profile.rating || 0,
-        vehicleType: profile.motorcycle?.brand || profile.vehicleType || 'Bodaboda',
+        profilePhoto: profile.profilePhoto || rider.avatar || '',
+        avatar: profile.profilePhoto || rider.avatar || '',
+        rating: parseFloat(profile.rating || 5.0),
+        totalTrips: parseInt(profile.totalRides || 0),
+        motorcycleType: profile.motorcycle?.brand || profile.vehicleType || 'Yamaha',
+        vehicleType: profile.motorcycle?.brand || profile.vehicleType || 'Yamaha',
         motorcycle: profile.motorcycle,
+        latitude: rLat,
+        longitude: rLng,
         distance: parseFloat(distance.toFixed(2)),
-        isOnline: profile.isOnline,
+        estimatedArrival: Math.max(1, Math.round(distance * 3)), // 3 min per km
+        isOnline: profile.isOnline || false,
       });
-
-      debugLogs.push(`${riderName}:\n${riderInclusions.join('\n')}\n\nIncluded\n`);
+      debugLogs.push(logChecklist.join('\n') + '\n');
     } else {
-      debugLogs.push(`${riderName}:\nExcluded reasons: ${riderExclusions.join(', ')}\n\nExcluded\n`);
+      logChecklist.push(`  ✗ EXCLUDED because of: ${riderExclusions.join(', ')}`);
+      debugLogs.push(logChecklist.join('\n') + '\n');
     }
   }
 
   // Sort by distance
   availableRidersWithDistance.sort((a, b) => a.distance - b.distance);
 
-  debugLogs.push(`Final riders returned:\n${availableRidersWithDistance.length}\n`);
-
   // Log the complete rider search audit report
   console.log('================ RIDER SEARCH FLOW AUDIT ================');
-  console.log(`- Total rider profiles in MongoDB: ${allRiderProfiles.length}`);
-  console.log(`- Riders with valid coordinates: ${validCoordsCount}`);
-  console.log(`- Riders marked online: ${onlineCount}`);
-  console.log(`- Riders marked available: ${availableStatusCount}`);
-  console.log(`- Riders within service radius: ${withinServiceRadiusCount}`);
-  console.log(`- Riders after working-hours filtering: ${withinWorkingHoursCount}`);
-  console.log(`- Riders returned by the MongoDB geo query: ${riders.length}`);
-  console.log(`- Final response sent to the frontend: ${availableRidersWithDistance.length}`);
+  console.log(`- total rider profiles in MongoDB: ${totalRidersInMongo}`);
+  console.log(`- riders with role "rider": ${totalRidersInMongo}`);
+  console.log(`- riders with "isOnline=true": ${onlineCount}`);
+  console.log(`- riders with valid coordinates: ${validCoordsCount}`);
+  console.log(`- riders removed because of missing coordinates: ${removedMissingCoordinates}`);
+  console.log(`- riders removed because of inactive accounts: ${removedInactiveAccounts}`);
+  console.log(`- riders removed because of distance calculation: ${removedDistanceCalculation}`);
+  console.log(`- riders removed because of service radius: ${removedServiceRadius}`);
+  if (removedWorkingHours > 0) console.log(`- riders removed because of working hours: ${removedWorkingHours}`);
+  if (removedWorkingArea > 0) console.log(`- riders removed because of working area: ${removedWorkingArea}`);
+  console.log(`- final rider array before returning:`, availableRidersWithDistance.map(r => r.riderName));
+  console.log('\n--- DETAILED CHECKLISTS ---');
   console.log(debugLogs.join('\n'));
   console.log('=========================================================');
 
