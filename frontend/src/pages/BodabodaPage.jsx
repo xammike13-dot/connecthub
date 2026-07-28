@@ -152,6 +152,21 @@ const BodabodaPage = () => {
       setMapError('Invalid location coordinates. Please select valid locations.');
       return;
     }
+
+    // STEP 1 — TRACE THE REQUEST logs
+    console.log('[TRACE-REQUEST] ===== FIND RIDERS CLICKED =====');
+    console.log('[TRACE-REQUEST] Customer Latitude:', userLocation?.lat);
+    console.log('[TRACE-REQUEST] Customer Longitude:', userLocation?.lng);
+    console.log('[TRACE-REQUEST] Pickup Latitude:', effectivePickup.lat);
+    console.log('[TRACE-REQUEST] Pickup Longitude:', effectivePickup.lng);
+    console.log('[TRACE-REQUEST] Search Radius:', 10000);
+    console.log('[TRACE-REQUEST] API Endpoint Called: GET /rider/nearby');
+    const reqPayload = {
+      latitude: effectivePickup.lat,
+      longitude: effectivePickup.lng,
+      maxDistance: 10000,
+    };
+    console.log('[TRACE-REQUEST] Request Payload:', JSON.stringify(reqPayload, null, 2));
     
     try {
       setLoading(true);
@@ -172,14 +187,15 @@ const BodabodaPage = () => {
       setEstimatedTime(Math.round(distance * 3)); // ~3 min per km
       
       // Get nearby riders with sanitized data (no phone numbers before payment)
-      const response = await riderAPI.getNearbyRiders({
-        latitude: effectivePickup.lat,
-        longitude: effectivePickup.lng,
-        maxDistance: 10000, // 10km radius
-      });
+      const response = await riderAPI.getNearbyRiders(reqPayload);
+
+      // STEP 4 — TRACE THE FRONTEND logs (part 1)
+      console.log('[TRACE-FRONTEND] Raw API Response Status:', response.status);
+      console.log('[TRACE-FRONTEND] Parsed Response Data:', JSON.stringify(response.data, null, 2));
       
       if (response.data.success) {
         const riders = response.data.data || [];
+        console.log('[TRACE-FRONTEND] Extracted riders array length:', riders.length);
         if (riders.length === 0) {
           setMapError('No riders available in your area right now.');
           setBookingStep(BOOKING_STEP.LOCATION);
@@ -196,7 +212,11 @@ const BodabodaPage = () => {
             motorcycle: r.motorcycle,
             // NOTE: phone, email, and other personal details are NOT included
           }));
+
+          console.log('[TRACE-FRONTEND] Sanitized riders before setRiders (length):', sanitizedRiders.length);
           setNearbyRiders(sanitizedRiders);
+
+          // React state is asynchronous, we log state updates/render lists as part of the state effects/render log below
           setBookingStep(BOOKING_STEP.RIDER_SELECTION);
         }
       }
@@ -608,13 +628,18 @@ const BodabodaPage = () => {
   };
 
   // Render rider selection list
-  const renderRiderSelection = () => (
-    <motion.div
-      key="rider-selection"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-    >
+  const renderRiderSelection = () => {
+    // STEP 4 — TRACE THE FRONTEND logs (part 2)
+    console.log('[TRACE-FRONTEND] React state after "setRiders" (nearbyRiders):', JSON.stringify(nearbyRiders, null, 2));
+    console.log('[TRACE-FRONTEND] Number of riders before rendering:', nearbyRiders.length);
+
+    return (
+      <motion.div
+        key="rider-selection"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+      >
       <div className="bg-white rounded-xl shadow-lg overflow-hidden">
         <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-6">
           <h2 className="text-xl font-bold flex items-center gap-2">
@@ -708,8 +733,9 @@ const BodabodaPage = () => {
           </Button>
         </div>
       </div>
-    </motion.div>
-  );
+      </motion.div>
+    );
+  };
 
   // Render fare summary
   const renderFareSummary = () => (
