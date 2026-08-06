@@ -1,17 +1,17 @@
 import axios from 'axios';
 
 /**
- * Reusable helper to get the Daraja API base URL based on MPESA_ENV
+ * Reusable helper to get the Daraja API base URL based on MPESA_ENVIRONMENT
  * @returns {string} The base URL for Daraja API
  */
 export function getDarajaBaseUrl() {
-  const mpesaEnv = process.env.MPESA_ENV || process.env.MPESA_ENVIRONMENT || 'sandbox';
-  const baseUrl = mpesaEnv === 'production'
+  const mpesaEnv = process.env.MPESA_ENVIRONMENT || 'sandbox';
+  const baseUrl = mpesaEnv.trim().toLowerCase() === 'production'
     ? 'https://api.safaricom.co.ke'
     : 'https://sandbox.safaricom.co.ke';
 
   console.log('[DARAJA BASE URL LOGS]');
-  console.log(`- MPESA_ENV: ${process.env.MPESA_ENV || 'NOT SET'}`);
+  console.log(`- MPESA_ENVIRONMENT: ${process.env.MPESA_ENVIRONMENT || 'NOT SET'}`);
   console.log(`- Selected Base URL: ${baseUrl}`);
   console.log(`- OAuth URL: ${baseUrl}/oauth/v1/generate?grant_type=client_credentials`);
   console.log(`- STK Push URL: ${baseUrl}/mpesa/stkpush/v1/processrequest`);
