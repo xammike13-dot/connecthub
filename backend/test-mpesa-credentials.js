@@ -46,13 +46,16 @@ if (missing.length > 0) {
 
 console.log('✓ All required configuration is present.\n');
 
+import { getDarajaBaseUrl } from './services/mpesaService.js';
+
 // Test OAuth token generation
 console.log('Testing OAuth token generation...');
-console.log(`  Endpoint: https://${environment === 'production' ? 'api' : 'sandbox'}.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials\n`);
+const baseUrl = getDarajaBaseUrl();
+console.log(`  Endpoint: ${baseUrl}/oauth/v1/generate?grant_type=client_credentials\n`);
 
 const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
 
-fetch(`https://${environment === 'production' ? 'api' : 'sandbox'}.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials`, {
+fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
   method: 'GET',
   headers: {
     'Authorization': `Basic ${auth}`,

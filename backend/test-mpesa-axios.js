@@ -32,8 +32,10 @@ if (!consumerKey || !consumerSecret) {
   process.exit(1);
 }
 
+import { getDarajaBaseUrl } from './services/mpesaService.js';
+
 console.log('Testing OAuth token generation with axios...');
-const baseUrl = environment === 'production' ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke';
+const baseUrl = getDarajaBaseUrl();
 const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
 
 console.log(`  URL: ${baseUrl}/oauth/v1/generate?grant_type=client_credentials`);
