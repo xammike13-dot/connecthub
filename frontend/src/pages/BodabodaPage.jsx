@@ -237,6 +237,7 @@ const BodabodaPage = () => {
             type: 'Point',
             coordinates: [parseFloat(dropoffLocation.lng), parseFloat(dropoffLocation.lat)],
           },
+        },
         riderId: rider.id,
       });
       
