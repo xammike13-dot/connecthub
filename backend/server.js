@@ -94,6 +94,45 @@ if (missingMpesaVars.length > 0) {
   console.log('');
 }
 
+// B2C Startup Diagnostics (Always runs unconditionally)
+const b2cEnv = (process.env.MPESA_ENVIRONMENT || 'sandbox').trim();
+const b2cCred = process.env.MPESA_B2C_SECURITY_CREDENTIAL ? 'LOADED' : 'MISSING';
+const b2cInitiator = process.env.MPESA_B2C_INITIATOR_NAME ? 'LOADED' : 'MISSING';
+const b2cPartyA = process.env.MPESA_B2C_SHORTCODE || process.env.MPESA_SHORTCODE || 'MISSING';
+
+const callbackBase = process.env.MPESA_CALLBACK_URL || '';
+let b2cBaseUrl = callbackBase;
+try {
+  if (callbackBase.startsWith('http')) {
+    const urlObj = new URL(callbackBase);
+    b2cBaseUrl = urlObj.origin;
+  }
+} catch (e) {
+  // Ignore URL parsing errors
+}
+
+const b2cTimeoutUrl = process.env.MPESA_B2C_TIMEOUT_URL ||
+  (b2cBaseUrl.includes('/api/withdrawals/b2c/timeout')
+    ? b2cBaseUrl
+    : `${b2cBaseUrl}/api/withdrawals/b2c/timeout`);
+
+const b2cResultUrl = process.env.MPESA_B2C_RESULT_URL ||
+  (b2cBaseUrl.includes('/api/withdrawals/b2c/callback')
+    ? b2cBaseUrl
+    : `${b2cBaseUrl}/api/withdrawals/b2c/callback`);
+
+console.log('════════════════ [B2C CONFIG STARTUP DIAGNOSTICS] ════════════════');
+console.log(`[B2C CONFIG]`);
+console.log(`Environment: ${b2cEnv.charAt(0).toUpperCase() + b2cEnv.slice(1).toLowerCase()}`);
+console.log(`B2C Security Credential: ${b2cCred}`);
+console.log(`B2C Initiator: ${b2cInitiator}`);
+console.log(`B2C PartyA: ${b2cPartyA}`);
+console.log(`B2C PartyB: DYNAMIC (Recipient Phone Number)`);
+console.log(`B2C ResultURL: ${b2cResultUrl}`);
+console.log(`B2C TimeoutURL: ${b2cTimeoutUrl}`);
+console.log('══════════════════════════════════════════════════════════════════');
+console.log('');
+
 import connectDB from './config/db.js';
 import errorHandler from './middleware/error.js';
 import { nosqlSanitize } from './middleware/nosqlSanitize.js';
