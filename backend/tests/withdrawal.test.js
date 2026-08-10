@@ -315,6 +315,164 @@ test('Withdrawal and Wallet Feature Suite', async (t) => {
       assert.equal(updatedWallet.balance, 500);
     });
 
+    await t.test('8. Handle B2C webhook timeout callback', async () => {
+      const testOriginatorId = 'B2C-TIMEOUT-TEST';
+      const testConvId = 'CONV-TIMEOUT-TEST';
+
+      const testWallet = await Wallet.findOne({ user: providerUser._id });
+      testWallet.balance = 300;
+      testWallet.pendingBalance = 200;
+      await testWallet.save();
+
+      const withdrawalTimeout = await Withdrawal.create({
+        user: providerUser._id,
+        wallet: testWallet._id,
+        amount: 200,
+        fee: 2,
+        netAmount: 198,
+        status: 'pending',
+        mpesaPhoneNumber: '0722222222',
+        requestedBy: providerUser._id,
+        originatorConversationId: testOriginatorId,
+        conversationId: testConvId,
+      });
+
+      const timeoutReq = {
+        body: {
+          OriginatorConversationID: testOriginatorId,
+          ConversationID: testConvId,
+        }
+      };
+
+      let responseStatus = null;
+      let responseJson = null;
+
+      const timeoutRes = {
+        status: (code) => {
+          responseStatus = code;
+          return {
+            json: (data) => {
+              responseJson = data;
+            }
+          };
+        }
+      };
+
+      await mpesaB2CTimeout(timeoutReq, timeoutRes);
+
+      assert.equal(responseStatus, 200);
+      assert.equal(responseJson.success, true);
+
+      const updatedWithdrawal = await Withdrawal.findById(withdrawalTimeout._id);
+      assert.equal(updatedWithdrawal.status, 'failed');
+      assert.equal(updatedWithdrawal.rejectionReason, 'Safaricom B2C request timed out in queue');
+
+      const updatedWallet = await Wallet.findById(testWallet._id);
+      assert.equal(updatedWallet.pendingBalance, 0);
+      assert.equal(updatedWallet.balance, 500);
+    });
+
+    await t.test('9. Reject duplicate callback requests (already completed/failed)', async () => {
+      const testOriginatorId = 'B2C-DUP-TEST';
+      const testConvId = 'CONV-DUP-TEST';
+
+      const testWallet = await Wallet.findOne({ user: providerUser._id });
+      testWallet.balance = 300;
+      testWallet.pendingBalance = 200;
+      await testWallet.save();
+
+      const withdrawalDup = await Withdrawal.create({
+        user: providerUser._id,
+        wallet: testWallet._id,
+        amount: 200,
+        fee: 2,
+        netAmount: 198,
+        status: 'completed', // already completed!
+        mpesaPhoneNumber: '0722222222',
+        requestedBy: providerUser._id,
+        originatorConversationId: testOriginatorId,
+        conversationId: testConvId,
+      });
+
+      const callbackReq = {
+        body: {
+          Result: {
+            OriginatorConversationID: testOriginatorId,
+            ConversationID: testConvId,
+            ResultCode: 0,
+            ResultDesc: 'Some subsequent callback'
+          }
+        }
+      };
+
+      let responseStatus = null;
+      let responseJson = null;
+
+      const callbackRes = {
+        status: (code) => {
+          responseStatus = code;
+          return {
+            json: (data) => {
+              responseJson = data;
+            }
+          };
+        }
+      };
+
+      await mpesaB2CCallback(callbackReq, callbackRes);
+
+      // Should return 200 with "Already processed"
+      assert.equal(responseStatus, 200);
+      assert.equal(responseJson.success, true);
+      assert.equal(responseJson.message, 'Already processed');
+
+      // Wallet should remain unchanged because it was already completed/failed and early returned
+      const finalWallet = await Wallet.findById(testWallet._id);
+      assert.equal(finalWallet.balance, 300);
+      assert.equal(finalWallet.pendingBalance, 200);
+    });
+
+    await t.test('10. Verify wallet rollback on missing B2C security credential / payout initiation failure', async () => {
+      // Clear any pending/duplicate withdrawals for this user to avoid triggering the 10-second duplicate lockout
+      await Withdrawal.deleteMany({ user: providerUser._id });
+
+      // Temporarily remove security credential env
+      const origCred = process.env.MPESA_B2C_SECURITY_CREDENTIAL;
+      delete process.env.MPESA_B2C_SECURITY_CREDENTIAL;
+
+      // Restore original initiateB2C temporarily to test real code validation
+      const stubbedInitiateB2C = mpesaService.initiateB2C;
+      mpesaService.initiateB2C = originalInitiateB2C;
+
+      const testWallet = await Wallet.findOne({ user: providerUser._id });
+      testWallet.balance = 200;
+      testWallet.pendingBalance = 0;
+      await testWallet.save();
+
+      const { responseStatus, responseJson, errorThrown } = await runRequestWithdrawal(
+        providerUser,
+        { amount: 150, phoneNumber: '0722222222' }
+      );
+
+      // Should fail at initiation stage
+      assert.ok(errorThrown, 'Should fail because of missing MPESA_B2C_SECURITY_CREDENTIAL');
+      assert.match(errorThrown.message, /MPESA_B2C_SECURITY_CREDENTIAL environment variable is missing or empty/);
+
+      // Check wallet rollback: balance must be back to 200 and pending balance must be 0
+      const rolledBackWallet = await Wallet.findOne({ user: providerUser._id });
+      assert.equal(rolledBackWallet.balance, 200, 'Wallet balance should be fully restored on initiation failure');
+      assert.equal(rolledBackWallet.pendingBalance, 0, 'Wallet pendingBalance should be reset to 0');
+
+      // Verify that the withdrawal record created was marked failed
+      const withdrawalRecord = await Withdrawal.findOne({ user: providerUser._id }).sort({ createdAt: -1 });
+      assert.equal(withdrawalRecord.status, 'failed', 'Withdrawal record status should be set to failed');
+      assert.match(withdrawalRecord.rejectionReason, /MPESA_B2C_SECURITY_CREDENTIAL/);
+
+      // Restore original stub and credentials
+      mpesaService.initiateB2C = stubbedInitiateB2C;
+      process.env.MPESA_B2C_SECURITY_CREDENTIAL = origCred;
+    });
+
   } finally {
     console.log('Cleaning up withdrawal test resources...');
     // Restore original mpesaService stubs
