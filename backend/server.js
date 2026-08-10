@@ -98,7 +98,7 @@ if (missingMpesaVars.length > 0) {
 const b2cEnv = (process.env.MPESA_ENVIRONMENT || 'sandbox').trim();
 const b2cCred = process.env.MPESA_B2C_SECURITY_CREDENTIAL ? 'LOADED' : 'MISSING';
 const b2cInitiator = process.env.MPESA_B2C_INITIATOR_NAME ? 'LOADED' : 'MISSING';
-const b2cPartyA = process.env.MPESA_B2C_SHORTCODE || process.env.MPESA_SHORTCODE || 'MISSING';
+const b2cPartyA = (process.env.MPESA_B2C_SHORTCODE || process.env.MPESA_SHORTCODE) ? 'LOADED' : 'MISSING';
 
 const callbackBase = process.env.MPESA_CALLBACK_URL || '';
 let b2cBaseUrl = callbackBase;
@@ -121,15 +121,20 @@ const b2cResultUrl = process.env.MPESA_B2C_RESULT_URL ||
     ? b2cBaseUrl
     : `${b2cBaseUrl}/api/withdrawals/b2c/callback`);
 
+const b2cEnvFormatted = b2cEnv.toLowerCase() === 'production' ? 'Production' : 'Sandbox';
+const b2cPartyB = 'LOADED';
+const b2cResultUrlFormatted = b2cResultUrl ? 'LOADED' : 'MISSING';
+const b2cTimeoutUrlFormatted = b2cTimeoutUrl ? 'LOADED' : 'MISSING';
+
 console.log('════════════════ [B2C CONFIG STARTUP DIAGNOSTICS] ════════════════');
 console.log(`[B2C CONFIG]`);
-console.log(`Environment: ${b2cEnv.charAt(0).toUpperCase() + b2cEnv.slice(1).toLowerCase()}`);
-console.log(`B2C Security Credential: ${b2cCred}`);
-console.log(`B2C Initiator: ${b2cInitiator}`);
-console.log(`B2C PartyA: ${b2cPartyA}`);
-console.log(`B2C PartyB: DYNAMIC (Recipient Phone Number)`);
-console.log(`B2C ResultURL: ${b2cResultUrl}`);
-console.log(`B2C TimeoutURL: ${b2cTimeoutUrl}`);
+console.log(`Environment: ${b2cEnvFormatted}`);
+console.log(`SecurityCredential: ${b2cCred}`);
+console.log(`InitiatorName: ${b2cInitiator}`);
+console.log(`PartyA: ${b2cPartyA}`);
+console.log(`PartyB: ${b2cPartyB}`);
+console.log(`ResultURL: ${b2cResultUrlFormatted}`);
+console.log(`TimeoutURL: ${b2cTimeoutUrlFormatted}`);
 console.log('══════════════════════════════════════════════════════════════════');
 console.log('');
 

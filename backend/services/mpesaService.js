@@ -490,6 +490,26 @@ class MpesaService {
         OriginatorConversationID: originatorConversationId,
       };
 
+      // Explicitly verify B2C payload contains all required production fields
+      const requiredFields = [
+        { name: 'InitiatorName', value: payload.InitiatorName },
+        { name: 'SecurityCredential', value: payload.SecurityCredential },
+        { name: 'CommandID', value: payload.CommandID },
+        { name: 'Amount', value: payload.Amount },
+        { name: 'PartyA', value: payload.PartyA },
+        { name: 'PartyB', value: payload.PartyB },
+        { name: 'Remarks', value: payload.Remarks },
+        { name: 'QueueTimeOutURL', value: payload.QueueTimeOutURL },
+        { name: 'ResultURL', value: payload.ResultURL },
+        { name: 'Occasion', value: payload.Occasion },
+      ];
+
+      for (const field of requiredFields) {
+        if (field.value === undefined || field.value === null || field.value === '') {
+          throw new Error(`B2C payout error: Required field "${field.name}" is missing or empty`);
+        }
+      }
+
       // Secure Diagnostic Logging (excluding consumer secrets, credentials, tokens, etc.)
       console.log('════════════════ [B2C] WITHDRAWAL INITIATED ════════════════');
       console.log(`- Amount: ${payload.Amount}`);
