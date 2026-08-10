@@ -221,70 +221,75 @@ class MpesaService {
         amount,
         transactionRef,
         accountReference,
-        transactionDesc = 'Payment for ConnectHub service',
+        transactionDesc = 'Payment',
       } = paymentData;
 
       // Get config fresh from environment
       const config = this.getConfig();
 
-      console.log('[MPESA] ========== STK PUSH INITIATED ==========');
-      console.log('[MPESA] SENDING STK PUSH', {
-        phoneNumber,
-        amount,
-        transactionRef,
-        accountReference,
-        transactionDesc,
-      });
-
-      // Log STK Push details before sending
-      console.log('[MPESA] STK PUSH DETAILS:');
-      console.log(`  Phone Number: ${phoneNumber}`);
-      console.log(`  Amount: KSh ${amount}`);
-      console.log(`  Shortcode: ${config.shortcode}`);
-      console.log(`  Callback URL: ${config.callbackUrl}`);
-      console.log(`  Environment: ${config.environment}`);
-      console.log(`  Base URL: ${config.baseUrl}`);
-
       // Get access token
       const accessToken = await this.getAccessToken();
-      console.log('[MPESA] Access token obtained:', accessToken ? '***REDACTED***' : 'FAILED');
 
       // Format phone number
       const formattedPhone = this.formatPhoneNumber(phoneNumber);
-      console.log('[MPESA] Formatted phone:', formattedPhone);
 
       // Generate timestamp and password
       const timestamp = this.formatTimestamp();
       const password = this.generatePassword(timestamp);
+
+      // 1. Format AccountReference: Ensure it is 12 characters or fewer and compliant (e.g. TXN823C6B85)
+      let finalAccountReference = accountReference || transactionRef || 'TXN';
+      if (finalAccountReference.includes('-')) {
+        const parts = finalAccountReference.split('-');
+        const suffix = parts[parts.length - 1];
+        finalAccountReference = `TXN${suffix}`;
+      }
+      finalAccountReference = finalAccountReference.replace(/\s+/g, '').substring(0, 12);
+
+      // 2. Format TransactionDesc: Limit to exactly 13 characters or fewer
+      let finalTransactionDesc = transactionDesc || 'Payment';
+      finalTransactionDesc = finalTransactionDesc.substring(0, 13);
+
+      // 3. Dynamic Shortcode/Till configuration
+      let transactionType = 'CustomerPayBillOnline';
+      let partyB = config.shortcode;
+
+      // Check if Safaricom authorized production Buy Goods configuration is present
+      if (config.shortcode === '4342025') {
+        transactionType = 'CustomerBuyGoodsOnline';
+        partyB = process.env.MPESA_TILL || '3011302';
+      } else if (process.env.MPESA_TRANSACTION_TYPE === 'CustomerBuyGoodsOnline') {
+        transactionType = 'CustomerBuyGoodsOnline';
+        partyB = process.env.MPESA_TILL || config.shortcode;
+      }
 
       // Prepare STK Push payload
       const payload = {
         BusinessShortCode: config.shortcode,
         Password: password,
         Timestamp: timestamp,
-        TransactionType: 'CustomerPayBillOnline',
+        TransactionType: transactionType,
         Amount: Math.round(amount),
         PartyA: formattedPhone,
-        PartyB: config.shortcode,
+        PartyB: partyB,
         PhoneNumber: formattedPhone,
         CallBackURL: config.callbackUrl,
-        AccountReference: accountReference || transactionRef,
-        TransactionDesc: transactionDesc,
+        AccountReference: finalAccountReference,
+        TransactionDesc: finalTransactionDesc,
       };
 
-      console.log('[MPESA] STK Push Payload:', {
-        BusinessShortCode: payload.BusinessShortCode,
-        Timestamp: payload.Timestamp,
-        TransactionType: payload.TransactionType,
-        Amount: payload.Amount,
-        PartyA: payload.PartyA,
-        PartyB: payload.PartyB,
-        PhoneNumber: payload.PhoneNumber,
-        CallBackURL: payload.CallBackURL,
-        AccountReference: payload.AccountReference,
-        TransactionDesc: payload.TransactionDesc,
-        Password: '***REDACTED***',
-      });
+      // Safe Diagnostic Logging
+      console.log('════════════════ [MPESA DIAGNOSTIC LOG - STK PUSH REQUEST] ════════════════');
+      console.log(`- MPESA_ENVIRONMENT: ${config.environment}`);
+      console.log(`- BusinessShortCode: ${config.shortcode}`);
+      console.log(`- TransactionType: ${transactionType}`);
+      console.log(`- PartyB: ${partyB}`);
+      console.log(`- Amount: ${payload.Amount}`);
+      console.log(`- AccountReference length: ${finalAccountReference.length} (${finalAccountReference})`);
+      console.log(`- TransactionDesc length: ${finalTransactionDesc.length} (${finalTransactionDesc})`);
+      console.log(`- OAuth URL: ${config.baseUrl}/oauth/v1/generate?grant_type=client_credentials`);
+      console.log(`- STK URL: ${config.baseUrl}/mpesa/stkpush/v1/processrequest`);
+      console.log('══════════════════════════════════════════════════════════════════════════');
 
       // Make STK Push request
       console.log('[MPESA] Sending request to Daraja API...');
@@ -299,12 +304,12 @@ class MpesaService {
         }
       );
 
-      console.log('[MPESA] DARAJA RESPONSE:', response.data);
-      console.log('[MPESA] Response Code:', response.data?.ResponseCode);
-      console.log('[MPESA] Response Description:', response.data?.ResponseDescription);
-      console.log('[MPESA] CheckoutRequestID:', response.data?.CheckoutRequestID);
-      console.log('[MPESA] MerchantRequestID:', response.data?.MerchantRequestID);
-      console.log('[MPESA] ========== STK PUSH COMPLETED ==========');
+      console.log('════════════════ [MPESA DIAGNOSTIC LOG - STK PUSH RESPONSE] ════════════════');
+      console.log(`- ResponseCode: ${response.data?.ResponseCode}`);
+      console.log(`- ResponseDescription: ${response.data?.ResponseDescription}`);
+      console.log(`- CheckoutRequestID: ${response.data?.CheckoutRequestID}`);
+      console.log(`- MerchantRequestID: ${response.data?.MerchantRequestID}`);
+      console.log('═══════════════════════════════════════════════════════════════════════════');
 
       return {
         success: true,
@@ -390,13 +395,20 @@ class MpesaService {
   processCallback(callbackData) {
     console.log('[MPESA] Processing callback:', callbackData);
 
-    const { Body } = callbackData;
-    const { stkCallback } = Body;
+    if (!callbackData || !callbackData.Body) {
+      return {
+        isValid: false,
+        success: false,
+        message: 'Invalid callback format: Body is missing',
+      };
+    }
 
+    const { stkCallback } = callbackData.Body;
     if (!stkCallback) {
       return {
+        isValid: false,
         success: false,
-        message: 'Invalid callback format',
+        message: 'Invalid callback format: stkCallback is missing',
       };
     }
 
@@ -408,7 +420,14 @@ class MpesaService {
       CallbackMetadata,
     } = stkCallback;
 
-    // ResultCode 0 means success - use Number() conversion because Daraja often returns "0" as string
+    if (ResultCode === undefined || ResultCode === null) {
+      return {
+        isValid: false,
+        success: false,
+        message: 'Invalid callback format: ResultCode is missing',
+      };
+    }
+
     const isSuccess = Number(ResultCode) === 0;
 
     // Log callback success check with type information
@@ -418,6 +437,14 @@ class MpesaService {
       numericResult: Number(ResultCode),
       isSuccess
     });
+
+    // Safe Diagnostic Logging
+    console.log('════════════════ [MPESA DIAGNOSTIC LOG - CALLBACK RECEIVED] ════════════════');
+    console.log(`- ResultCode: ${ResultCode}`);
+    console.log(`- ResultDesc: ${ResultDesc}`);
+    console.log(`- CheckoutRequestID: ${CheckoutRequestID}`);
+    console.log(`- MerchantRequestID: ${MerchantRequestID}`);
+    console.log('════════════════════════════════════════════════════════════════════════════');
 
     let mpesaReceiptNumber = null;
     let transactionDate = null;
@@ -442,7 +469,8 @@ class MpesaService {
     }
 
     console.log('[MPESA] Callback processed:', {
-      isSuccess,
+      isValid: true,
+      success: isSuccess,
       MerchantRequestID,
       CheckoutRequestID,
       ResultCode,
@@ -454,6 +482,7 @@ class MpesaService {
     });
 
     return {
+      isValid: true,
       success: isSuccess,
       data: {
         merchantRequestID: MerchantRequestID,
