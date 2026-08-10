@@ -8,12 +8,18 @@ import {
   setDefaultWithdrawalMethod,
   getWalletDetails,
   getEarningsStats,
+  mpesaB2CCallback,
+  mpesaB2CTimeout,
 } from '../controllers/withdrawalController.js';
 import { protect, restrictTo } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// All routes require authentication
+// Webhook endpoints from Safaricom B2C - must NOT require authentication
+router.post('/b2c/callback', mpesaB2CCallback);
+router.post('/b2c/timeout', mpesaB2CTimeout);
+
+// All routes below require authentication
 router.use(protect);
 
 // Block assistants from withdrawal and financial endpoints

@@ -392,6 +392,132 @@ class MpesaService {
    * @param {Object} callbackData - The callback payload from Daraja
    * @returns {Object} Processed callback data
    */
+  /**
+   * Initiate M-Pesa B2C (Business to Customer) payment request (Payouts)
+   *
+   * @param {Object} b2cData - B2C request details
+   * @param {string} b2cData.phoneNumber - Recipient's phone number
+   * @param {number} b2cData.amount - Amount to disburse
+   * @param {string} b2cData.originatorConversationId - Unique identifier for tracing
+   * @returns {Promise<Object>} B2C transaction result
+   */
+  async initiateB2C(b2cData) {
+    try {
+      const { phoneNumber, amount, originatorConversationId } = b2cData;
+
+      // Validate inputs
+      if (!phoneNumber) {
+        throw new Error('B2C phone number is required');
+      }
+      if (!amount || isNaN(amount) || amount <= 0) {
+        throw new Error('B2C valid numeric amount is required');
+      }
+
+      // Read M-Pesa config
+      const config = this.getConfig();
+
+      // Ensure required environment variables for B2C are loaded
+      const initiatorName = process.env.MPESA_B2C_INITIATOR_NAME || 'testapi';
+      const securityCredential = process.env.MPESA_B2C_SECURITY_CREDENTIAL; // Must be encrypted
+      const commandId = process.env.MPESA_B2C_COMMAND_ID || 'BusinessPayment';
+      const partyA = process.env.MPESA_B2C_SHORTCODE || config.shortcode; // Paying organization shortcode
+
+      // Check for mandatory configurations
+      if (!securityCredential) {
+        throw new Error('MPESA_B2C_SECURITY_CREDENTIAL environment variable is missing or empty');
+      }
+      if (!partyA) {
+        throw new Error('MPESA_B2C_SHORTCODE or MPESA_SHORTCODE environment variable is required');
+      }
+
+      // Build timeout & result webhook callback URLs
+      const callbackBase = process.env.MPESA_CALLBACK_URL || '';
+      const queueTimeOutUrl = callbackBase.includes('/api/withdrawals/b2c/timeout')
+        ? callbackBase
+        : `${callbackBase}/api/withdrawals/b2c/timeout`;
+      const resultUrl = callbackBase.includes('/api/withdrawals/b2c/callback')
+        ? callbackBase
+        : `${callbackBase}/api/withdrawals/b2c/callback`;
+
+      // Format recipient phone number
+      const formattedPhone = this.formatPhoneNumber(phoneNumber);
+
+      // Get bearer authorization token
+      const accessToken = await this.getAccessToken();
+
+      // Payload building
+      const payload = {
+        InitiatorName: initiatorName,
+        SecurityCredential: securityCredential,
+        CommandID: commandId,
+        Amount: Math.round(amount),
+        PartyA: partyA,
+        PartyB: formattedPhone,
+        Remarks: 'ConnectHub Withdrawal',
+        QueueTimeOutURL: queueTimeOutUrl,
+        ResultURL: resultUrl,
+        Occasion: 'Wallet Withdrawal',
+        OriginatorConversationID: originatorConversationId,
+      };
+
+      // Secure Diagnostic Logging (excluding consumer secrets, credentials, tokens, etc.)
+      console.log('════════════════ [B2C] WITHDRAWAL INITIATED ════════════════');
+      console.log(`- Amount: ${payload.Amount}`);
+      console.log(`- PartyB: ${payload.PartyB}`);
+      console.log(`- PartyA: ${payload.PartyA}`);
+      console.log(`- CommandID: ${payload.CommandID}`);
+      console.log(`- Environment: ${config.environment === 'production' ? 'Production' : 'Sandbox'}`);
+      console.log(`- ResultURL: ${payload.ResultURL}`);
+      console.log(`- TimeoutURL: ${payload.QueueTimeOutURL}`);
+      console.log(`- OriginatorConversationID: ${payload.OriginatorConversationID}`);
+      console.log('════════════════════════════════════════════════════════════');
+
+      // Make B2C post request to Daraja
+      const endpoint = `${config.baseUrl}/mpesa/b2c/v1/paymentrequest`;
+      console.log(`[B2C] Sending request to Daraja API: ${endpoint}`);
+
+      const response = await axios.post(
+        endpoint,
+        payload,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      console.log('════════════════ [B2C] DARAJA RESPONSE ════════════════');
+      console.log(`- ResponseCode: ${response.data?.ResponseCode}`);
+      console.log(`- ResponseDescription: ${response.data?.ResponseDescription}`);
+      console.log(`- ConversationID: ${response.data?.ConversationID}`);
+      console.log(`- OriginatorConversationID: ${response.data?.OriginatorConversationID}`);
+      console.log('════════════════════════════════════════════════════════');
+
+      // Check if Safaricom accepted the request
+      const responseCode = response.data?.ResponseCode;
+      if (responseCode !== '0' && responseCode !== 0) {
+        throw new Error(response.data?.ResponseDescription || `Safaricom Daraja B2C payout request failed with code ${responseCode}`);
+      }
+
+      return {
+        success: true,
+        data: response.data,
+        message: 'B2C payout request initiated successfully',
+      };
+    } catch (error) {
+      console.error('[B2C] ========== B2C PAYOUT ERROR ==========');
+      console.error('[B2C] ERROR DETAILS:', error.response?.data || error.message);
+      console.error('[B2C] Error status:', error.response?.status);
+      console.error('[B2C] ========== B2C PAYOUT ERROR END ==========');
+      return {
+        success: false,
+        message: error.response?.data?.errorMessage || error.response?.data?.errorDescription || error.message,
+        error: error.response?.data || error.message,
+      };
+    }
+  }
+
   processCallback(callbackData) {
     console.log('[MPESA] Processing callback:', callbackData);
 
