@@ -11,19 +11,45 @@ export const requestWithdrawal = asyncHandler(async (req, res) => {
   const userId = req.user._id;
   const { amount, phoneNumber } = req.body;
 
+  // Validate amount type and value
+  const numericAmount = parseFloat(amount);
+  if (isNaN(numericAmount) || numericAmount <= 0) {
+    throw new ResponseError('Invalid withdrawal amount', 400);
+  }
+
+  // Validate phone number presence and format
+  const rawPhone = phoneNumber || req.user.phone;
+  if (!rawPhone) {
+    throw new ResponseError('M-Pesa phone number is required', 400);
+  }
+
+  const cleanPhone = rawPhone.replace(/\s+/g, '');
+  const kenyanPhoneRegex = /^(?:254|\+254|0)?([71]\d{8})$/;
+  if (!kenyanPhoneRegex.test(cleanPhone)) {
+    throw new ResponseError('Please provide a valid Kenyan phone number (e.g., 0712345678 or 254712345678)', 400);
+  }
+
+  // Extract digits & standardize to local '07XXXXXXXX' / '01XXXXXXXX' format
+  const match = cleanPhone.match(kenyanPhoneRegex);
+  const standardizedPhone = '0' + match[1];
+
+  // Prevent duplicate withdrawal submissions (within last 10 seconds)
+  const recentPending = await Withdrawal.findOne({
+    user: userId,
+    status: 'pending',
+    createdAt: { $gte: new Date(Date.now() - 10000) }
+  });
+  if (recentPending) {
+    throw new ResponseError('A duplicate withdrawal request was detected. Please wait a moment and try again.', 400);
+  }
+
   // Get user's wallet
   const wallet = await Wallet.findOne({ user: userId });
-
   if (!wallet) {
     throw new ResponseError('Wallet not found. Please earn some money first.', 404);
   }
 
-  // Validate amount
-  if (amount <= 0) {
-    throw new ResponseError('Invalid withdrawal amount', 400);
-  }
-
-  if (amount > wallet.balance) {
+  if (numericAmount > wallet.balance) {
     throw new ResponseError(
       `Insufficient balance. Available: KES ${wallet.balance.toFixed(2)}`,
       400
@@ -32,28 +58,28 @@ export const requestWithdrawal = asyncHandler(async (req, res) => {
 
   // Minimum withdrawal amount (e.g., KES 100)
   const MIN_WITHDRAWAL = 100;
-  if (amount < MIN_WITHDRAWAL) {
+  if (numericAmount < MIN_WITHDRAWAL) {
     throw new ResponseError(`Minimum withdrawal amount is KES ${MIN_WITHDRAWAL}`, 400);
   }
 
   // Calculate withdrawal fee (e.g., 1% or fixed fee)
-  const withdrawalFee = Math.max(amount * 0.01, 0); // 1% fee
-  const netAmount = amount - withdrawalFee;
+  const withdrawalFee = Math.max(numericAmount * 0.01, 0); // 1% fee
+  const netAmount = numericAmount - withdrawalFee;
 
   // Create withdrawal record
   const withdrawal = await Withdrawal.create({
     user: userId,
     wallet: wallet._id,
-    amount,
+    amount: numericAmount,
     fee: withdrawalFee,
     netAmount,
     status: 'pending',
-    mpesaPhoneNumber: phoneNumber || req.user.phone,
+    mpesaPhoneNumber: standardizedPhone,
     requestedBy: userId,
   });
 
   // Deduct from wallet balance immediately (hold the funds)
-  wallet.balance -= amount;
+  wallet.balance -= numericAmount;
   await wallet.save();
 
   res.status(201).json({
@@ -61,7 +87,7 @@ export const requestWithdrawal = asyncHandler(async (req, res) => {
     message: 'Withdrawal request submitted successfully',
     data: {
       withdrawalId: withdrawal._id,
-      amount,
+      amount: numericAmount,
       fee: withdrawalFee,
       netAmount,
       phoneNumber: withdrawal.mpesaPhoneNumber,
