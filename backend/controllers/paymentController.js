@@ -632,12 +632,15 @@ export const initiateMpesaPaymentWithRider = asyncHandler(async (req, res) => {
 
   console.log('[initiateMpesaPaymentWithRider] Initiating STK Push to:', stkPhone, 'Amount:', totalAmount);
 
+  const suffix = transactionRef.split('-')[1] || transactionRef.slice(-8);
+  const compliantAccountReference = `TXN${suffix}`;
+
   const mpesaResponse = await mpesaService.initiateSTKPush({
     phoneNumber: stkPhone,
     amount: totalAmount,
     transactionRef: transactionRef,
-    accountReference: `RIDE-${transactionRef}`,
-    transactionDesc: 'Bodaboda ride payment',
+    accountReference: compliantAccountReference,
+    transactionDesc: 'Ride Payment',
   });
 
   if (!mpesaResponse.success) {
@@ -774,12 +777,15 @@ export const initiateMpesaPayment = asyncHandler(async (req, res) => {
 
   console.log('[initiateMpesaPayment] Initiating STK Push to:', stkPhone, 'Amount:', totalAmount);
 
+  const suffix = transactionRef.split('-')[1] || transactionRef.slice(-8);
+  const compliantAccountReference = `TXN${suffix}`;
+
   const mpesaResponse = await mpesaService.initiateSTKPush({
     phoneNumber: stkPhone,
     amount: totalAmount,
     transactionRef: transactionRef,
-    accountReference: `RIDE-${transactionRef}`,
-    transactionDesc: 'Bodaboda ride payment',
+    accountReference: compliantAccountReference,
+    transactionDesc: 'Ride Payment',
   });
 
   if (!mpesaResponse.success) {
@@ -1080,17 +1086,17 @@ export const mpesaCallback = asyncHandler(async (req, res) => {
   const payload = req.body;
   const callbackResult = mpesaService.processCallback(payload);
 
-  if (!callbackResult.success) {
+  if (!callbackResult.isValid) {
     console.error('[MPESA] Invalid callback format');
     return res.status(400).json({ success: false, message: 'Invalid callback format' });
   }
 
-  const { checkoutRequestID, resultCode, mpesaReceiptNumber, merchantRequestID, transactionDate, phoneNumber, amount } = callbackResult.data;
+  const { checkoutRequestID, resultCode, mpesaReceiptNumber, merchantRequestID, transactionDate, phoneNumber, amount, resultDesc } = callbackResult.data;
 
   const isSuccess = Number(resultCode) === 0;
 
   if (!isSuccess) {
-    console.log('[MPESA] Payment failed with ResultCode:', resultCode);
+    console.log('[MPESA] Payment failed with ResultCode:', resultCode, 'Desc:', resultDesc);
   }
 
   const transaction = await Transaction.findOne({
@@ -1348,15 +1354,20 @@ export const mpesaCallback = asyncHandler(async (req, res) => {
     }
   } else if (Number(resultCode) !== 0) {
     transaction.status = 'failed';
-    transaction.errorMessage = callbackResult.message;
+    transaction.paymentStatus = 'failed';
+    transaction.resultCode = Number(resultCode);
+    transaction.resultDesc = resultDesc || callbackResult.message;
+    transaction.errorMessage = resultDesc || callbackResult.message;
+    transaction.checkoutRequestID = checkoutRequestID;
+    transaction.merchantRequestID = merchantRequestID;
     transaction.webhookData = payload;
     await transaction.save();
 
     // Log callback payment failure to SystemLog
     SystemLog.create({
       type: 'payment_failure',
-      message: `M-Pesa STK Callback Payment failed: ${callbackResult.message}`,
-      details: { callbackResult, payload },
+      message: `M-Pesa STK Callback Payment failed: ${resultDesc || callbackResult.message}`,
+      details: { callbackResult, payload, resultCode, resultDesc },
       user: transaction.customer?._id || transaction.customer
     }).catch(e => console.error('Failed to log payment_failure in mpesaCallback:', e.message));
 
@@ -1371,12 +1382,12 @@ export const mpesaCallback = asyncHandler(async (req, res) => {
           transaction.customer._id,
           notificationType,
           'Payment Failed',
-          `Your M-Pesa payment of KSh ${transaction.amount.totalAmount} failed. ${callbackResult.message || 'Please try again.'}`,
+          `Your M-Pesa payment of KSh ${transaction.amount.totalAmount} failed. ${resultDesc || callbackResult.message || 'Please try again.'}`,
           { transactionId: transaction._id },
           redirectPath,
           redirectPath,
-        req
-      );
+          req
+        );
       } catch (err) {
         console.error('[Payment failure notification failed]', err);
       }
@@ -1666,12 +1677,15 @@ export const initiatePayment = asyncHandler(async (req, res) => {
     const customer = await User.findById(customerId);
     const stkPhone = phoneNumber || customer.phone;
 
+    const suffix = transactionRef.split('-')[1] || transactionRef.slice(-8);
+    const compliantAccountReference = `TXN${suffix}`;
+
     const mpesaResponse = await mpesaService.initiateSTKPush({
       phoneNumber: stkPhone,
       amount: finalAmount,
       transactionRef: transactionRef,
-      accountReference: `ORDER-${transactionRef}`,
-      transactionDesc: 'Marketplace order payment',
+      accountReference: compliantAccountReference,
+      transactionDesc: 'Order Payment',
     });
 
     if (!mpesaResponse.success) {
@@ -1806,12 +1820,16 @@ export const initiatePayment = asyncHandler(async (req, res) => {
   const customer = await User.findById(customerId);
   const stkPhone = phoneNumber || customer.phone;
 
+  const suffix = transactionRef.split('-')[1] || transactionRef.slice(-8);
+  const compliantAccountReference = `TXN${suffix}`;
+  const compliantDesc = entityTypeLower === 'rental' ? 'Rent Payment' : 'Order Payment';
+
   const mpesaResponse = await mpesaService.initiateSTKPush({
     phoneNumber: stkPhone,
     amount: totalAmount,
     transactionRef: transactionRef,
-    accountReference: `${entityType}-${transactionRef}`,
-    transactionDesc: `${entityType} payment`,
+    accountReference: compliantAccountReference,
+    transactionDesc: compliantDesc,
   });
 
   if (!mpesaResponse.success) {

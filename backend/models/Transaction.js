@@ -155,6 +155,12 @@ const transactionSchema = new mongoose.Schema(
     webhookData: {
       type: Object,
     },
+    resultCode: {
+      type: Number,
+    },
+    resultDesc: {
+      type: String,
+    },
     errorMessage: {
       type: String,
     },
