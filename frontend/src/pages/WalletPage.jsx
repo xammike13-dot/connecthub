@@ -114,9 +114,9 @@ const WalletPage = () => {
     }
 
     // Validate phone number format (Kenyan format)
-    const phoneRegex = /^0[79]\d{8}$/;
+    const phoneRegex = /^0[1789]\d{8}$/;
     if (!phoneRegex.test(withdrawalData.phoneNumber.replace(/\s/g, ''))) {
-      setError('Please enter a valid Kenyan phone number (e.g., 0712345678)');
+      setError('Please enter a valid Kenyan phone number (e.g., 0712345678 or 0112345678)');
       setProcessing(false);
       return;
     }

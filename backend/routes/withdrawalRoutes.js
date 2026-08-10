@@ -29,7 +29,9 @@ router.use((req, res, next) => {
 
 // Withdrawal routes
 router.post('/request', requestWithdrawal);
+router.post('/', requestWithdrawal);
 router.get('/history', getWithdrawalHistory);
+router.get('/my-withdrawals', getWithdrawalHistory);
 
 // Wallet and earnings (must be before /:withdrawalId)
 router.get('/wallet/details', getWalletDetails);
