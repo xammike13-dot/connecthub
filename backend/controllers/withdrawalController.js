@@ -1,6 +1,8 @@
+import { v4 as uuidv4 } from 'uuid';
 import Wallet from '../models/Wallet.js';
 import Withdrawal from '../models/Withdrawal.js';
 import Transaction from '../models/Transaction.js';
+import mpesaService from '../services/mpesaService.js';
 import { asyncHandler } from '../middleware/error.js';
 import { ResponseError } from '../middleware/error.js';
 
@@ -66,6 +68,9 @@ export const requestWithdrawal = asyncHandler(async (req, res) => {
   const withdrawalFee = Math.max(numericAmount * 0.01, 0); // 1% fee
   const netAmount = numericAmount - withdrawalFee;
 
+  // Generate a unique originator conversation ID for this payout request
+  const originatorConversationId = `B2C-${uuidv4().slice(0, 8).toUpperCase()}`;
+
   // Create withdrawal record
   const withdrawal = await Withdrawal.create({
     user: userId,
@@ -76,15 +81,71 @@ export const requestWithdrawal = asyncHandler(async (req, res) => {
     status: 'pending',
     mpesaPhoneNumber: standardizedPhone,
     requestedBy: userId,
+    originatorConversationId,
   });
 
-  // Deduct from wallet balance immediately (hold the funds)
+  // Escrow flow: Deduct from available balance immediately, hold in pendingBalance
+  const beforeBalance = wallet.balance;
+  const beforePending = wallet.pendingBalance || 0;
   wallet.balance -= numericAmount;
+  wallet.pendingBalance = beforePending + numericAmount;
   await wallet.save();
+
+  console.log('[WALLET WITHDRAWAL LOCKUP]', {
+    walletId: wallet._id,
+    userId,
+    amount: numericAmount,
+    beforeBalance,
+    afterBalance: wallet.balance,
+    beforePending,
+    afterPending: wallet.pendingBalance,
+  });
+
+  // Call Safaricom B2C API for payout
+  const b2cResponse = await mpesaService.initiateB2C({
+    phoneNumber: standardizedPhone,
+    amount: netAmount, // Safaricom disburses the net amount
+    originatorConversationId,
+  });
+
+  if (!b2cResponse.success) {
+    // If payout request fails at initiation stage (e.g. invalid credential, offline API, missing config)
+    // We do NOT fake a successful payout. We fail it immediately and restore wallet balances
+    withdrawal.status = 'failed';
+    withdrawal.failedAt = new Date();
+    withdrawal.rejectionReason = b2cResponse.message || 'Safaricom B2C payout initiation failed';
+    withdrawal.notes = `Initiation failed: ${JSON.stringify(b2cResponse.error || b2cResponse.message)}`;
+    await withdrawal.save();
+
+    // Restore wallet balances
+    wallet.balance += numericAmount;
+    wallet.pendingBalance = Math.max(0, wallet.pendingBalance - numericAmount);
+    await wallet.save();
+
+    console.log('[WALLET WITHDRAWAL ROLLBACK]', {
+      walletId: wallet._id,
+      userId,
+      amount: numericAmount,
+      reason: 'B2C initiation failed',
+      restoredBalance: wallet.balance,
+      restoredPending: wallet.pendingBalance,
+    });
+
+    throw new ResponseError(
+      `M-Pesa payout initiation failed: ${b2cResponse.message}. Please verify the Safaricom environment configuration or B2C certificate status.`,
+      400
+    );
+  }
+
+  // Update withdrawal with B2C accepted response details
+  withdrawal.conversationId = b2cResponse.data?.ConversationID;
+  withdrawal.b2cResponse = b2cResponse.data;
+  withdrawal.status = 'pending'; // Keep status as pending while awaiting webhook callback
+  await withdrawal.save();
 
   res.status(201).json({
     success: true,
-    message: 'Withdrawal request submitted successfully',
+    message: 'Withdrawal request accepted and is processing via Safaricom M-Pesa B2C',
     data: {
       withdrawalId: withdrawal._id,
       amount: numericAmount,
@@ -92,8 +153,173 @@ export const requestWithdrawal = asyncHandler(async (req, res) => {
       netAmount,
       phoneNumber: withdrawal.mpesaPhoneNumber,
       status: withdrawal.status,
+      originatorConversationId,
+      conversationId: withdrawal.conversationId,
     },
   });
+});
+
+/**
+ * Handle Safaricom B2C Webhook Callback
+ * Receives POST from Safaricom with the actual transaction outcome
+ */
+export const mpesaB2CCallback = asyncHandler(async (req, res) => {
+  console.log('════════════════ [B2C Webhook Callback Received] ════════════════');
+  console.log(JSON.stringify(req.body, null, 2));
+  console.log('════════════════════════════════════════════════════════════════');
+
+  const b2cResult = req.body?.Result;
+  if (!b2cResult) {
+    console.error('[B2C Webhook] Missing Result payload');
+    return res.status(400).json({ success: false, message: 'Invalid callback format' });
+  }
+
+  const {
+    OriginatorConversationID,
+    ConversationID,
+    ResultCode,
+    ResultDesc,
+    ResultParameters,
+    ReferenceData,
+  } = b2cResult;
+
+  // Find the matching withdrawal record
+  const withdrawal = await Withdrawal.findOne({
+    $or: [
+      { originatorConversationId: OriginatorConversationID },
+      { conversationId: ConversationID },
+    ]
+  }).populate('wallet');
+
+  if (!withdrawal) {
+    console.error('[B2C Webhook] Matching withdrawal record not found for:', {
+      OriginatorConversationID,
+      ConversationID,
+    });
+    return res.status(404).json({ success: false, message: 'Withdrawal not found' });
+  }
+
+  // Double-processing check
+  if (withdrawal.status === 'completed' || withdrawal.status === 'failed') {
+    console.log('[B2C Webhook] Withdrawal already processed:', withdrawal._id);
+    return res.status(200).json({ success: true, message: 'Already processed' });
+  }
+
+  const wallet = withdrawal.wallet;
+  const isSuccess = Number(ResultCode) === 0;
+
+  withdrawal.b2cCallbackData = req.body;
+
+  if (isSuccess) {
+    // 1. SUCCESS: pendingBalance decreases and totalWithdrawn increases
+    withdrawal.status = 'completed';
+    withdrawal.completedAt = new Date();
+    withdrawal.processedAt = new Date();
+
+    // Try extracting M-Pesa Receipt Number from ResultParameters
+    let receiptNumber = null;
+    if (ResultParameters && Array.isArray(ResultParameters.ResultParameter)) {
+      const receiptItem = ResultParameters.ResultParameter.find(
+        (param) => param.Key === 'TransactionReceipt'
+      );
+      if (receiptItem) {
+        receiptNumber = receiptItem.Value;
+      }
+    }
+    withdrawal.mpesaReceiptNumber = receiptNumber;
+
+    if (wallet) {
+      wallet.pendingBalance = Math.max(0, (wallet.pendingBalance || 0) - withdrawal.amount);
+      wallet.totalWithdrawn = (wallet.totalWithdrawn || 0) + withdrawal.amount;
+      await wallet.save();
+
+      console.log('[WALLET B2C SUCCESS UPDATE]', {
+        walletId: wallet._id,
+        withdrawalId: withdrawal._id,
+        amount: withdrawal.amount,
+        pendingBalance: wallet.pendingBalance,
+        totalWithdrawn: wallet.totalWithdrawn,
+      });
+    }
+  } else {
+    // 2. FAILURE: restore amount to availableBalance, decrease pendingBalance, and mark failed
+    withdrawal.status = 'failed';
+    withdrawal.failedAt = new Date();
+    withdrawal.processedAt = new Date();
+    withdrawal.rejectionReason = ResultDesc || `M-Pesa B2C callback failed with code ${ResultCode}`;
+
+    if (wallet) {
+      wallet.balance = (wallet.balance || 0) + withdrawal.amount;
+      wallet.pendingBalance = Math.max(0, (wallet.pendingBalance || 0) - withdrawal.amount);
+      await wallet.save();
+
+      console.log('[WALLET B2C FAILURE ROLLBACK]', {
+        walletId: wallet._id,
+        withdrawalId: withdrawal._id,
+        amount: withdrawal.amount,
+        balance: wallet.balance,
+        pendingBalance: wallet.pendingBalance,
+      });
+    }
+  }
+
+  await withdrawal.save();
+  return res.status(200).json({ success: true, message: 'Callback processed successfully' });
+});
+
+/**
+ * Handle Safaricom B2C Timeout Webhook
+ * Occurs if Safaricom fails to disburse or the queue times out
+ */
+export const mpesaB2CTimeout = asyncHandler(async (req, res) => {
+  console.log('════════════════ [B2C Webhook Timeout Received] ════════════════');
+  console.log(JSON.stringify(req.body, null, 2));
+  console.log('════════════════════════════════════════════════════════════════');
+
+  // Typically, Daraja sends timeout callbacks to QueueTimeOutURL. We will treat it as a failure.
+  const payload = req.body;
+  const originatorConvId = payload?.OriginatorConversationID;
+  const convId = payload?.ConversationID;
+
+  const withdrawal = await Withdrawal.findOne({
+    $or: [
+      { originatorConversationId: originatorConvId },
+      { conversationId: convId },
+    ]
+  }).populate('wallet');
+
+  if (!withdrawal) {
+    console.error('[B2C Timeout] Matching withdrawal record not found');
+    return res.status(404).json({ success: false, message: 'Withdrawal not found' });
+  }
+
+  if (withdrawal.status === 'completed' || withdrawal.status === 'failed') {
+    return res.status(200).json({ success: true, message: 'Already processed' });
+  }
+
+  const wallet = withdrawal.wallet;
+  withdrawal.status = 'failed';
+  withdrawal.failedAt = new Date();
+  withdrawal.processedAt = new Date();
+  withdrawal.rejectionReason = 'Safaricom B2C request timed out in queue';
+  withdrawal.b2cCallbackData = payload;
+
+  if (wallet) {
+    wallet.balance = (wallet.balance || 0) + withdrawal.amount;
+    wallet.pendingBalance = Math.max(0, (wallet.pendingBalance || 0) - withdrawal.amount);
+    await wallet.save();
+
+    console.log('[WALLET B2C TIMEOUT ROLLBACK]', {
+      walletId: wallet._id,
+      withdrawalId: withdrawal._id,
+      amount: withdrawal.amount,
+      balance: wallet.balance,
+      pendingBalance: wallet.pendingBalance,
+    });
+  }
+
+  await withdrawal.save();
+  return res.status(200).json({ success: true, message: 'Timeout processed successfully' });
 });
 
 /**

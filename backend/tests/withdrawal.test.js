@@ -9,7 +9,13 @@ import User from '../models/User.js';
 import Wallet from '../models/Wallet.js';
 import Withdrawal from '../models/Withdrawal.js';
 import connectDB from '../config/db.js';
-import { requestWithdrawal, getWithdrawalHistory } from '../controllers/withdrawalController.js';
+import mpesaService from '../services/mpesaService.js';
+import {
+  requestWithdrawal,
+  getWithdrawalHistory,
+  mpesaB2CCallback,
+  mpesaB2CTimeout,
+} from '../controllers/withdrawalController.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,6 +29,31 @@ test('Withdrawal and Wallet Feature Suite', async (t) => {
 
   console.log('Connecting to MongoDB...');
   await connectDB();
+
+  // Mock env variables for B2C Safaricom API to make sure tests bypass validation checks or mock correctly
+  process.env.MPESA_B2C_SECURITY_CREDENTIAL = 'mocked_security_credential';
+  process.env.MPESA_B2C_INITIATOR_NAME = 'testapi';
+  process.env.MPESA_B2C_SHORTCODE = '174379';
+  process.env.MPESA_CONSUMER_KEY = 'mocked_consumer_key';
+  process.env.MPESA_CONSUMER_SECRET = 'mocked_consumer_secret';
+
+  // Stub the mpesaService.getAccessToken and initiateB2C methods to bypass live HTTP requests during test
+  const originalGetAccessToken = mpesaService.getAccessToken;
+  mpesaService.getAccessToken = async () => 'mocked_access_token';
+
+  const originalInitiateB2C = mpesaService.initiateB2C;
+  mpesaService.initiateB2C = async (b2cData) => {
+    return {
+      success: true,
+      data: {
+        ResponseCode: '0',
+        ResponseDescription: 'Accept the service request successfully.',
+        ConversationID: 'AG_20250101_0000417fed8ed666e976',
+        OriginatorConversationID: b2cData.originatorConversationId,
+      },
+      message: 'B2C payout request initiated successfully',
+    };
+  };
 
   // Create a provider user and a wallet
   const providerUser = await User.create({
@@ -147,8 +178,149 @@ test('Withdrawal and Wallet Feature Suite', async (t) => {
       assert.match(errorThrown.message, /duplicate withdrawal request/);
     });
 
+    await t.test('6. Handle successful B2C webhook callback', async () => {
+      // Create a pending withdrawal record with originatorConversationId
+      const testOriginatorId = 'B2C-SUCCESS-TEST';
+      const testConvId = 'CONV-SUCCESS-TEST';
+
+      // Set wallet balance for this test
+      const testWallet = await Wallet.findOne({ user: providerUser._id });
+      testWallet.balance = 500;
+      testWallet.pendingBalance = 200;
+      await testWallet.save();
+
+      const withdrawalSuccess = await Withdrawal.create({
+        user: providerUser._id,
+        wallet: testWallet._id,
+        amount: 200,
+        fee: 2,
+        netAmount: 198,
+        status: 'pending',
+        mpesaPhoneNumber: '0722222222',
+        requestedBy: providerUser._id,
+        originatorConversationId: testOriginatorId,
+        conversationId: testConvId,
+      });
+
+      // Prepare mocked webhook req/res objects
+      const callbackReq = {
+        body: {
+          Result: {
+            OriginatorConversationID: testOriginatorId,
+            ConversationID: testConvId,
+            ResultCode: 0,
+            ResultDesc: 'The service request is processed successfully.',
+            ResultParameters: {
+              ResultParameter: [
+                { Key: 'TransactionReceipt', Value: 'NLK81HG245' }
+              ]
+            }
+          }
+        }
+      };
+
+      let responseStatus = null;
+      let responseJson = null;
+
+      const callbackRes = {
+        status: (code) => {
+          responseStatus = code;
+          return {
+            json: (data) => {
+              responseJson = data;
+            }
+          };
+        }
+      };
+
+      await mpesaB2CCallback(callbackReq, callbackRes);
+
+      assert.equal(responseStatus, 200);
+      assert.equal(responseJson.success, true);
+
+      // Verify the withdrawal record in DB is updated to completed
+      const updatedWithdrawal = await Withdrawal.findById(withdrawalSuccess._id);
+      assert.equal(updatedWithdrawal.status, 'completed');
+      assert.equal(updatedWithdrawal.mpesaReceiptNumber, 'NLK81HG245');
+
+      // Verify wallet balances: pendingBalance should decrease by 200 (to 0) and totalWithdrawn should increase by 200
+      const updatedWallet = await Wallet.findById(testWallet._id);
+      assert.equal(updatedWallet.pendingBalance, 0);
+      assert.equal(updatedWallet.totalWithdrawn, 200);
+      assert.equal(updatedWallet.balance, 500, 'Available balance should remain unchanged on success');
+    });
+
+    await t.test('7. Handle failed B2C webhook callback', async () => {
+      // Create a pending withdrawal record
+      const testOriginatorId = 'B2C-FAILURE-TEST';
+      const testConvId = 'CONV-FAILURE-TEST';
+
+      const testWallet = await Wallet.findOne({ user: providerUser._id });
+      testWallet.balance = 300;
+      testWallet.pendingBalance = 200;
+      await testWallet.save();
+
+      const withdrawalFailure = await Withdrawal.create({
+        user: providerUser._id,
+        wallet: testWallet._id,
+        amount: 200,
+        fee: 2,
+        netAmount: 198,
+        status: 'pending',
+        mpesaPhoneNumber: '0722222222',
+        requestedBy: providerUser._id,
+        originatorConversationId: testOriginatorId,
+        conversationId: testConvId,
+      });
+
+      // Prepare mocked webhook req/res objects for a failed callback (ResultCode !== 0)
+      const callbackReq = {
+        body: {
+          Result: {
+            OriginatorConversationID: testOriginatorId,
+            ConversationID: testConvId,
+            ResultCode: 2029,
+            ResultDesc: 'System Error occurred'
+          }
+        }
+      };
+
+      let responseStatus = null;
+      let responseJson = null;
+
+      const callbackRes = {
+        status: (code) => {
+          responseStatus = code;
+          return {
+            json: (data) => {
+              responseJson = data;
+            }
+          };
+        }
+      };
+
+      await mpesaB2CCallback(callbackReq, callbackRes);
+
+      assert.equal(responseStatus, 200);
+      assert.equal(responseJson.success, true);
+
+      // Verify the withdrawal record in DB is updated to failed
+      const updatedWithdrawal = await Withdrawal.findById(withdrawalFailure._id);
+      assert.equal(updatedWithdrawal.status, 'failed');
+      assert.equal(updatedWithdrawal.rejectionReason, 'System Error occurred');
+
+      // Verify wallet balances: pendingBalance decreases by 200, and available balance is restored (refunded) by 200 (to 500)
+      const updatedWallet = await Wallet.findById(testWallet._id);
+      assert.equal(updatedWallet.pendingBalance, 0);
+      assert.equal(updatedWallet.balance, 500);
+    });
+
   } finally {
     console.log('Cleaning up withdrawal test resources...');
+    // Restore original mpesaService stubs
+    mpesaService.getAccessToken = originalGetAccessToken;
+    mpesaService.initiateB2C = originalInitiateB2C;
+
     await mongoose.disconnect();
     await mongoServer.stop();
     console.log('Withdrawal tests finished.');

@@ -56,6 +56,18 @@ const withdrawalSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
     },
+    originatorConversationId: {
+      type: String,
+    },
+    conversationId: {
+      type: String,
+    },
+    b2cResponse: {
+      type: mongoose.Schema.Types.Mixed,
+    },
+    b2cCallbackData: {
+      type: mongoose.Schema.Types.Mixed,
+    },
   },
   {
     timestamps: true,
