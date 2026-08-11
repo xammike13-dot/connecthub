@@ -610,7 +610,7 @@ class MpesaService {
             : 'NOT CONFIGURED',
         accessTokenPresent: Boolean(accessToken),
         accessTokenLength: accessToken?.length || 0,
-        endpoint: `${config.baseUrl}/mpesa/b2c/v1/paymentrequest`,
+        endpoint: `${config.baseUrl}/mpesa/b2c/v3/paymentrequest`,
         timestampSent: new Date().toISOString(),
         tokenFingerprintSha256: tokenHash,
       });
