@@ -120,7 +120,7 @@ class MpesaService {
     const config = this.getConfig();
 
     const rawKey = isB2C
-      ? (process.env.MPESA_B2C_CONSUMER_KEY || config.consumerKey)
+      ? process.env.MPESA_B2C_CONSUMER_KEY
       : config.consumerKey;
     const consumerKey = rawKey ? rawKey.trim() : null;
 
@@ -144,18 +144,18 @@ class MpesaService {
       console.log(`[MPESA] Generating new ${isB2C ? 'B2C ' : ''}access token...`);
 
       const rawSecret = isB2C
-        ? (process.env.MPESA_B2C_CONSUMER_SECRET || config.consumerSecret)
+        ? process.env.MPESA_B2C_CONSUMER_SECRET
         : config.consumerSecret;
       const consumerSecret = rawSecret ? rawSecret.trim() : null;
 
       console.log(`[MPESA] ${isB2C ? 'B2C ' : ''}Consumer Key:`, consumerKey ? 'SET' : 'MISSING');
       console.log(`[MPESA] ${isB2C ? 'B2C ' : ''}Consumer Secret:`, consumerSecret ? 'SET' : 'MISSING');
 
-      if (!consumerKey || !consumerSecret) {
-        throw new Error(isB2C
-          ? 'MPESA_B2C_CONSUMER_KEY or MPESA_B2C_CONSUMER_SECRET is not configured'
-          : 'MPESA_CONSUMER_KEY or MPESA_CONSUMER_SECRET is not configured'
-        );
+      if (isB2C && (!consumerKey || !consumerSecret)) {
+        throw new Error('MPESA_B2C_CONSUMER_KEY or MPESA_B2C_CONSUMER_SECRET is not configured');
+      }
+      if (!isB2C && (!consumerKey || !consumerSecret)) {
+        throw new Error('MPESA_CONSUMER_KEY or MPESA_CONSUMER_SECRET is not configured');
       }
 
       const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
@@ -169,6 +169,19 @@ class MpesaService {
           'Content-Type': 'application/json',
         },
       });
+
+      if (isB2C) {
+        console.log('[B2C AUTH DIAGNOSTICS]', {
+          environment: config.environment,
+          oauthUrl: `${config.baseUrl}/oauth/v1/generate?grant_type=client_credentials`,
+          consumerKeySource: process.env.MPESA_B2C_CONSUMER_KEY ? 'B2C credentials' : 'MISSING',
+          consumerSecretSource: process.env.MPESA_B2C_CONSUMER_SECRET ? 'B2C credentials' : 'MISSING',
+          tokenReceived: Boolean(response.data?.access_token),
+          tokenLength: response.data?.access_token?.length || 0,
+          tokenType: response.data?.token_type || null,
+          expiresIn: response.data?.expires_in || null
+        });
+      }
 
       const rawToken = response.data?.access_token;
       if (!rawToken) {
@@ -540,9 +553,27 @@ class MpesaService {
       console.log(`- TimeoutURL: ${payload.QueueTimeOutURL}`);
       console.log(`- OriginatorConversationID: ${payload.OriginatorConversationID}`);
       console.log(`- MPESA_B2C_SECURITY_CREDENTIAL Loaded: ${process.env.MPESA_B2C_SECURITY_CREDENTIAL ? 'YES' : 'NO'}`);
-      console.log(`- MPESA_B2C_CONSUMER_KEY Loaded: ${process.env.MPESA_B2C_CONSUMER_KEY ? 'YES' : 'NO (Using general key)'}`);
-      console.log(`- MPESA_B2C_CONSUMER_SECRET Loaded: ${process.env.MPESA_B2C_CONSUMER_SECRET ? 'YES' : 'NO (Using general secret)'}`);
+      console.log(`- MPESA_B2C_CONSUMER_KEY Loaded: ${process.env.MPESA_B2C_CONSUMER_KEY ? 'YES' : 'NO'}`);
+      console.log(`- MPESA_B2C_CONSUMER_SECRET Loaded: ${process.env.MPESA_B2C_CONSUMER_SECRET ? 'YES' : 'NO'}`);
       console.log('════════════════════════════════════════════════════════════');
+
+      // Add a final authentication check before B2C
+      console.log('[B2C AUTH FINAL CHECK]', {
+        environment: config.environment,
+        baseUrl: config.baseUrl,
+        oauthCredentialSource:
+          process.env.MPESA_B2C_CONSUMER_KEY &&
+          process.env.MPESA_B2C_CONSUMER_SECRET
+            ? 'B2C'
+            : 'NOT CONFIGURED',
+        accessTokenPresent: Boolean(accessToken),
+        accessTokenLength: accessToken?.length || 0,
+        endpoint: `${config.baseUrl}/mpesa/b2c/v1/paymentrequest`
+      });
+
+      if (!process.env.MPESA_B2C_CONSUMER_KEY || !process.env.MPESA_B2C_CONSUMER_SECRET) {
+        throw new Error('B2C Consumer Key or Secret is NOT CONFIGURED');
+      }
 
       // Make B2C post request to Daraja
       const endpoint = `${config.baseUrl}/mpesa/b2c/v1/paymentrequest`;
