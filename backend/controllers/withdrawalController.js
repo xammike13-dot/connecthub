@@ -65,6 +65,9 @@ export const requestWithdrawal = asyncHandler(async (req, res) => {
   }
 
   // Calculate withdrawal fee (e.g., 1% or fixed fee)
+  // - withdrawal.amount: the requested amount being withdrawn from the wallet.
+  // - withdrawal.fee: the withdrawal fee charged by the platform (deducted from amount).
+  // - withdrawal.netAmount: the net payout amount processed by B2C to the user's M-Pesa number.
   const withdrawalFee = Math.max(numericAmount * 0.01, 0); // 1% fee
   const netAmount = numericAmount - withdrawalFee;
 
@@ -75,9 +78,9 @@ export const requestWithdrawal = asyncHandler(async (req, res) => {
   const withdrawal = await Withdrawal.create({
     user: userId,
     wallet: wallet._id,
-    amount: numericAmount,
-    fee: withdrawalFee,
-    netAmount,
+    amount: numericAmount, // Requested amount
+    fee: withdrawalFee, // Platfrom fee
+    netAmount, // Actual amount paid to M-Pesa
     status: 'pending',
     mpesaPhoneNumber: standardizedPhone,
     requestedBy: userId,
@@ -269,14 +272,15 @@ export const mpesaB2CCallback = asyncHandler(async (req, res) => {
 
 /**
  * Handle Safaricom B2C Timeout Webhook
- * Occurs if Safaricom fails to disburse or the queue times out
+ * Occurs if Safaricom fails to disburse or the queue times out.
+ * To avoid double-payments, we do NOT blindly assume that money was never paid if Safaricom's state is uncertain.
+ * We keep the withdrawal in 'pending_reconciliation' state rather than blindly refunding it.
  */
 export const mpesaB2CTimeout = asyncHandler(async (req, res) => {
   console.log('════════════════ [B2C Webhook Timeout Received] ════════════════');
   console.log(JSON.stringify(req.body, null, 2));
   console.log('════════════════════════════════════════════════════════════════');
 
-  // Typically, Daraja sends timeout callbacks to QueueTimeOutURL. We will treat it as a failure.
   const payload = req.body;
   const originatorConvId = payload?.OriginatorConversationID;
   const convId = payload?.ConversationID;
@@ -293,33 +297,22 @@ export const mpesaB2CTimeout = asyncHandler(async (req, res) => {
     return res.status(404).json({ success: false, message: 'Withdrawal not found' });
   }
 
-  if (withdrawal.status === 'completed' || withdrawal.status === 'failed') {
+  if (withdrawal.status === 'completed' || withdrawal.status === 'failed' || withdrawal.status === 'cancelled') {
     return res.status(200).json({ success: true, message: 'Already processed' });
   }
 
-  const wallet = withdrawal.wallet;
-  withdrawal.status = 'failed';
-  withdrawal.failedAt = new Date();
-  withdrawal.processedAt = new Date();
+  withdrawal.status = 'pending_reconciliation';
   withdrawal.rejectionReason = 'Safaricom B2C request timed out in queue';
   withdrawal.b2cCallbackData = payload;
-
-  if (wallet) {
-    wallet.balance = (wallet.balance || 0) + withdrawal.amount;
-    wallet.pendingBalance = Math.max(0, (wallet.pendingBalance || 0) - withdrawal.amount);
-    await wallet.save();
-
-    console.log('[WALLET B2C TIMEOUT ROLLBACK]', {
-      walletId: wallet._id,
-      withdrawalId: withdrawal._id,
-      amount: withdrawal.amount,
-      balance: wallet.balance,
-      pendingBalance: wallet.pendingBalance,
-    });
-  }
-
   await withdrawal.save();
-  return res.status(200).json({ success: true, message: 'Timeout processed successfully' });
+
+  console.log('[WALLET B2C TIMEOUT MARKED FOR RECONCILIATION]', {
+    withdrawalId: withdrawal._id,
+    amount: withdrawal.amount,
+    status: withdrawal.status,
+  });
+
+  return res.status(200).json({ success: true, message: 'Timeout processed and marked for reconciliation' });
 });
 
 /**
@@ -339,8 +332,9 @@ export const processWithdrawal = asyncHandler(async (req, res) => {
     throw new ResponseError('Withdrawal not found', 404);
   }
 
-  if (withdrawal.status !== 'pending') {
-    throw new ResponseError('Withdrawal is not in pending status', 400);
+  // Allow processing if status is 'pending', 'processing', or 'pending_reconciliation'
+  if (withdrawal.status === 'completed' || withdrawal.status === 'failed' || withdrawal.status === 'cancelled') {
+    throw new ResponseError('Withdrawal has already been finalized', 400);
   }
 
   if (status === 'completed') {
@@ -351,28 +345,52 @@ export const processWithdrawal = asyncHandler(async (req, res) => {
     withdrawal.processedBy = adminId;
     withdrawal.processedAt = new Date();
 
-    // Update wallet totals
+    // Update wallet totals safely (decrement pendingBalance, increment totalWithdrawn)
     const wallet = await Wallet.findById(withdrawal.wallet);
-    wallet.totalWithdrawn += withdrawal.amount;
-    await wallet.save();
+    if (wallet) {
+      wallet.pendingBalance = Math.max(0, (wallet.pendingBalance || 0) - withdrawal.amount);
+      wallet.totalWithdrawn = (wallet.totalWithdrawn || 0) + withdrawal.amount;
+      await wallet.save();
+
+      console.log('[MANUAL WITHDRAWAL COMPLETION]', {
+        walletId: wallet._id,
+        withdrawalId: withdrawal._id,
+        amount: withdrawal.amount,
+        pendingBalance: wallet.pendingBalance,
+        totalWithdrawn: wallet.totalWithdrawn,
+      });
+    }
   } else if (status === 'failed' || status === 'cancelled') {
-    withdrawal.status = 'failed';
+    withdrawal.status = status === 'cancelled' ? 'cancelled' : 'failed';
     withdrawal.failedAt = new Date();
     withdrawal.rejectionReason = rejectionReason || 'Cancelled by admin';
     withdrawal.processedBy = adminId;
     withdrawal.processedAt = new Date();
 
-    // Refund to wallet
+    // Refund/Restore amount to available balance and decrement pending balance
     const wallet = await Wallet.findById(withdrawal.wallet);
-    wallet.balance += withdrawal.amount;
-    await wallet.save();
+    if (wallet) {
+      wallet.balance = (wallet.balance || 0) + withdrawal.amount;
+      wallet.pendingBalance = Math.max(0, (wallet.pendingBalance || 0) - withdrawal.amount);
+      await wallet.save();
+
+      console.log('[MANUAL WITHDRAWAL REJECTION]', {
+        walletId: wallet._id,
+        withdrawalId: withdrawal._id,
+        amount: withdrawal.amount,
+        balance: wallet.balance,
+        pendingBalance: wallet.pendingBalance,
+      });
+    }
+  } else {
+    throw new ResponseError('Invalid target processing status', 400);
   }
 
   await withdrawal.save();
 
   res.status(200).json({
     success: true,
-    message: `Withdrawal ${status}`,
+    message: `Withdrawal successfully marked as ${withdrawal.status}`,
     data: withdrawal,
   });
 });

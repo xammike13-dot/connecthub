@@ -27,7 +27,7 @@ const withdrawalSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['pending', 'processing', 'completed', 'failed', 'cancelled'],
+      enum: ['pending', 'processing', 'completed', 'failed', 'cancelled', 'pending_reconciliation'],
       default: 'pending',
     },
     paymentMethod: {
@@ -77,6 +77,8 @@ const withdrawalSchema = new mongoose.Schema(
 // Indexes for efficient querying
 withdrawalSchema.index({ user: 1, status: 1 });
 withdrawalSchema.index({ status: 1, createdAt: -1 });
+withdrawalSchema.index({ originatorConversationId: 1 }, { unique: true, sparse: true });
+withdrawalSchema.index({ conversationId: 1 }, { unique: true, sparse: true });
 
 const Withdrawal = mongoose.model('Withdrawal', withdrawalSchema);
 

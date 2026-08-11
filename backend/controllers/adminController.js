@@ -1340,8 +1340,9 @@ export const approveWithdrawal = asyncHandler(async (req, res) => {
     throw new ResponseError('Withdrawal not found', 404);
   }
 
-  if (withdrawal.status !== 'pending') {
-    throw new ResponseError('Withdrawal is not pending', 400);
+  // Allow approving if status is 'pending' or 'pending_reconciliation'
+  if (withdrawal.status !== 'pending' && withdrawal.status !== 'pending_reconciliation') {
+    throw new ResponseError('Withdrawal is not in a status that can be approved for processing', 400);
   }
 
   withdrawal.status = 'processing';
@@ -1372,13 +1373,26 @@ export const rejectWithdrawal = asyncHandler(async (req, res) => {
     throw new ResponseError('Withdrawal not found', 404);
   }
 
-  if (withdrawal.status !== 'pending') {
-    throw new ResponseError('Withdrawal is not pending', 400);
+  // Allow rejecting if status is 'pending', 'processing', or 'pending_reconciliation'
+  if (withdrawal.status === 'completed' || withdrawal.status === 'failed' || withdrawal.status === 'cancelled') {
+    throw new ResponseError('Withdrawal has already been finalized', 400);
   }
 
+  // Refund/Restore amount to available balance and decrement pending balance
   const wallet = await Wallet.findById(withdrawal.wallet);
-  wallet.balance += withdrawal.amount;
-  await wallet.save();
+  if (wallet) {
+    wallet.balance = (wallet.balance || 0) + withdrawal.amount;
+    wallet.pendingBalance = Math.max(0, (wallet.pendingBalance || 0) - withdrawal.amount);
+    await wallet.save();
+
+    console.log('[ADMIN WITHDRAWAL REJECTION]', {
+      walletId: wallet._id,
+      withdrawalId: withdrawal._id,
+      amount: withdrawal.amount,
+      balance: wallet.balance,
+      pendingBalance: wallet.pendingBalance,
+    });
+  }
 
   withdrawal.status = 'failed';
   withdrawal.rejectionReason = reason || 'Rejected by admin';
