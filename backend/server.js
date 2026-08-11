@@ -95,7 +95,7 @@ if (missingMpesaVars.length > 0) {
 }
 
 // B2C Startup Diagnostics (Always runs unconditionally)
-const b2cEnv = (process.env.MPESA_ENVIRONMENT || 'sandbox').trim();
+const b2cEnv = (process.env.MPESA_ENVIRONMENT || 'sandbox').trim().toLowerCase();
 const b2cCred = process.env.MPESA_B2C_SECURITY_CREDENTIAL ? 'LOADED' : 'MISSING';
 const b2cInitiator = process.env.MPESA_B2C_INITIATOR_NAME ? 'LOADED' : 'MISSING';
 const b2cPartyA = process.env.MPESA_B2C_SHORTCODE || process.env.MPESA_SHORTCODE || 'MISSING';
@@ -123,7 +123,7 @@ const b2cResultUrl = process.env.MPESA_B2C_RESULT_URL ||
 
 console.log('════════════════ [B2C CONFIG STARTUP DIAGNOSTICS] ════════════════');
 console.log(`[B2C CONFIG]`);
-console.log(`Environment: ${b2cEnv.charAt(0).toUpperCase() + b2cEnv.slice(1).toLowerCase()}`);
+console.log(`Environment: ${b2cEnv === 'production' ? 'Production' : 'Sandbox'}`);
 console.log(`B2C Security Credential: ${b2cCred}`);
 console.log(`B2C Initiator: ${b2cInitiator}`);
 console.log(`B2C PartyA: ${b2cPartyA}`);
