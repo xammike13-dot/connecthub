@@ -388,7 +388,7 @@ class MpesaService {
       // Make STK Push request
       console.log('[MPESA] Sending request to Daraja API...');
       const response = await mpesaAxios.post(
-        `${config.baseUrl}/mpesa/stkpush/v1/processrequest`,
+        `${config.baseUrl}/mpesa/stkpush/v3/processrequest`,
         payload,
         {
           headers: {
