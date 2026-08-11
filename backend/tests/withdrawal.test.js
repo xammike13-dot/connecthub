@@ -364,12 +364,12 @@ test('Withdrawal and Wallet Feature Suite', async (t) => {
       assert.equal(responseJson.success, true);
 
       const updatedWithdrawal = await Withdrawal.findById(withdrawalTimeout._id);
-      assert.equal(updatedWithdrawal.status, 'failed');
+      assert.equal(updatedWithdrawal.status, 'pending_reconciliation');
       assert.equal(updatedWithdrawal.rejectionReason, 'Safaricom B2C request timed out in queue');
 
       const updatedWallet = await Wallet.findById(testWallet._id);
-      assert.equal(updatedWallet.pendingBalance, 0);
-      assert.equal(updatedWallet.balance, 500);
+      assert.equal(updatedWallet.pendingBalance, 200, 'Funds should remain locked in pendingBalance on timeout');
+      assert.equal(updatedWallet.balance, 300, 'Available balance should remain unchanged on timeout');
     });
 
     await t.test('9. Reject duplicate callback requests (already completed/failed)', async () => {
@@ -456,7 +456,7 @@ test('Withdrawal and Wallet Feature Suite', async (t) => {
 
       // Should fail at initiation stage
       assert.ok(errorThrown, 'Should fail because of missing MPESA_B2C_SECURITY_CREDENTIAL');
-      assert.match(errorThrown.message, /MPESA_B2C_SECURITY_CREDENTIAL environment variable is missing or empty/);
+      assert.match(errorThrown.message, /MPESA_B2C_SECURITY_CREDENTIAL/);
 
       // Check wallet rollback: balance must be back to 200 and pending balance must be 0
       const rolledBackWallet = await Wallet.findOne({ user: providerUser._id });

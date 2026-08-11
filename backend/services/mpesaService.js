@@ -148,7 +148,6 @@ class MpesaService {
       const auth = Buffer.from(`${cleanKey}:${cleanSecret}`).toString('base64');
       
       console.log(`[MPESA] Requesting ${isB2C ? 'B2C ' : ''}token from:`, config.baseUrl);
-      console.log(`[MPESA] Auth header (first 30 chars):`, `Basic ${auth.substring(0, 30)}...`);
       
       const response = await axios.get(
         `${config.baseUrl}/oauth/v1/generate?grant_type=client_credentials`,
@@ -434,15 +433,20 @@ class MpesaService {
       const config = this.getConfig();
 
       // Ensure required environment variables for B2C are loaded
-      const initiatorName = process.env.MPESA_B2C_INITIATOR_NAME || 'testapi';
+      const initiatorName = process.env.MPESA_B2C_INITIATOR_NAME;
+      if (!initiatorName) {
+        throw new Error('MPESA_B2C_INITIATOR_NAME is not configured');
+      }
+
       const securityCredential = process.env.MPESA_B2C_SECURITY_CREDENTIAL; // Must be encrypted
+      if (!securityCredential) {
+        throw new Error('MPESA_B2C_SECURITY_CREDENTIAL is not configured');
+      }
+
       const commandId = process.env.MPESA_B2C_COMMAND_ID || 'BusinessPayment';
       const partyA = process.env.MPESA_B2C_SHORTCODE || config.shortcode; // Paying organization shortcode
 
       // Check for mandatory configurations
-      if (!securityCredential) {
-        throw new Error('MPESA_B2C_SECURITY_CREDENTIAL environment variable is missing or empty');
-      }
       if (!partyA) {
         throw new Error('MPESA_B2C_SHORTCODE or MPESA_SHORTCODE environment variable is required');
       }
@@ -468,6 +472,17 @@ class MpesaService {
         (baseUrl.includes('/api/withdrawals/b2c/callback')
           ? baseUrl
           : `${baseUrl}/api/withdrawals/b2c/callback`);
+
+      // In production, callback URLs must be absolute HTTPS URLs
+      const isProd = config.environment && config.environment.trim().toLowerCase() === 'production';
+      if (isProd) {
+        if (!queueTimeOutUrl.startsWith('https://')) {
+          throw new Error('B2C QueueTimeOutURL must be an absolute HTTPS URL in production');
+        }
+        if (!resultUrl.startsWith('https://')) {
+          throw new Error('B2C ResultURL must be an absolute HTTPS URL in production');
+        }
+      }
 
       // Format recipient phone number
       const formattedPhone = this.formatPhoneNumber(phoneNumber);
