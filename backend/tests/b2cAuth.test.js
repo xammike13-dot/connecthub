@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import axios from 'axios';
 import mpesaService from '../services/mpesaService.js';
 
-// Stub axios
+// Stub axios & mpesaService.axiosInstance
 const originalGet = axios.get;
+const originalMpesaGet = mpesaService.axiosInstance.get;
 
 test('B2C Access Token Authentication and Validation Suite', async (t) => {
   // Save current environment variables
@@ -22,6 +23,7 @@ test('B2C Access Token Authentication and Validation Suite', async (t) => {
     process.env.MPESA_B2C_CONSUMER_KEY = origB2CConsumerKey;
     process.env.MPESA_B2C_CONSUMER_SECRET = origB2CConsumerSecret;
     axios.get = originalGet;
+    mpesaService.axiosInstance.get = originalMpesaGet;
   });
 
   await t.test('Should throw error if B2C credentials are not set when calling getAccessToken(true)', async () => {
@@ -75,7 +77,7 @@ test('B2C Access Token Authentication and Validation Suite', async (t) => {
     mpesaService.b2cTokenExpiresAt = null;
 
     let getCount = 0;
-    axios.get = async (url, config) => {
+    mpesaService.axiosInstance.get = async (url, config) => {
       getCount++;
       const authHeader = config.headers.Authorization;
       if (authHeader.includes(Buffer.from('stk_key:stk_secret').toString('base64'))) {
@@ -94,13 +96,14 @@ test('B2C Access Token Authentication and Validation Suite', async (t) => {
     assert.equal(b2cToken, 'b2c_token_456');
     assert.equal(mpesaService.b2cAccessToken, 'b2c_token_456');
 
-    // Subsequent calls must return cached values without calling axios again
+    // Subsequent STK call returns cached value
     const stkTokenCached = await mpesaService.getAccessToken(false);
     assert.equal(stkTokenCached, 'stk_token_123');
 
+    // B2C token caching is bypassed, so it generates a fresh token each time.
     const b2cTokenCached = await mpesaService.getAccessToken(true);
     assert.equal(b2cTokenCached, 'b2c_token_456');
 
-    assert.equal(getCount, 2, 'Should only call the API twice (one for STK, one for B2C)');
+    assert.equal(getCount, 3, 'Should call the API three times (one for STK, two for B2C because bypass cache is enabled)');
   });
 });

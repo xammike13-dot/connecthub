@@ -1,4 +1,9 @@
 import axios from 'axios';
+import crypto from 'crypto';
+
+// Create a pristine, isolated axios instance for Daraja requests to ensure
+// no global interceptors or defaults modify the request/Authorization headers.
+const mpesaAxios = axios.create();
 
 /**
  * Reusable helper to get the Daraja API base URL based on MPESA_ENVIRONMENT
@@ -42,6 +47,9 @@ class MpesaService {
     this.accessTokenConsumerKey = null;
     this.b2cAccessTokenEnv = null;
     this.b2cAccessTokenConsumerKey = null;
+
+    // Expose the pristine axios instance for unit tests to spy on / stub
+    this.axiosInstance = mpesaAxios;
   }
 
   /**
@@ -130,7 +138,9 @@ class MpesaService {
     const keyKey = isB2C ? 'b2cAccessTokenConsumerKey' : 'accessTokenConsumerKey';
 
     // Return cached token if valid for current environment and credentials (with 1 minute buffer)
+    // For B2C, we temporarily bypass caching completely while debugging to eliminate stale-token issues
     if (
+      !isB2C &&
       this[cacheKey] &&
       this[expiresKey] &&
       this[envKey] === mpesaEnv &&
@@ -158,45 +168,76 @@ class MpesaService {
         throw new Error('MPESA_CONSUMER_KEY or MPESA_CONSUMER_SECRET is not configured');
       }
 
+      if (mpesaEnv === 'production') {
+        if (isB2C && (!consumerKey || !consumerSecret)) {
+          throw new Error('PRODUCTION ERROR: B2C credentials are required and must be configured when MPESA_ENVIRONMENT is set to production.');
+        }
+        if (!isB2C && (!config.consumerKey || !config.consumerSecret)) {
+          throw new Error('PRODUCTION ERROR: STK credentials are required and must be configured when MPESA_ENVIRONMENT is set to production.');
+        }
+      }
+
       const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
       const tokenUrl = `${config.baseUrl}/oauth/v1/generate?grant_type=client_credentials`;
 
       console.log(`[MPESA] Requesting ${isB2C ? 'B2C ' : ''}token from:`, config.baseUrl);
 
-      const response = await axios.get(tokenUrl, {
+      const response = await mpesaAxios.get(tokenUrl, {
         headers: {
           Authorization: `Basic ${auth}`,
           'Content-Type': 'application/json',
         },
       });
 
+      const rawToken = response.data?.access_token;
+
       if (isB2C) {
+        const cleanRawToken = rawToken ? rawToken.trim().replace(/^["']|["']$/g, '') : '';
+        const tokenHash = crypto.createHash('sha256').update(cleanRawToken).digest('hex');
         console.log('[B2C AUTH DIAGNOSTICS]', {
           environment: config.environment,
           oauthUrl: `${config.baseUrl}/oauth/v1/generate?grant_type=client_credentials`,
+          oauthHttpStatus: response.status,
           consumerKeySource: process.env.MPESA_B2C_CONSUMER_KEY ? 'B2C credentials' : 'MISSING',
           consumerSecretSource: process.env.MPESA_B2C_CONSUMER_SECRET ? 'B2C credentials' : 'MISSING',
-          tokenReceived: Boolean(response.data?.access_token),
-          tokenLength: response.data?.access_token?.length || 0,
+          responseKeys: Object.keys(response.data || {}),
+          tokenReceived: Boolean(rawToken),
+          tokenLength: rawToken?.length || 0,
           tokenType: response.data?.token_type || null,
-          expiresIn: response.data?.expires_in || null
+          expiresIn: response.data?.expires_in || null,
+          timestampGenerated: new Date().toISOString(),
+          cachedTokenUsed: false,
+          tokenFingerprintSha256: tokenHash,
         });
       }
-
-      const rawToken = response.data?.access_token;
       if (!rawToken) {
         console.error(`[MPESA] No ${isB2C ? 'B2C ' : ''}access_token in response:`, response.data);
         throw new Error('Daraja API did not return an access_token');
       }
 
-      if (typeof rawToken !== 'string') {
-        throw new Error('Daraja API returned a non-string access_token');
+      if (typeof rawToken !== 'string' || rawToken.trim() === '') {
+        throw new Error('Daraja API returned a non-string or empty access_token');
+      }
+
+      const expiresIn = parseInt(response.data?.expires_in, 10);
+      if (isNaN(expiresIn) || expiresIn <= 0) {
+        throw new Error(`Daraja API returned an invalid, negative, or expired duration: ${response.data?.expires_in}`);
+      }
+
+      const tokenType = response.data?.token_type;
+      if (tokenType && tokenType.trim().toLowerCase() !== 'bearer_token') {
+        // Safaricom usually returns "Bearer" or "bearer_token" (or null). If it has returned something totally unexpected, let's log and flag.
+        console.warn(`[MPESA WARNING] Unexpected token type returned by Safaricom: ${tokenType}`);
       }
 
       // Clean, trim, and strip any wrapping quotes
       let cleanToken = rawToken.trim().replace(/^["']|["']$/g, '');
       if (cleanToken.toLowerCase().startsWith('bearer ')) {
         cleanToken = cleanToken.substring(7).trim();
+      }
+
+      if (cleanToken.length === 0) {
+        throw new Error('M-Pesa Access Token resolved to an empty string after cleaning');
       }
 
       // Cache the token with its metadata
@@ -346,7 +387,7 @@ class MpesaService {
 
       // Make STK Push request
       console.log('[MPESA] Sending request to Daraja API...');
-      const response = await axios.post(
+      const response = await mpesaAxios.post(
         `${config.baseUrl}/mpesa/stkpush/v1/processrequest`,
         payload,
         {
@@ -411,7 +452,7 @@ class MpesaService {
         CheckoutRequestID: checkoutRequestID,
       };
 
-      const response = await axios.post(
+      const response = await mpesaAxios.post(
         `${config.baseUrl}/mpesa/stkpushquery/v1/query`,
         payload,
         {
@@ -558,6 +599,7 @@ class MpesaService {
       console.log('════════════════════════════════════════════════════════════');
 
       // Add a final authentication check before B2C
+      const tokenHash = accessToken ? crypto.createHash('sha256').update(accessToken).digest('hex') : '';
       console.log('[B2C AUTH FINAL CHECK]', {
         environment: config.environment,
         baseUrl: config.baseUrl,
@@ -568,7 +610,9 @@ class MpesaService {
             : 'NOT CONFIGURED',
         accessTokenPresent: Boolean(accessToken),
         accessTokenLength: accessToken?.length || 0,
-        endpoint: `${config.baseUrl}/mpesa/b2c/v1/paymentrequest`
+        endpoint: `${config.baseUrl}/mpesa/b2c/v1/paymentrequest`,
+        timestampSent: new Date().toISOString(),
+        tokenFingerprintSha256: tokenHash,
       });
 
       if (!process.env.MPESA_B2C_CONSUMER_KEY || !process.env.MPESA_B2C_CONSUMER_SECRET) {
@@ -579,7 +623,7 @@ class MpesaService {
       const endpoint = `${config.baseUrl}/mpesa/b2c/v1/paymentrequest`;
       console.log(`[B2C] Sending request to Daraja API: ${endpoint}`);
 
-      const response = await axios.post(
+      const response = await mpesaAxios.post(
         endpoint,
         payload,
         {
