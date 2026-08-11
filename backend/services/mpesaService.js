@@ -5,8 +5,8 @@ import axios from 'axios';
  * @returns {string} The base URL for Daraja API
  */
 export function getDarajaBaseUrl() {
-  const mpesaEnv = process.env.MPESA_ENVIRONMENT || 'sandbox';
-  const baseUrl = mpesaEnv.trim().toLowerCase() === 'production'
+  const mpesaEnv = (process.env.MPESA_ENVIRONMENT || 'sandbox').trim().toLowerCase();
+  const baseUrl = mpesaEnv === 'production'
     ? 'https://api.safaricom.co.ke'
     : 'https://sandbox.safaricom.co.ke';
 
@@ -36,6 +36,12 @@ class MpesaService {
     this.tokenExpiresAt = null;
     this.b2cAccessToken = null;
     this.b2cTokenExpiresAt = null;
+
+    // Environment and Key tracking to guarantee dynamic invalidation
+    this.accessTokenEnv = null;
+    this.accessTokenConsumerKey = null;
+    this.b2cAccessTokenEnv = null;
+    this.b2cAccessTokenConsumerKey = null;
   }
 
   /**
@@ -47,7 +53,7 @@ class MpesaService {
     const consumerSecret = process.env.MPESA_CONSUMER_SECRET;
     const shortcode = process.env.MPESA_SHORTCODE;
     const passkey = process.env.MPESA_PASSKEY;
-    const environment = process.env.MPESA_ENVIRONMENT || 'sandbox';
+    const environment = (process.env.MPESA_ENVIRONMENT || 'sandbox').trim().toLowerCase();
     
     // Build callback URL - handle both full URL and path-only formats
     const callbackBase = process.env.MPESA_CALLBACK_URL || '';
@@ -110,67 +116,85 @@ class MpesaService {
    * Supports separating STK (default) and B2C token streams
    */
   async getAccessToken(isB2C = false) {
+    const mpesaEnv = (process.env.MPESA_ENVIRONMENT || 'sandbox').trim().toLowerCase();
+    const config = this.getConfig();
+
+    const rawKey = isB2C
+      ? (process.env.MPESA_B2C_CONSUMER_KEY || config.consumerKey)
+      : config.consumerKey;
+    const consumerKey = rawKey ? rawKey.trim() : null;
+
     const cacheKey = isB2C ? 'b2cAccessToken' : 'accessToken';
     const expiresKey = isB2C ? 'b2cTokenExpiresAt' : 'tokenExpiresAt';
+    const envKey = isB2C ? 'b2cAccessTokenEnv' : 'accessTokenEnv';
+    const keyKey = isB2C ? 'b2cAccessTokenConsumerKey' : 'accessTokenConsumerKey';
 
-    // Return cached token if still valid (with 1 minute buffer)
-    if (this[cacheKey] && this[expiresKey] && Date.now() < this[expiresKey] - 60000) {
+    // Return cached token if valid for current environment and credentials (with 1 minute buffer)
+    if (
+      this[cacheKey] &&
+      this[expiresKey] &&
+      this[envKey] === mpesaEnv &&
+      this[keyKey] === consumerKey &&
+      Date.now() < this[expiresKey] - 60000
+    ) {
       return this[cacheKey];
     }
 
     try {
       console.log(`[MPESA] Generating new ${isB2C ? 'B2C ' : ''}access token...`);
-      
-      // Read config fresh from environment each time
-      const config = this.getConfig();
-      
-      // Separate STK vs B2C OAuth credentials
-      const consumerKey = isB2C
-        ? (process.env.MPESA_B2C_CONSUMER_KEY || config.consumerKey)
-        : config.consumerKey;
-      const consumerSecret = isB2C
+
+      const rawSecret = isB2C
         ? (process.env.MPESA_B2C_CONSUMER_SECRET || config.consumerSecret)
         : config.consumerSecret;
+      const consumerSecret = rawSecret ? rawSecret.trim() : null;
 
       console.log(`[MPESA] ${isB2C ? 'B2C ' : ''}Consumer Key:`, consumerKey ? 'SET' : 'MISSING');
       console.log(`[MPESA] ${isB2C ? 'B2C ' : ''}Consumer Secret:`, consumerSecret ? 'SET' : 'MISSING');
-      
+
       if (!consumerKey || !consumerSecret) {
         throw new Error(isB2C
           ? 'MPESA_B2C_CONSUMER_KEY or MPESA_B2C_CONSUMER_SECRET is not configured'
           : 'MPESA_CONSUMER_KEY or MPESA_CONSUMER_SECRET is not configured'
         );
       }
-      
-      // Trim whitespace from credentials to prevent encoding issues
-      const cleanKey = consumerKey.trim();
-      const cleanSecret = consumerSecret.trim();
-      const auth = Buffer.from(`${cleanKey}:${cleanSecret}`).toString('base64');
-      
-      console.log(`[MPESA] Requesting ${isB2C ? 'B2C ' : ''}token from:`, config.baseUrl);
-      
-      const response = await axios.get(
-        `${config.baseUrl}/oauth/v1/generate?grant_type=client_credentials`,
-        {
-          headers: {
-            Authorization: `Basic ${auth}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
 
-      if (!response.data.access_token) {
+      const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
+      const tokenUrl = `${config.baseUrl}/oauth/v1/generate?grant_type=client_credentials`;
+
+      console.log(`[MPESA] Requesting ${isB2C ? 'B2C ' : ''}token from:`, config.baseUrl);
+
+      const response = await axios.get(tokenUrl, {
+        headers: {
+          Authorization: `Basic ${auth}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const rawToken = response.data?.access_token;
+      if (!rawToken) {
         console.error(`[MPESA] No ${isB2C ? 'B2C ' : ''}access_token in response:`, response.data);
         throw new Error('Daraja API did not return an access_token');
       }
 
-      this[cacheKey] = response.data.access_token;
-      // Token expires in ~3599 seconds, cache for 3500 seconds
-      this[expiresKey] = Date.now() + 3500000;
+      if (typeof rawToken !== 'string') {
+        throw new Error('Daraja API returned a non-string access_token');
+      }
 
-      console.log(`[MPESA] ${isB2C ? 'B2C ' : ''}Access Token Generated successfully (length:`, this[cacheKey].length, ')');
-      
-      return this[cacheKey];
+      // Clean, trim, and strip any wrapping quotes
+      let cleanToken = rawToken.trim().replace(/^["']|["']$/g, '');
+      if (cleanToken.toLowerCase().startsWith('bearer ')) {
+        cleanToken = cleanToken.substring(7).trim();
+      }
+
+      // Cache the token with its metadata
+      this[cacheKey] = cleanToken;
+      this[expiresKey] = Date.now() + 3500000;
+      this[envKey] = mpesaEnv;
+      this[keyKey] = consumerKey;
+
+      console.log(`[MPESA] ${isB2C ? 'B2C ' : ''}Access Token Generated successfully (length: ${cleanToken.length})`);
+
+      return cleanToken;
     } catch (error) {
       console.error(`[MPESA] ${isB2C ? 'B2C ' : ''}Access Token generation failed:`, error.response?.data || error.message);
       throw new Error(`MPesa ${isB2C ? 'B2C ' : ''}token generation failed: ${error.response?.data?.error_description || error.message}`);
