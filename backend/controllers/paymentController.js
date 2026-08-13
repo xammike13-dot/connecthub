@@ -7,6 +7,7 @@ import Transaction from '../models/Transaction.js';
 import Wallet from '../models/Wallet.js';
 import User from '../models/User.js';
 import Order from '../models/Order.js';
+import Notification from '../models/Notification.js';
 import Product from '../models/Product.js';
 import Rental from '../models/Rental.js';
 import RideRequest from '../models/RideRequest.js';
@@ -23,17 +24,28 @@ const normalizeEntityType = (type) => {
   return lower;
 };
 
+const activeProcessingTransactions = new Set();
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 /**
  * Handle marketplace order payment success — set paid status and credit escrow.
  */
 const handleOrderPaymentSuccess = async (transaction, orderId, req) => {
-  let order;
-  const pendingEntityData = transaction.pendingEntityData;
+  const txId = transaction._id.toString();
+  while (activeProcessingTransactions.has(txId)) {
+    console.log('[CONCURRENCY CONTROL] Transaction is already being processed, waiting...', txId);
+    await sleep(50);
+  }
+  activeProcessingTransactions.add(txId);
 
-  // 1. Check if an order has already been created for this transaction
-  order = await Order.findOne({ transaction: transaction._id })
-    .populate('customer', 'name email phone')
-    .populate('business');
+  try {
+    let order;
+    const pendingEntityData = transaction.pendingEntityData;
+
+    // 1. Check if an order has already been created for this transaction
+    order = await Order.findOne({ transaction: transaction._id })
+      .populate('customer', 'name email phone')
+      .populate('business');
 
   // 2. If not found and orderId is provided, find by orderId
   if (!order && orderId) {
@@ -88,8 +100,20 @@ const handleOrderPaymentSuccess = async (transaction, orderId, req) => {
       transaction.relatedEntityType = 'order';
       await transaction.save();
     } catch (err) {
-      console.error('[ORDER CREATION IN handleOrderPaymentSuccess FAILED]', err);
-      return null;
+      if (err.code === 11000) {
+        console.log('[ORDER CREATION] Concurrent order creation detected, fetching existing order.');
+        order = await Order.findOne({ transaction: transaction._id })
+          .populate('customer', 'name email phone')
+          .populate('business');
+        if (order) {
+          transaction.relatedEntity = order._id;
+          transaction.relatedEntityType = 'order';
+          await transaction.save();
+        }
+      } else {
+        console.error('[ORDER CREATION IN handleOrderPaymentSuccess FAILED]', err);
+        return null;
+      }
     }
   }
 
@@ -129,6 +153,14 @@ const handleOrderPaymentSuccess = async (transaction, orderId, req) => {
   });
 
   const businessId = updatedOrder.business?._id || updatedOrder.business;
+  const finalCustomerId = updatedOrder.customer?._id || updatedOrder.customer;
+
+  const businessIdempotencyKey = `new-order:${updatedOrder._id}:${businessId}`;
+  const customerIdempotencyKey = `order-payment-confirmed:${updatedOrder._id}:${finalCustomerId}`;
+
+  const existingBusinessNotification = await Notification.findOne({ idempotencyKey: businessIdempotencyKey });
+  const existingCustomerNotification = await Notification.findOne({ idempotencyKey: customerIdempotencyKey });
+
   const providerAmount = transaction.providerReceives || updatedOrder.finalAmount || 0;
 
   // Escrow should only be credited once per transaction to avoid duplicate balance addition
@@ -137,91 +169,111 @@ const handleOrderPaymentSuccess = async (transaction, orderId, req) => {
   }
 
   const io = req?.app?.get('io');
-  if (io && businessId) {
-    const customerId = updatedOrder.customer?._id || updatedOrder.customer;
+  if (businessId) {
     const customerName = updatedOrder.customer?.name || transaction.customer?.name || 'a customer';
 
-    console.log('[EMITTING NEW ORDER]', {
-      businessId,
-      orderId: updatedOrder._id,
-      room: `business_${businessId}`
-    });
+    if (!existingBusinessNotification) {
+      if (io) {
+        console.log('[EMITTING NEW ORDER]', {
+          businessId,
+          orderId: updatedOrder._id,
+          room: `business_${businessId}`
+        });
 
-    io.to(`business_${businessId}`).emit('new_order', {
-      orderId: updatedOrder._id,
-      customer: updatedOrder.customer || transaction.customer,
-      items: updatedOrder.items,
-      totalAmount: updatedOrder.totalAmount,
-      finalAmount: updatedOrder.finalAmount,
-      paymentStatus: updatedOrder.paymentStatus,
-      status: updatedOrder.status,
-      deliveryAddress: updatedOrder.deliveryAddress,
-    });
+        io.to(`business_${businessId}`).emit('new_order', {
+          orderId: updatedOrder._id,
+          customer: updatedOrder.customer || transaction.customer,
+          items: updatedOrder.items,
+          totalAmount: updatedOrder.totalAmount,
+          finalAmount: updatedOrder.finalAmount,
+          paymentStatus: updatedOrder.paymentStatus,
+          status: updatedOrder.status,
+          deliveryAddress: updatedOrder.deliveryAddress,
+        });
 
-    console.log('[EMITTING CUSTOMER UPDATE]', {
-      customerId,
-      orderId: updatedOrder._id,
-      room: `user_${customerId}`,
-      status: updatedOrder.status
-    });
+        console.log('[EMITTING CUSTOMER UPDATE]', {
+          customerId: finalCustomerId,
+          orderId: updatedOrder._id,
+          room: `user_${finalCustomerId}`,
+          status: updatedOrder.status
+        });
 
-    io.to(`user_${customerId}`).emit('order_created', {
-      orderId: updatedOrder._id,
-      status: updatedOrder.status,
-      paymentStatus: updatedOrder.paymentStatus,
-    });
+        io.to(`user_${finalCustomerId}`).emit('order_created', {
+          orderId: updatedOrder._id,
+          status: updatedOrder.status,
+          paymentStatus: updatedOrder.paymentStatus,
+        });
 
-    console.log('[SOCKET EVENTS EMITTED]');
+        console.log('[SOCKET EVENTS EMITTED]');
+      }
 
-    try {
-      await createNotification(
-        businessId,
-        'new_order',
-        'New Paid Order Received',
-        `You have a new paid order #${updatedOrder._id.toString().slice(-6).toUpperCase()} from ${customerName}. Amount: KSh ${updatedOrder.finalAmount}.`,
-        { orderId: updatedOrder._id, customerId: customerId, amount: updatedOrder.finalAmount },
-        `/business/orders/${updatedOrder._id}`,
-        '/business/orders',
-        req,
-        'business'
-      );
-    } catch (err) {
-      console.error('[Order notification failed]', err);
+      try {
+        await createNotification(
+          businessId,
+          'new_order',
+          'New Paid Order Received',
+          `You have a new paid order #${updatedOrder._id.toString().slice(-6).toUpperCase()} from ${customerName}. Amount: KSh ${updatedOrder.finalAmount}.`,
+          {
+            orderId: updatedOrder._id,
+            customerId: finalCustomerId,
+            amount: updatedOrder.finalAmount,
+            idempotencyKey: businessIdempotencyKey
+          },
+          `/business/orders/${updatedOrder._id}`,
+          '/business/orders',
+          req,
+          'business'
+        );
+      } catch (err) {
+        console.error('[Order notification failed]', err);
+      }
+    } else {
+      console.log('[NOTIFICATION] Business notification already sent, skipping duplicate socket & creation.');
     }
   }
 
-  const finalCustomerId = updatedOrder.customer?._id || updatedOrder.customer;
-  try {
-    await createNotification(
-      finalCustomerId,
-      'order_payment_confirmed',
-      'Order Payment Confirmed',
-      `Your payment of KSh ${transaction.amount.totalAmount} for order #${updatedOrder._id.toString().slice(-6).toUpperCase()} has been confirmed. The business has been notified.`,
-      { orderId: updatedOrder._id, transactionId: transaction._id },
-      `/customer/orders/${updatedOrder._id}`,
-      '/customer/orders',
-      req,
-      'customer'
-    );
-  } catch (err) {
-    console.error('[Customer order notification failed]', err);
-  }
+  if (!existingCustomerNotification) {
+    try {
+      await createNotification(
+        finalCustomerId,
+        'order_payment_confirmed',
+        'Order Payment Confirmed',
+        `Your payment of KSh ${transaction.amount.totalAmount} for order #${updatedOrder._id.toString().slice(-6).toUpperCase()} has been confirmed. The business has been notified.`,
+        {
+          orderId: updatedOrder._id,
+          transactionId: transaction._id,
+          idempotencyKey: customerIdempotencyKey
+        },
+        `/customer/orders/${updatedOrder._id}`,
+        '/customer/orders',
+        req,
+        'customer'
+      );
+    } catch (err) {
+      console.error('[Customer order notification failed]', err);
+    }
 
-  if (io && finalCustomerId) {
-    io.to(`user_${finalCustomerId}`).emit('payment_confirmed', {
-      transactionRef: transaction.transactionRef,
-      status: 'paid',
-      paymentStatus: 'paid',
-      orderId: updatedOrder._id,
-      customerId: finalCustomerId,
-      businessId,
-      amount: updatedOrder.finalAmount,
-      mpesaReceipt: transaction.mpesaReceiptNumber || transaction.checkoutRequestID,
-    });
+    if (io && finalCustomerId) {
+      io.to(`user_${finalCustomerId}`).emit('payment_confirmed', {
+        transactionRef: transaction.transactionRef,
+        status: 'paid',
+        paymentStatus: 'paid',
+        orderId: updatedOrder._id,
+        customerId: finalCustomerId,
+        businessId,
+        amount: updatedOrder.finalAmount,
+        mpesaReceipt: transaction.mpesaReceiptNumber || transaction.checkoutRequestID,
+      });
+    }
+  } else {
+    console.log('[NOTIFICATION] Customer notification already sent, skipping duplicate socket & creation.');
   }
 
   console.log('[ORDER PAYMENT SUCCESS]', { orderId: updatedOrder._id, status: updatedOrder.status });
   return updatedOrder;
+  } finally {
+    activeProcessingTransactions.delete(txId);
+  }
 };
 
 /**
@@ -1207,52 +1259,8 @@ export const mpesaCallback = asyncHandler(async (req, res) => {
     const pendingEntityData = transaction.pendingEntityData;
 
     if (transaction.type === 'order' && (transaction.relatedEntity || pendingEntityData)) {
-      if (pendingEntityData?.entityType === 'cart') {
-        const { items, deliveryAddress, deliveryFee, businessId, paymentBreakdown } = pendingEntityData;
-
-        if (!businessId) {
-          console.error('[ORDER CREATION FAILED] Missing businessId in pendingEntityData');
-          throw new Error('Business ID is required to create order');
-        }
-
-        const orderPayload = {
-          customer: transaction.customer._id,
-          business: businessId,
-          items: items,
-          totalAmount: paymentBreakdown.baseAmount,
-          deliveryFee,
-          discount: 0,
-          finalAmount: paymentBreakdown.totalAmount,
-          platformFee: paymentBreakdown.platformFee,
-          orderType: 'marketplace',
-          status: 'pending',
-          paymentStatus: 'paid',
-          paymentMethod: 'mpesa',
-          deliveryAddress: {
-            phone: deliveryAddress.phone,
-            address: deliveryAddress.address,
-            neighborhood: deliveryAddress.neighborhood || '',
-            landmark: deliveryAddress.landmark || '',
-          },
-        };
-
-        try {
-          const order = new Order(orderPayload);
-          const savedOrder = await order.save();
-
-          transaction.relatedEntity = savedOrder._id;
-          transaction.relatedEntityType = 'order';
-          await transaction.save();
-
-          await handleOrderPaymentSuccess(transaction, savedOrder._id, req);
-        } catch (error) {
-          console.error('[ORDER CREATION FAILED]', error);
-          throw error;
-        }
-      } else {
-        const orderId = transaction.relatedEntity || pendingEntityData?.entityId;
-        await handleOrderPaymentSuccess(transaction, orderId, req);
-      }
+      const orderId = transaction.relatedEntity || pendingEntityData?.entityId;
+      await handleOrderPaymentSuccess(transaction, orderId, req);
     }
 
     if (transaction.type === 'rental' && pendingEntityData) {

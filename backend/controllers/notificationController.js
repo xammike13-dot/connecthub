@@ -237,6 +237,15 @@ export const cleanupOldNotifications = async () => {
  */
 export const createNotification = async (userId, type, title, message, data = {}, actionUrl = null, navigationTarget = null, req = null, userRole = 'customer') => {
   try {
+    const idempotencyKey = data?.idempotencyKey || null;
+    if (idempotencyKey) {
+      const existing = await Notification.findOne({ idempotencyKey });
+      if (existing) {
+        console.log('[NOTIFICATION] Notification with idempotencyKey already exists, skipping duplicate creation:', idempotencyKey);
+        return existing;
+      }
+    }
+
     // Derive fields for Feature 8 verification
     let relatedEntityId = data?.orderId || data?.bookingId || data?.rideId || data?.paymentId || data?.transactionId || data?.healthcareOrderId || data?.productId || data?.propertyId || data?.rentalId || null;
     let relatedEntityType = null;
@@ -343,6 +352,7 @@ export const createNotification = async (userId, type, title, message, data = {}
       data,
       actionUrl,
       navigationTarget,
+      idempotencyKey,
     });
 
     // Emit real-time notification via Socket.IO if available
@@ -387,6 +397,14 @@ export const createNotification = async (userId, type, title, message, data = {}
 
     return notification;
   } catch (error) {
+    if (error.code === 11000 && (error.keyPattern?.idempotencyKey || error.message?.includes('idempotencyKey'))) {
+      const idempotencyKey = data?.idempotencyKey || null;
+      console.log('[NOTIFICATION] Caught concurrent duplicate key error for:', idempotencyKey);
+      if (idempotencyKey) {
+        const existing = await Notification.findOne({ idempotencyKey });
+        if (existing) return existing;
+      }
+    }
     console.error('[Notification Failed]', error);
     console.error('[Notification Failed Details]', {
       userId,

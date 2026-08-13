@@ -155,6 +155,7 @@ const orderSchema = new mongoose.Schema(
 // Index for querying orders by customer and status
 orderSchema.index({ customer: 1, status: 1 });
 orderSchema.index({ createdAt: -1 });
+orderSchema.index({ transaction: 1 }, { unique: true, sparse: true });
 
 const Order = mongoose.model('Order', orderSchema);
 
