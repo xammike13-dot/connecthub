@@ -11,7 +11,7 @@ const LoginPage = () => {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login, isAuthenticated, user } = useAuth();
+  const { login, isAuthenticated, user, initialized } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -19,7 +19,7 @@ const LoginPage = () => {
   const from = location.state?.from?.pathname;
 
   // If already authenticated, redirect to appropriate dashboard or setup page
-  if (isAuthenticated && user) {
+  if (initialized && isAuthenticated && user) {
     const setupPages = {
       landlord: '/setup/landlord',
       business: '/setup/business',

@@ -27,9 +27,71 @@ const normalizeEntityType = (type) => {
  * Handle marketplace order payment success — set paid status and credit escrow.
  */
 const handleOrderPaymentSuccess = async (transaction, orderId, req) => {
-  const order = await Order.findById(orderId)
+  let order;
+  const pendingEntityData = transaction.pendingEntityData;
+
+  // 1. Check if an order has already been created for this transaction
+  order = await Order.findOne({ transaction: transaction._id })
     .populate('customer', 'name email phone')
     .populate('business');
+
+  // 2. If not found and orderId is provided, find by orderId
+  if (!order && orderId) {
+    order = await Order.findById(orderId)
+      .populate('customer', 'name email phone')
+      .populate('business');
+  }
+
+  // 3. If still not found and it's a cart checkout, create the order now
+  if (!order && transaction.type === 'order' && pendingEntityData?.entityType === 'cart') {
+    const { items, deliveryAddress, deliveryFee, businessId, paymentBreakdown } = pendingEntityData;
+
+    if (!businessId) {
+      console.error('[ORDER CREATION FAILED] Missing businessId in pendingEntityData');
+      return null;
+    }
+
+    const orderPayload = {
+      customer: transaction.customer?._id || transaction.customer,
+      business: businessId,
+      items: items,
+      totalAmount: paymentBreakdown.baseAmount,
+      deliveryFee,
+      discount: 0,
+      finalAmount: paymentBreakdown.totalAmount,
+      platformFee: paymentBreakdown.platformFee,
+      orderType: 'marketplace',
+      status: 'pending',
+      paymentStatus: 'pending',
+      paymentMethod: 'mpesa',
+      deliveryAddress: {
+        phone: deliveryAddress.phone,
+        address: deliveryAddress.address,
+        neighborhood: deliveryAddress.neighborhood || '',
+        landmark: deliveryAddress.landmark || '',
+      },
+      transaction: transaction._id,
+      paymentId: transaction.mpesaReceiptNumber || transaction.checkoutRequestID,
+      mpesaReceiptNumber: transaction.mpesaReceiptNumber || transaction.checkoutRequestID,
+    };
+
+    try {
+      const newOrder = new Order(orderPayload);
+      order = await newOrder.save();
+
+      // Retrieve and populate fully
+      order = await Order.findById(order._id)
+        .populate('customer', 'name email phone')
+        .populate('business');
+
+      transaction.relatedEntity = order._id;
+      transaction.relatedEntityType = 'order';
+      await transaction.save();
+    } catch (err) {
+      console.error('[ORDER CREATION IN handleOrderPaymentSuccess FAILED]', err);
+      return null;
+    }
+  }
 
   if (!order) return null;
 
@@ -42,61 +104,71 @@ const handleOrderPaymentSuccess = async (transaction, orderId, req) => {
 
   // Only update payment-related fields, do NOT change order status
   // Order status should remain 'pending' (waiting for business to accept)
-  order.paymentStatus = 'paid';
-  order.paymentId = transaction.mpesaReceiptNumber;
-  order.mpesaReceiptNumber = transaction.mpesaReceiptNumber;
-  order.transaction = transaction._id;
-  // order.status = 'paid'; // REMOVED: Don't change order status
-  await order.save();
+  let updated = false;
+  // If order was newly created, force updated = true to trigger escrow release/credit
+  if (transaction.pendingEntityData?.entityType === 'cart' && !orderId) {
+    updated = true;
+  }
+  if (order.paymentStatus !== 'paid') {
+    order.paymentStatus = 'paid';
+    order.paymentId = transaction.mpesaReceiptNumber || transaction.checkoutRequestID;
+    order.mpesaReceiptNumber = transaction.mpesaReceiptNumber || transaction.checkoutRequestID;
+    order.transaction = transaction._id;
+    await order.save();
+    updated = true;
+  }
 
   // Reload order to verify save
-  const updatedOrder = await Order.findById(order._id);
+  const updatedOrder = await Order.findById(order._id)
+    .populate('customer', 'name email phone')
+    .populate('business');
+
   console.log('[ORDER AFTER SAVE]', {
     paymentStatus: updatedOrder.paymentStatus,
     status: updatedOrder.status
   });
 
-  const businessId = order.business?._id || order.business;
-  const providerAmount = transaction.providerReceives || order.finalAmount || 0;
-  if (businessId && providerAmount > 0) {
+  const businessId = updatedOrder.business?._id || updatedOrder.business;
+  const providerAmount = transaction.providerReceives || updatedOrder.finalAmount || 0;
+
+  // Escrow should only be credited once per transaction to avoid duplicate balance addition
+  if (businessId && providerAmount > 0 && updated) {
     await creditPendingEscrow(businessId, providerAmount, 'marketplace_payment');
   }
 
-  // Transaction is already linked in the callback, skip redundant linking
-  // transaction.relatedEntity = order._id;
-  // transaction.relatedEntityType = 'order';
-  // await transaction.save();
-
   const io = req?.app?.get('io');
   if (io && businessId) {
+    const customerId = updatedOrder.customer?._id || updatedOrder.customer;
+    const customerName = updatedOrder.customer?.name || transaction.customer?.name || 'a customer';
+
     console.log('[EMITTING NEW ORDER]', {
       businessId,
-      orderId: order._id,
+      orderId: updatedOrder._id,
       room: `business_${businessId}`
     });
 
     io.to(`business_${businessId}`).emit('new_order', {
-      orderId: order._id,
-      customer: transaction.customer,
-      items: order.items,
-      totalAmount: order.totalAmount,
-      finalAmount: order.finalAmount,
-      paymentStatus: order.paymentStatus,
-      status: order.status,
-      deliveryAddress: order.deliveryAddress,
+      orderId: updatedOrder._id,
+      customer: updatedOrder.customer || transaction.customer,
+      items: updatedOrder.items,
+      totalAmount: updatedOrder.totalAmount,
+      finalAmount: updatedOrder.finalAmount,
+      paymentStatus: updatedOrder.paymentStatus,
+      status: updatedOrder.status,
+      deliveryAddress: updatedOrder.deliveryAddress,
     });
 
     console.log('[EMITTING CUSTOMER UPDATE]', {
-      customerId: order.customer,
-      orderId: order._id,
-      room: `user_${order.customer}`,
-      status: order.status
+      customerId,
+      orderId: updatedOrder._id,
+      room: `user_${customerId}`,
+      status: updatedOrder.status
     });
 
-    io.to(`user_${order.customer}`).emit('order_created', {
-      orderId: order._id,
-      status: order.status,
-      paymentStatus: order.paymentStatus,
+    io.to(`user_${customerId}`).emit('order_created', {
+      orderId: updatedOrder._id,
+      status: updatedOrder.status,
+      paymentStatus: updatedOrder.paymentStatus,
     });
 
     console.log('[SOCKET EVENTS EMITTED]');
@@ -106,9 +178,9 @@ const handleOrderPaymentSuccess = async (transaction, orderId, req) => {
         businessId,
         'new_order',
         'New Paid Order Received',
-        `You have a new paid order #${order._id.toString().slice(-6).toUpperCase()} from ${transaction.customer?.name || 'a customer'}. Amount: KSh ${order.finalAmount}.`,
-        { orderId: order._id, customerId: transaction.customer._id, amount: order.finalAmount },
-        `/business/orders/${order._id}`,
+        `You have a new paid order #${updatedOrder._id.toString().slice(-6).toUpperCase()} from ${customerName}. Amount: KSh ${updatedOrder.finalAmount}.`,
+        { orderId: updatedOrder._id, customerId: customerId, amount: updatedOrder.finalAmount },
+        `/business/orders/${updatedOrder._id}`,
         '/business/orders',
         req,
         'business'
@@ -118,37 +190,38 @@ const handleOrderPaymentSuccess = async (transaction, orderId, req) => {
     }
   }
 
+  const finalCustomerId = updatedOrder.customer?._id || updatedOrder.customer;
   try {
     await createNotification(
-      transaction.customer._id,
+      finalCustomerId,
       'order_payment_confirmed',
       'Order Payment Confirmed',
-      `Your payment of KSh ${transaction.amount.totalAmount} for order #${order._id.toString().slice(-6).toUpperCase()} has been confirmed. The business has been notified.`,
-    { orderId: order._id, transactionId: transaction._id },
-    `/customer/orders/${order._id}`,
-    '/customer/orders',
-    req,
-    'customer'
-  );
+      `Your payment of KSh ${transaction.amount.totalAmount} for order #${updatedOrder._id.toString().slice(-6).toUpperCase()} has been confirmed. The business has been notified.`,
+      { orderId: updatedOrder._id, transactionId: transaction._id },
+      `/customer/orders/${updatedOrder._id}`,
+      '/customer/orders',
+      req,
+      'customer'
+    );
   } catch (err) {
     console.error('[Customer order notification failed]', err);
   }
 
-  if (io && transaction.customer?._id) {
-    io.to(`user_${transaction.customer._id}`).emit('payment_confirmed', {
+  if (io && finalCustomerId) {
+    io.to(`user_${finalCustomerId}`).emit('payment_confirmed', {
       transactionRef: transaction.transactionRef,
       status: 'paid',
       paymentStatus: 'paid',
-      orderId: order._id,
-      customerId: transaction.customer._id,
+      orderId: updatedOrder._id,
+      customerId: finalCustomerId,
       businessId,
-      amount: order.finalAmount,
-      mpesaReceipt: transaction.mpesaReceiptNumber,
+      amount: updatedOrder.finalAmount,
+      mpesaReceipt: transaction.mpesaReceiptNumber || transaction.checkoutRequestID,
     });
   }
 
-  console.log('[ORDER PAYMENT SUCCESS]', { orderId: order._id, status: order.status });
-  return order;
+  console.log('[ORDER PAYMENT SUCCESS]', { orderId: updatedOrder._id, status: updatedOrder.status });
+  return updatedOrder;
 };
 
 /**
@@ -1414,6 +1487,13 @@ export const checkPaymentStatus = asyncHandler(async (req, res) => {
   }
 
   if (transaction.status === 'completed' || transaction.status === 'paid') {
+    let order;
+    if (transaction.type === 'order') {
+      const pendingEntityData = transaction.pendingEntityData;
+      const orderId = transaction.relatedEntity || pendingEntityData?.entityId;
+      order = await handleOrderPaymentSuccess(transaction, orderId, req);
+    }
+
     return res.status(200).json({
       success: true,
       data: {
@@ -1424,6 +1504,7 @@ export const checkPaymentStatus = asyncHandler(async (req, res) => {
         paidAt: transaction.paidAt,
         completedAt: transaction.completedAt,
         mpesaReceipt: transaction.mpesaReceiptNumber,
+        ...(order && { order }),
       },
     });
   }
@@ -1446,6 +1527,13 @@ export const checkPaymentStatus = asyncHandler(async (req, res) => {
 
   const freshTransaction = await Transaction.findById(transaction._id);
   if (freshTransaction && (freshTransaction.status === 'paid' || freshTransaction.status === 'completed')) {
+    let order;
+    if (freshTransaction.type === 'order') {
+      const pendingEntityData = freshTransaction.pendingEntityData;
+      const orderId = freshTransaction.relatedEntity || pendingEntityData?.entityId;
+      order = await handleOrderPaymentSuccess(freshTransaction, orderId, req);
+    }
+
     return res.status(200).json({
       success: true,
       data: {
@@ -1456,6 +1544,7 @@ export const checkPaymentStatus = asyncHandler(async (req, res) => {
         paidAt: freshTransaction.paidAt,
         completedAt: freshTransaction.completedAt,
         mpesaReceipt: freshTransaction.mpesaReceiptNumber,
+        ...(order && { order }),
       },
     });
   }
@@ -1469,7 +1558,28 @@ export const checkPaymentStatus = asyncHandler(async (req, res) => {
     await transaction.save();
 
     if (transaction.provider && transaction.providerReceives > 0) {
-      await creditPendingEscrow(transaction.provider, transaction.providerReceives, 'payment_status_poll');
+      if (transaction.type !== 'order') {
+        await creditPendingEscrow(transaction.provider, transaction.providerReceives, 'payment_status_poll');
+      }
+    }
+
+    if (transaction.type === 'order') {
+      const pendingEntityData = transaction.pendingEntityData;
+      const orderId = transaction.relatedEntity || pendingEntityData?.entityId;
+      const order = await handleOrderPaymentSuccess(transaction, orderId, req);
+
+      return res.status(200).json({
+        success: true,
+        message: 'Payment confirmed',
+        data: {
+          transactionRef: transaction.transactionRef,
+          status: 'paid',
+          paymentStatus: 'paid',
+          amount: transaction.amount.totalAmount,
+          paidAt: transaction.paidAt,
+          order,
+        },
+      });
     }
 
     const customerNavTarget = transaction.type === 'order' ? '/customer/orders' :

@@ -6,6 +6,14 @@ import { ToastProvider } from './components/Toast';
 import './index.css';
 import 'leaflet/dist/leaflet.css';
 
+// Capture the beforeinstallprompt event early to avoid React race conditions
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  window.deferredPrompt = e;
+  window.dispatchEvent(new CustomEvent('beforeinstallprompt_captured', { detail: e }));
+  console.log('[PWA main.jsx] early captured beforeinstallprompt event.');
+});
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
