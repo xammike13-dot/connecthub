@@ -37,17 +37,37 @@ export default function PwaPromptManager() {
       window.navigator.standalone === true;
     setIsStandalone(checkStandalone);
 
+    const isDismissed = localStorage.getItem('connecthub_install_dismissed') === 'true';
+
+    // If beforeinstallprompt was already captured early, check and set it
+    if (window.deferredPrompt && !isDismissed && !checkStandalone) {
+      setDeferredPrompt(window.deferredPrompt);
+      setShowInstallBanner(true);
+      console.log('[PWA Prompt] loaded early captured deferredPrompt.');
+    }
+
     const handleBeforeInstallPrompt = (e) => {
       e.preventDefault();
       setDeferredPrompt(e);
+      window.deferredPrompt = e;
 
-      const isDismissed = localStorage.getItem('connecthub_install_dismissed') === 'true';
       if (!isDismissed && !checkStandalone) {
         setShowInstallBanner(true);
       }
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    // Also listen to our custom event for early captured prompts
+    const handleCapturedPrompt = (e) => {
+      if (e.detail && !isDismissed && !checkStandalone) {
+        setDeferredPrompt(e.detail);
+        setShowInstallBanner(true);
+        console.log('[PWA Prompt] captured event via custom event.');
+      }
+    };
+
+    window.addEventListener('beforeinstallprompt_captured', handleCapturedPrompt);
 
     const handleOnline = () => setIsOffline(false);
     const handleOffline = () => setIsOffline(true);
@@ -57,6 +77,7 @@ export default function PwaPromptManager() {
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('beforeinstallprompt_captured', handleCapturedPrompt);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };

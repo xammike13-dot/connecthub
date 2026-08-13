@@ -24,8 +24,8 @@ const DashboardLayout = ({ allowedRoles }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Prevent users from bypassing onboarding
-  if (user && user.role !== 'customer' && !user.onboardingCompleted) {
+  // Prevent users from bypassing onboarding and setup
+  if (user && user.role !== 'customer' && user.role !== 'assistant' && user.role !== 'admin' && user.role !== 'caretaker' && (!user.onboardingCompleted || !user.setupCompleted)) {
     const setupPages = {
       landlord: '/setup/landlord',
       business: '/setup/business',
