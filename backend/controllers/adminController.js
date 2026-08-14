@@ -690,12 +690,46 @@ export const deleteUser = asyncHandler(async (req, res) => {
     throw new ResponseError('User not found', 404);
   }
 
-  user.isDeleted = true;
-  await user.save();
+  // Soft delete using findByIdAndUpdate to avoid password re-hashing
+  await User.findByIdAndUpdate(userId, {
+    isDeleted: true,
+    isActive: false,
+    email: `${user.email}_deleted_${Date.now()}`,
+    phone: `${user.phone}_deleted_${Date.now()}`,
+  });
 
   res.status(200).json({
     success: true,
     message: 'User soft-deleted successfully',
+  });
+});
+
+/**
+ * Manually verify user's email (admin manual override)
+ */
+export const verifyUserEmail = asyncHandler(async (req, res) => {
+  const { userId } = req.params;
+
+  const user = await User.findById(userId);
+  if (!user) {
+    throw new ResponseError('User not found', 404);
+  }
+
+  user.emailVerified = true;
+  user.isVerified = true;
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'User email manually verified successfully',
+    data: {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      isActive: user.isActive,
+      emailVerified: user.emailVerified,
+    },
   });
 });
 

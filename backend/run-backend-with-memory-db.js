@@ -40,7 +40,7 @@ async function seedData(uri) {
   });
   console.log('Admin user seeded:', admin.email);
 
-  // Seed customer user
+  // Seed customer user (Active + Email Verified)
   const customer = await User.create({
     name: 'Jane Customer',
     email: 'customer@gmail.com',
@@ -50,6 +50,51 @@ async function seedData(uri) {
     emailVerified: true,
     isVerified: true,
     isActive: true,
+    accountActive: true,
+    setupCompleted: true,
+    onboardingCompleted: true,
+  });
+
+  // Seed customer 2 (Active + Email Not Verified)
+  await User.create({
+    name: 'Jane Unverified',
+    email: 'jane_unverified@gmail.com',
+    password: 'Password123!',
+    phone: '0722222223',
+    role: 'customer',
+    emailVerified: false,
+    isVerified: false,
+    isActive: true,
+    accountActive: true,
+    setupCompleted: true,
+    onboardingCompleted: true,
+  });
+
+  // Seed customer 3 (Suspended + Email Not Verified)
+  await User.create({
+    name: 'John Suspended Unverified',
+    email: 'john_suspended_unverified@gmail.com',
+    password: 'Password123!',
+    phone: '0722222224',
+    role: 'customer',
+    emailVerified: false,
+    isVerified: false,
+    isActive: false,
+    accountActive: true,
+    setupCompleted: true,
+    onboardingCompleted: true,
+  });
+
+  // Seed customer 4 (Suspended + Email Verified)
+  await User.create({
+    name: 'Alice Suspended Verified',
+    email: 'alice_suspended_verified@gmail.com',
+    password: 'Password123!',
+    phone: '0722222225',
+    role: 'customer',
+    emailVerified: true,
+    isVerified: true,
+    isActive: false,
     accountActive: true,
     setupCompleted: true,
     onboardingCompleted: true,
