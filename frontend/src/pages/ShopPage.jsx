@@ -21,26 +21,26 @@ import { useToast } from '../components/Toast';
 import { productAPI } from '../services/api';
 import { useSocket } from '../context/SocketContext';
 
-// Updated categories based on requirements
-const categories = [
-  { id: 'all', name: 'All Products' },
-  { id: 'Food', name: 'Food' },
-  { id: 'Household', name: 'Household' },
+// Fixed Business Categories list as per requirements (excluding Healthcare which has its own page)
+const businessCategories = [
+  { id: 'all', name: 'All Business Categories' },
+  { id: 'Shop', name: 'Shop' },
+  { id: 'Cosmetics', name: 'Cosmetics' },
+  { id: 'Hotel', name: 'Hotel' },
   { id: 'Electronics', name: 'Electronics' },
-  { id: 'Fashion', name: 'Fashion' },
-  { id: 'Gas', name: 'Gas' },
   { id: 'Wines & Spirits', name: 'Wines & Spirits' },
-  { id: 'Second Hand', name: 'Second Hand' },
-  { id: 'Test', name: 'Test' },
+  { id: 'Services', name: 'Services' },
+  { id: 'Boutiques', name: 'Boutiques' },
+  { id: 'Shoes Parlor', name: 'Shoes Parlor' },
+  { id: 'Secondhand items', name: 'Secondhand items' },
+  { id: 'Mali mali', name: 'Mali mali' },
+  { id: 'Gas refill', name: 'Gas refill' },
+  { id: 'Furniture stores', name: 'Furniture stores' },
+  { id: 'Fast foods', name: 'Fast foods' },
+  { id: 'Cake shop', name: 'Cake shop' },
+  { id: 'Kibanda', name: 'Kibanda' },
+  { id: 'Others', name: 'Others' },
 ];
-
-// Subcategories for each main category
-const subcategories = {
-  'Food': ['Snacks', 'Beverages', 'Fries', 'Rice', 'Unga', 'Cooking Oil', 'Salt', 'Sugar', 'Flour', 'Soap', 'Other Essentials'],
-  'Household': ['New', 'Second Hand', 'Kitchenware', 'Cleaning', 'Furniture'],
-  'Electronics': ['Phones', 'Accessories', 'Home Appliances', 'Computers'],
-  'Fashion': ['Men', 'Women', 'Kids', 'Shoes', 'Bags'],
-};
 
 const sortOptions = [
   { value: '-createdAt', label: 'Newest' },
@@ -49,20 +49,28 @@ const sortOptions = [
   { value: '-rating', label: 'Highest Rated' },
 ];
 
-const mapCategoryName = (cat) => {
-  if (!cat) return 'Other';
-  const lower = cat.toLowerCase();
-  if (lower === 'food' || lower === 'food stuffs' || lower === 'food-stuffs') return 'Food';
-  if (lower === 'household' || lower === 'households' || lower === 'house-shopping' || lower === 'house shopping') return 'Household';
-  if (lower === 'electronics' || lower === 'electronic') return 'Electronics';
-  if (lower === 'fashion') return 'Fashion';
-  if (lower === 'gas') return 'Gas';
-  if (lower === 'wines & spirits' || lower === 'wines-spirits' || lower === 'wines and spirits') return 'Wines & Spirits';
-  if (lower === 'second hand' || lower === 'second-hand') return 'Second Hand';
-  if (lower === 'test') return 'Test';
-
-  // Title case fallback if it does not match exactly
-  return cat.charAt(0).toUpperCase() + cat.slice(1);
+const mapBusinessCategoryName = (product) => {
+  if (product?.businessCategory) {
+    return product.businessCategory;
+  }
+  if (!product?.category) return 'Others';
+  const lower = product.category.toLowerCase();
+  if (lower === 'electronics') return 'Electronics';
+  if (lower === 'wines & spirits' || lower === 'wines-spirits') return 'Wines & Spirits';
+  if (lower === 'boutique' || lower === 'boutiques') return 'Boutiques';
+  if (lower === 'hotel') return 'Hotel';
+  if (lower === 'cosmetics') return 'Cosmetics';
+  if (lower === 'services') return 'Services';
+  if (lower === 'gas' || lower === 'gas refill') return 'Gas refill';
+  if (lower === 'furniture' || lower === 'furniture stores') return 'Furniture stores';
+  if (lower === 'fast foods' || lower === 'fast food') return 'Fast foods';
+  if (lower === 'cake shop') return 'Cake shop';
+  if (lower === 'kibanda') return 'Kibanda';
+  if (lower === 'mali mali') return 'Mali mali';
+  if (lower === 'secondhand items' || lower === 'second hand') return 'Secondhand items';
+  if (lower === 'shoes parlor') return 'Shoes Parlor';
+  if (lower === 'shop') return 'Shop';
+  return 'Others';
 };
 
 const ShopPage = () => {
@@ -125,8 +133,7 @@ const ShopPage = () => {
       const params = {
         page: pageNumber,
         limit: 24, // increased limit to fetch more products for grouping
-        category: selectedCategory !== 'all' ? selectedCategory : undefined,
-        subcategory: selectedSubcategory || undefined,
+        businessCategory: selectedCategory !== 'all' ? selectedCategory : undefined,
         search: searchQuery || undefined,
         sort: sortBy,
         minPrice: priceRange.min > 0 ? priceRange.min : undefined,
@@ -288,11 +295,11 @@ const ShopPage = () => {
     setPriceRange({ min: 0, max: 1000000 });
   };
 
-  // Group products by category when selectedCategory is "all"
+  // Group products by business category when selectedCategory is "all"
   const groupProducts = (items) => {
     const grouped = {};
     items.forEach(product => {
-      const cat = mapCategoryName(product.category);
+      const cat = mapBusinessCategoryName(product);
       if (!grouped[cat]) {
         grouped[cat] = [];
       }
@@ -351,27 +358,12 @@ const ShopPage = () => {
                 onChange={(e) => setSelectedCategory(e.target.value)}
                 className="px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs font-semibold text-neutral-700 hover:bg-neutral-100 transition-all cursor-pointer outline-none focus:border-blue-500"
               >
-                {categories.map((cat) => (
+                {businessCategories.map((cat) => (
                   <option key={cat.id} value={cat.id}>
                     {cat.name}
                   </option>
                 ))}
               </select>
-
-              {selectedCategory !== 'all' && subcategories[selectedCategory] && (
-                <select
-                  value={selectedSubcategory}
-                  onChange={(e) => setSelectedSubcategory(e.target.value)}
-                  className="px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs font-semibold text-neutral-700 hover:bg-neutral-100 transition-all cursor-pointer outline-none focus:border-blue-500"
-                >
-                  <option value="">All {selectedCategory}</option>
-                  {subcategories[selectedCategory].map((sub) => (
-                    <option key={sub} value={sub}>
-                      {sub}
-                    </option>
-                  ))}
-                </select>
-              )}
 
               <select
                 value={sortBy}

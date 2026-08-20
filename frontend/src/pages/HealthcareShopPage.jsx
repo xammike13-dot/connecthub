@@ -72,7 +72,7 @@ const HealthcareShopPage = () => {
       const params = {
         page: pageNumber,
         limit: 12,
-        category: 'healthcare', // Hardcoded to healthcare only
+        businessCategory: 'Healthcare', // Hardcoded to healthcare business category
         search: searchQuery || undefined,
         sort: sortBy,
         minPrice: priceRange.min > 0 ? priceRange.min : undefined,

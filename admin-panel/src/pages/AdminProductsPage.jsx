@@ -173,19 +173,25 @@ const AdminProductsPage = () => {
     return 'Active';
   };
 
-  // List of common categories
+  // List of Business Categories
   const categories = [
-    'Electronics',
-    'Kitchen',
-    'Fashion',
-    'Home & Living',
-    'Books',
-    'Food & Groceries',
     'Healthcare',
-    'Beauty',
-    'Toys & Games',
-    'Software',
-    'Other'
+    'Shop',
+    'Cosmetics',
+    'Hotel',
+    'Electronics',
+    'Wines & Spirits',
+    'Services',
+    'Boutiques',
+    'Shoes Parlor',
+    'Secondhand items',
+    'Mali mali',
+    'Gas refill',
+    'Furniture stores',
+    'Fast foods',
+    'Cake shop',
+    'Kibanda',
+    'Others'
   ];
 
   return (
@@ -345,7 +351,12 @@ const AdminProductsPage = () => {
                       <td className="p-4 font-semibold text-white max-w-xs truncate" title={p.name}>
                         {p.name}
                       </td>
-                      <td className="p-4 text-slate-400">{p.category}</td>
+                      <td className="p-4 text-slate-400">
+                        <div className="flex flex-col">
+                          <span className="text-blue-400 font-semibold">{p.businessCategory || 'Business'}</span>
+                          <span className="text-slate-400 text-xs">{p.category}</span>
+                        </div>
+                      </td>
                       <td className="p-4 font-medium text-slate-300">
                         {p.business?.businessName || p.business?.name || 'Unknown Business'}
                       </td>
@@ -526,9 +537,10 @@ const AdminProductsPage = () => {
 
                   <div className="flex gap-6">
                     <div>
-                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Category</span>
+                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Business & Product Category</span>
                       <p className="text-sm text-slate-300 mt-0.5 flex items-center gap-1.5 bg-slate-950 border border-slate-800 px-2.5 py-1 rounded-full w-fit">
-                        <Folder size={14} className="text-blue-400" /> {selectedProduct.category}
+                        <Folder size={14} className="text-blue-400" /> {selectedProduct.businessCategory || 'Business'} &gt; {selectedProduct.category}
+                        {selectedProduct.subcategory ? ` (${selectedProduct.subcategory})` : ''}
                       </p>
                     </div>
                     <div>
