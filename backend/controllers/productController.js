@@ -19,7 +19,9 @@ export const createProduct = asyncHandler(async (req, res) => {
     description,
     price,
     originalPrice,
+    businessCategory,
     category,
+    subcategory,
     stock,
     sku,
     brand,
@@ -27,6 +29,13 @@ export const createProduct = asyncHandler(async (req, res) => {
     variants,
     images,
   } = req.body;
+
+  // Fetch business user profile if businessCategory was not provided
+  let resolvedBusinessCategory = businessCategory;
+  if (!resolvedBusinessCategory) {
+    const businessUser = await User.findById(businessId).select('businessProfile');
+    resolvedBusinessCategory = businessUser?.businessProfile?.businessCategory || 'Others';
+  }
 
   // Validate required fields
   if (!name || !description || !price || !category) {
@@ -44,7 +53,9 @@ export const createProduct = asyncHandler(async (req, res) => {
     description,
     price,
     originalPrice,
+    businessCategory: resolvedBusinessCategory,
     category,
+    subcategory: subcategory || '',
     stock,
     sku,
     brand,
@@ -77,26 +88,34 @@ export const createProduct = asyncHandler(async (req, res) => {
  * Get all products with filters
  */
 export const getProducts = asyncHandler(async (req, res) => {
-  const { category, business, search, page = 1, limit = 20, sort = '-createdAt', excludeHealthcare = false } = req.query;
+  const { businessCategory, category, business, search, page = 1, limit = 20, sort = '-createdAt', excludeHealthcare = false } = req.query;
 
   let query = {};
 
   if (business) query.business = business;
 
-  if (category) {
-    const categoryLower = category.toLowerCase();
+  // Handle businessCategory filter or fallback to legacy category filter
+  const targetCategoryFilter = businessCategory || category;
+
+  if (targetCategoryFilter) {
+    const categoryLower = targetCategoryFilter.toLowerCase();
     if (categoryLower === 'healthcare' || categoryLower === 'health care') {
-      query.category = /health ?care/i;
-    } else if (categoryLower === 'food' || categoryLower === 'food-stuffs' || categoryLower === 'food stuffs') {
-      query.category = { $in: ['Food', 'Food Stuffs', 'food-stuffs', 'food'] };
-    } else if (categoryLower === 'household' || categoryLower === 'households' || categoryLower === 'house-shopping' || categoryLower === 'house shopping') {
-      query.category = { $in: ['Household', 'Households', 'households', 'House Shopping', 'house-shopping', 'household'] };
+      query.$or = [
+        { businessCategory: /^healthcare$/i },
+        { category: /health ?care/i }
+      ];
     } else {
-      query.category = new RegExp(`^${category}$`, 'i');
+      query.$or = [
+        { businessCategory: new RegExp(`^${targetCategoryFilter}$`, 'i') },
+        { category: new RegExp(`^${targetCategoryFilter}$`, 'i') }
+      ];
     }
   } else if (excludeHealthcare === 'true' || excludeHealthcare === true) {
-    // Exclude healthcare products from marketplace by default (case-insensitive, with or without space)
-    query.category = { $not: /health ?care/i };
+    // Exclude healthcare products from marketplace by default
+    query.$and = [
+      { businessCategory: { $not: /^healthcare$/i } },
+      { category: { $not: /health ?care/i } }
+    ];
   }
 
   if (search) {
@@ -399,7 +418,12 @@ export const getMyProducts = asyncHandler(async (req, res) => {
   const { page = 1, limit = 20, category, subcategory, isActive, search } = req.query;
 
   let query = { business: businessId };
-  if (category) query.category = category;
+  if (req.query.businessCategory) {
+    query.businessCategory = new RegExp(`^${req.query.businessCategory}$`, 'i');
+  }
+  if (category) {
+    query.category = new RegExp(`^${category}$`, 'i');
+  }
   if (subcategory) query.subcategory = subcategory;
   if (isActive !== undefined) query.isActive = isActive === 'true';
   if (search) {
