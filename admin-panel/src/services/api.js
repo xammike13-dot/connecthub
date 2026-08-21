@@ -129,6 +129,7 @@ export const adminAPI = {
   getDashboardStats: () => api.get('/admin/dashboard/stats'),
   getUsers: (params) => api.get('/admin/users', { params }),
   updateUserStatus: (id, data) => api.put(`/admin/users/${id}/status`, data),
+  verifyUserEmail: (id) => api.put(`/admin/users/${id}/verify-email`),
   deleteUser: (id) => api.delete(`/admin/users/${id}`),
   getOrders: (params) => api.get('/admin/orders', { params }),
   updateOrder: (id, data) => api.put(`/admin/orders/${id}`, data),
