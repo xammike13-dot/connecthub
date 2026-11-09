@@ -13,12 +13,12 @@ const faqCategories = [
     icon: Store,
     items: [
       {
-        question: 'How do I register a Business on ConnectHub?',
+        question: 'How do I register a Business on Olafasta?',
         answer: 'During or after setup, choose the "Business" role. Fill out your Business Setup form with business name, category, operations description, location, contact, and upload your official licensing/identification documents.'
       },
       {
         question: 'How does business verification work?',
-        answer: 'Once you submit your setup form, ConnectHub admins review your details and uploaded verification files. You will receive an email confirmation once approved, unlocking full catalog publishing privileges.'
+        answer: 'Once you submit your setup form, Olafasta admins review your details and uploaded verification files. You will receive an email confirmation once approved, unlocking full catalog publishing privileges.'
       },
       {
         question: 'How do I manage my business profile and logo?',
@@ -41,7 +41,7 @@ const faqCategories = [
       },
       {
         question: 'What product categories are standardized?',
-        answer: 'ConnectHub standardizes products under case-insensitive categories including: Food, Household, Electronics, Fashion, Gas, Wines & Spirits, Second Hand, and Health Care.'
+        answer: 'Olafasta standardizes products under case-insensitive categories including: Food, Household, Electronics, Fashion, Gas, Wines & Spirits, Second Hand, and Health Care.'
       },
       {
         question: 'How do I manage my inventory?',
@@ -64,7 +64,7 @@ const faqCategories = [
       },
       {
         question: 'How do I manage customers?',
-        answer: 'The ConnectHub backend provides a "Customers" tab where you can search, view, and analyze customer metrics such as total spending, transaction count, order history, and contact details.'
+        answer: 'The Olafasta backend provides a "Customers" tab where you can search, view, and analyze customer metrics such as total spending, transaction count, order history, and contact details.'
       }
     ]
   },

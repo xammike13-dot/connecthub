@@ -37,6 +37,7 @@ const LoginPage = () => {
         rider: '/rider/dashboard',
         admin: '/',
         assistant: '/assistant/dashboard',
+        caretaker: '/caretaker/dashboard',
       };
       targetPath = from || dashboardMap[user.role] || '/';
     }
@@ -136,6 +137,7 @@ const LoginPage = () => {
         rider: '/rider/dashboard',
         admin: '/',
         assistant: '/assistant/dashboard',
+        caretaker: '/caretaker/dashboard',
       };
       
       // Use the return URL if available, otherwise use role-based dashboard
@@ -161,15 +163,15 @@ const LoginPage = () => {
   }, [location.state, navigate]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-neutral-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full">
         {/* Logo */}
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center gap-2 justify-center">
-            <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center shadow-blue">
-              <span className="text-white font-bold text-2xl">C</span>
+            <div className="w-12 h-12 bg-[#FF5E00] rounded-xl flex items-center justify-center shadow-orange">
+              <span className="text-white font-bold text-2xl">O</span>
             </div>
-            <span className="text-2xl font-bold text-neutral-900">ConnectHub</span>
+            <span className="text-2xl font-bold text-neutral-900">Olafasta</span>
           </Link>
           <p className="mt-2 text-neutral-500 text-sm">Sign in to continue to your account</p>
         </div>
@@ -258,7 +260,7 @@ const LoginPage = () => {
                   id="remember-me"
                   name="remember-me"
                   type="checkbox"
-                  className="h-4 w-4 text-blue-600 border-neutral-300 rounded focus:ring-blue-500"
+                  className="h-4 w-4 text-blue-600 border-neutral-300 rounded focus:ring-[#FF5E00]"
                 />
                 <label htmlFor="remember-me" className="ml-2 block text-sm text-neutral-600">
                   Remember me

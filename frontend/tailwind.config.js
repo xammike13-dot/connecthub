@@ -7,7 +7,27 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Primary brand colors - Blue
+        // ===== OLAFASTA BRAND COLORS =====
+        olaOrange: {
+          DEFAULT: '#FF5E00',  // Primary Energy / Speed
+          light: '#FF7A2E',
+          dark: '#CC4B00',
+          50: '#FFF3EC',
+          100: '#FFE4CC',
+        },
+        olaGreen: {
+          deep: '#027A2B',    // Trust / Professionalism
+          neon: '#6BE319',    // Accent / Live Status
+          'deep-hover': '#025D20',
+          50: '#E8F5EC',
+        },
+        // Dark theme backgrounds
+        olaDark: {
+          900: '#0F172A',     // Primary dark bg (slate-900)
+          800: '#1E293B',     // Secondary dark bg (slate-800)
+          700: '#334155',
+        },
+        // Legacy blue kept for non-rebranded UI sections
         blue: {
           50: '#EFF6FF',
           100: '#DBEAFE',
@@ -15,13 +35,12 @@ export default {
           300: '#93C5FD',
           400: '#60A5FA',
           500: '#3B82F6',
-          600: '#2563EB',  // Main Blue / Primary
-          700: '#1D4ED8',  // Primary Hover
+          600: '#2563EB',
+          700: '#1D4ED8',
           800: '#1E40AF',
           900: '#1E3A8A',
           950: '#172554',
         },
-        // Green for success/actions
         green: {
           50: '#F0FDF4',
           100: '#DCFCE7',
@@ -29,39 +48,36 @@ export default {
           300: '#86EFAC',
           400: '#4ADE80',
           500: '#22C55E',
-          600: '#16A34A',  // Main Green / Success
+          600: '#16A34A',
           700: '#15803D',
           800: '#166534',
           900: '#14532D',
           950: '#052E16',
         },
-        // Warning colors
         yellow: {
           50: '#FEFCE8',
           100: '#FEF9C3',
           200: '#FEF08A',
           300: '#FDE047',
           400: '#FACC15',
-          500: '#F59E0B',  // Warning
+          500: '#F59E0B',
           600: '#D97706',
           700: '#B45309',
           800: '#92400E',
           900: '#78350F',
         },
-        // Gold - mapped to yellow for legacy compatibility
         gold: {
           50: '#FEFCE8',
           100: '#FEF9C3',
           200: '#FEF08A',
           300: '#FDE047',
           400: '#FACC15',
-          500: '#F59E0B',  // Warning
+          500: '#F59E0B',
           600: '#D97706',
           700: '#B45309',
           800: '#92400E',
           900: '#78350F',
         },
-        // Red for danger
         red: {
           50: '#FEF2F2',
           100: '#FEE2E2',
@@ -69,40 +85,37 @@ export default {
           300: '#FCA5A5',
           400: '#F87171',
           500: '#EF4444',
-          600: '#DC2626',  // Danger
+          600: '#DC2626',
           700: '#B91C1C',
           800: '#991B1B',
           900: '#7F1D1D',
           950: '#450A0A',
         },
-        // Sky/Aqua for accent
         sky: {
           50: '#F0F9FF',
           100: '#E0F2FE',
           200: '#BAE6FD',
           300: '#7DD3FC',
           400: '#38BDF8',
-          500: '#0EA5E9',  // Accent
+          500: '#0EA5E9',
           600: '#0284C7',
           700: '#0369A1',
           800: '#075985',
           900: '#0C4A6E',
         },
-        // Neutral colors for text and backgrounds - LIGHT THEME
         neutral: {
-          50: '#F8FAFC',    // Background
-          100: '#F1F5F9',   // Light sections
-          200: '#E2E8F0',   // Borders
+          50: '#F8FAFC',
+          100: '#F1F5F9',
+          200: '#E2E8F0',
           300: '#CBD5E1',
           400: '#94A3B8',
-          500: '#64748B',   // Muted text
-          600: '#475569',   // Secondary text
+          500: '#64748B',
+          600: '#475569',
           700: '#334155',
           800: '#1E293B',
-          900: '#0F172A',   // Primary text
+          900: '#0F172A',
           950: '#020617',
         },
-        // Slate as alternative neutral
         slate: {
           50: '#F8FAFC',
           100: '#F1F5F9',
@@ -116,6 +129,18 @@ export default {
           900: '#0F172A',
           950: '#020617',
         },
+        orange: {
+          50: '#FFF7ED',
+          100: '#FFEDD5',
+          200: '#FED7AA',
+          300: '#FDBA74',
+          400: '#FB923C',
+          500: '#F97316',
+          600: '#EA580C',
+          700: '#C2410C',
+          800: '#9A3412',
+          900: '#7C2D12',
+        },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
@@ -126,12 +151,24 @@ export default {
         'md': '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
         'lg': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
         'xl': '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+        // Olafasta brand shadows
+        'orange': '0 4px 14px 0 rgba(255, 94, 0, 0.35)',
+        'orange-lg': '0 6px 20px 0 rgba(255, 94, 0, 0.25)',
+        'green-deep': '0 4px 14px 0 rgba(2, 122, 43, 0.25)',
+        'green-neon': '0 4px 14px 0 rgba(107, 227, 25, 0.35)',
+        // Legacy
         'blue': '0 4px 14px 0 rgba(37, 99, 235, 0.25)',
         'blue-lg': '0 6px 20px 0 rgba(37, 99, 235, 0.19)',
         'green': '0 4px 14px 0 rgba(22, 163, 74, 0.25)',
         'green-lg': '0 6px 20px 0 rgba(22, 163, 74, 0.19)',
       },
       backgroundImage: {
+        // Olafasta gradients
+        'ola-orange-gradient': 'linear-gradient(135deg, #FF5E00 0%, #CC4B00 100%)',
+        'ola-green-gradient': 'linear-gradient(135deg, #027A2B 0%, #025D20 100%)',
+        'ola-dark-gradient': 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
+        'ola-hero-gradient': 'linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #0F172A 100%)',
+        // Legacy
         'blue-gradient': 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
         'green-gradient': 'linear-gradient(135deg, #16A34A 0%, #15803D 100%)',
         'gold-gradient': 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',

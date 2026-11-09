@@ -53,7 +53,7 @@ const AdminUsersPage = () => {
       <div className="mb-8 flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-extrabold text-white tracking-tight">User Management</h1>
-          <p className="text-slate-400 mt-1">Manage and audit registered ConnectHub user accounts</p>
+          <p className="text-slate-400 mt-1">Manage and audit registered Olafasta user accounts</p>
         </div>
       </div>
 

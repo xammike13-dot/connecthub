@@ -163,7 +163,7 @@ const BusinessSetupPage = () => {
     {
       title: 'Payments',
       heading: 'Receive Payments Securely',
-      description: 'ConnectHub holds payments securely in escrow when orders are placed and releases them directly to your wallet once delivered.',
+      description: 'Olafasta holds payments securely in escrow when orders are placed and releases them directly to your wallet once delivered.',
       actionItems: [
         'Secure customer deposits',
         'Automatic escrow tracking',
@@ -200,7 +200,7 @@ const BusinessSetupPage = () => {
       <div className="max-w-2xl w-full">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-blue-600 rounded-xl flex items-center justify-center shadow-blue mx-auto">
+          <div className="w-16 h-16 bg-[#FF5E00] rounded-xl flex items-center justify-center shadow-blue mx-auto">
             <span className="text-white font-bold text-3xl">C</span>
           </div>
           <h1 className="mt-4 text-2xl font-bold text-neutral-900">Business Setup</h1>

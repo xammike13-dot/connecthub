@@ -11,7 +11,7 @@ const ImageUpload = ({
   onUpload, 
   onUploadStateChange,
   initialImages = EMPTY_ARRAY,
-  folder = 'connecthub',
+  folder = 'olafasta',
   className = ''
 }) => {
   const { addToast } = useToast();

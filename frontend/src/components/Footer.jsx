@@ -10,7 +10,7 @@ const Footer = () => {
               <div className="w-8 h-8 bg-gold-gradient rounded-lg flex items-center justify-center">
                 <span className="text-neutral-950 font-bold text-lg">C</span>
               </div>
-              <span className="text-xl font-bold text-white">ConnectHub</span>
+              <span className="text-xl font-bold text-white">Olafasta</span>
             </div>
             <p className="text-neutral-500 mb-4 max-w-md">
               Your all-in-one platform for shopping, rentals, healthcare, and bodaboda transport services.
@@ -57,7 +57,7 @@ const Footer = () => {
         </div>
 
         <div className="border-t border-neutral-900 mt-8 pt-8 text-center text-neutral-500">
-          <p>&copy; {new Date().getFullYear()} ConnectHub. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} Olafasta. All rights reserved.</p>
         </div>
       </div>
     </footer>

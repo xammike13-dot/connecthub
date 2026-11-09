@@ -1,5 +1,20 @@
 import mongoose from 'mongoose';
 
+// ===== OLAFASTA CATEGORY TAXONOMY =====
+export const OLA_CATEGORIES = {
+  'Food, Drinks & Chill': ['Restaurant', 'Wine & Spirits'],
+  'Hostel Setup & Utilities': ['Gas Refill', 'Mali Mali', 'Households'],
+  'Fashion & Beauty': ['Boutique', 'Second Hand (Mitumba)', 'Cosmetics'],
+  'Electronics & Gadgets': ['Electronics', 'Repairs & Accessories'],
+  'Daily Shops & Groceries': ['Shop'],
+  'Health & Pharmacy': ['Chemist'],
+  'General Campus Services': ['Everyday Services'],
+};
+
+export const OLA_BUSINESS_CATEGORIES = Object.keys(OLA_CATEGORIES);
+
+export const OLA_SUBCATEGORIES = Object.values(OLA_CATEGORIES).flat();
+
 const productSchema = new mongoose.Schema(
   {
     business: {
@@ -34,15 +49,27 @@ const productSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Please select a business category'],
       trim: true,
+      enum: {
+        values: OLA_BUSINESS_CATEGORIES,
+        message: 'Invalid Olafasta category: {VALUE}. Must be one of: ' + OLA_BUSINESS_CATEGORIES.join(', '),
+      },
     },
     category: {
       type: String,
       required: [true, 'Please provide a product category'],
       trim: true,
+      enum: {
+        values: OLA_SUBCATEGORIES,
+        message: 'Invalid subcategory: {VALUE}',
+      },
     },
     subcategory: {
       type: String,
       trim: true,
+      enum: {
+        values: OLA_SUBCATEGORIES,
+        message: 'Invalid subcategory: {VALUE}',
+      },
     },
     images: [{
       type: String,

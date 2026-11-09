@@ -1,33 +1,27 @@
 /**
  * Centralized Email Service using Brevo
- * 
- * This service handles all email communications for the application:
+ *
+ * Handles all email communications for Olafasta:
  * - Email verification codes
  * - Password reset codes
- * - Future email notifications
- * 
- * Uses Brevo (formerly Sendinblue) Transactional Email API for reliable email delivery.
- * Implementation: Transactional Email API (not SMTP)
+ * - Welcome emails
+ *
+ * Uses Brevo (formerly Sendinblue) Transactional Email API.
  * API Endpoint: https://api.brevo.com/v3/smtp/email
  * Authentication: API Key via 'api-key' header
- * 
+ *
  * NOTE: Environment variables are read dynamically inside functions (not at module load time)
  * to ensure they are available after dotenv.config() is called in server.js.
- * This is necessary because ES module imports are hoisted and evaluated before
- * the importing file's code runs.
  */
 
 import axios from 'axios';
 
-// Brevo API configuration - URL is constant
 const BREVO_API_URL = 'https://api.brevo.com/v3';
 
-// Helper function to get Brevo API key dynamically (after dotenv is loaded)
 const getBrevoApiKey = () => process.env.BREVO_API_KEY;
 const getBrevoSenderEmail = () => process.env.BREVO_SENDER_EMAIL;
 const getBrevoSenderName = () => process.env.BREVO_SENDER_NAME;
 
-// Check if Brevo is properly configured
 const isBrevoConfigured = () => {
   const apiKey = getBrevoApiKey();
   return apiKey && apiKey !== 'your-brevo-api-key-here' && apiKey.length > 10;
@@ -35,19 +29,12 @@ const isBrevoConfigured = () => {
 
 /**
  * Send an email using Brevo Transactional Email API
- * @param {string} to - Recipient email address
- * @param {string} subject - Email subject
- * @param {string} htmlContent - HTML content of the email
- * @param {string} textContent - Plain text content (optional)
- * @returns {Promise<{success: boolean, error?: string, messageId?: string, devMode?: boolean}>}
  */
 const sendEmail = async (to, subject, htmlContent, textContent = '') => {
-  // Get configuration values dynamically (after dotenv is loaded)
   const apiKey = getBrevoApiKey();
-  const senderEmail = getBrevoSenderEmail() || 'noreply@connecthub.com';
-  const senderName = getBrevoSenderName() || 'ConnectHub';
+  const senderEmail = getBrevoSenderEmail() || 'noreply@olafasta.com';
+  const senderName = getBrevoSenderName() || 'Olafasta';
 
-  // If Brevo is not configured, log and return success for development
   if (!isBrevoConfigured()) {
     console.log('[EMAIL] Brevo not configured. Email would have been sent:');
     console.log('[EMAIL] To:', to);
@@ -56,32 +43,20 @@ const sendEmail = async (to, subject, htmlContent, textContent = '') => {
     return { success: true, devMode: true };
   }
 
-  // Build the request payload exactly as per Brevo API specification
   const requestBody = {
-    sender: {
-      name: senderName,
-      email: senderEmail,
-    },
+    sender: { name: senderName, email: senderEmail },
     to: [{ email: to }],
     subject,
     htmlContent,
-    textContent: textContent || undefined, // Brevo prefers undefined over empty string
+    textContent: textContent || undefined,
   };
 
-  // Debug logging - log full request details
   console.log('[EMAIL] ===== BREVO EMAIL REQUEST =====');
   console.log('[EMAIL] Brevo URL:', `${BREVO_API_URL}/smtp/email`);
-  console.log('[EMAIL] HTTP Method: POST');
   console.log('[EMAIL] Sender Email:', senderEmail);
-  console.log('[EMAIL] Sender Name:', senderName);
   console.log('[EMAIL] Recipient:', to);
   console.log('[EMAIL] Subject:', subject);
   console.log('[EMAIL] API Key Present:', !!apiKey);
-  console.log('[EMAIL] API Key Prefix:', apiKey ? apiKey.substring(0, 12) + '...' : 'None');
-  
-  // Log a truncated version of the content for debugging
-  console.log('[EMAIL] HTML Content Length:', htmlContent.length);
-  console.log('[EMAIL] Text Content Length:', (textContent || '').length);
 
   try {
     const response = await axios.post(
@@ -93,220 +68,145 @@ const sendEmail = async (to, subject, htmlContent, textContent = '') => {
           'api-key': apiKey,
           'Accept': 'application/json',
         },
-        // Add timeout to prevent hanging requests
-        timeout: 30000, // 30 seconds
+        timeout: 30000,
       }
     );
 
-    // Log full response details
-    console.log('[EMAIL] ===== BREVO RESPONSE =====');
     console.log('[EMAIL] Response Status:', response.status);
-    console.log('[EMAIL] Response Status Text:', response.statusText);
-    console.log('[EMAIL] Response Headers:', JSON.stringify(response.headers, null, 2));
-    console.log('[EMAIL] Response Data:', JSON.stringify(response.data, null, 2));
-    console.log('[EMAIL] Message ID:', response.data?.messageId || 'Not provided');
-    console.log('[EMAIL] =================================');
-
-    // Brevo returns 201 Created for successful email send
-    // Only log success if we get the expected status code
     if (response.status === 201 || response.status === 200) {
-      console.log('[EMAIL] Email sent successfully');
-      console.log('[EMAIL] Recipient:', to);
-      console.log('[EMAIL] Message ID:', response.data?.messageId || 'Not provided');
-      return { 
-        success: true, 
-        messageId: response.data?.messageId,
-        status: response.status 
-      };
+      console.log('[EMAIL] Email sent successfully to:', to);
+      return { success: true, messageId: response.data?.messageId, status: response.status };
     } else {
-      // Unexpected status code
       console.error('[EMAIL] Unexpected response status:', response.status);
-      console.error('[EMAIL] Response body:', response.data);
-      return {
-        success: false,
-        error: `Unexpected status code: ${response.status}`,
-        status: response.status,
-      };
+      return { success: false, error: `Unexpected status code: ${response.status}`, status: response.status };
     }
   } catch (error) {
-    // Enhanced error logging
     console.error('[EMAIL] ===== BREVO REQUEST FAILED =====');
-    console.error('[EMAIL] Error Type:', error.constructor.name);
     console.error('[EMAIL] Error Message:', error.message);
-    
     if (error.response) {
-      // Server responded with error status
-      console.error('[EMAIL] Response Status:', error.response.status);
-      console.error('[EMAIL] Response Status Text:', error.response.statusText);
-      console.error('[EMAIL] Response Headers:', JSON.stringify(error.response.headers, null, 2));
-      console.error('[EMAIL] Response Data:', JSON.stringify(error.response.data, null, 2));
-      
-      // Extract specific error message from Brevo
       const brevoError = error.response.data;
-      let errorMessage = 'Unknown Brevo error';
-      
-      if (brevoError.message) {
-        errorMessage = brevoError.message;
-      } else if (brevoError.code) {
-        errorMessage = `Brevo error code: ${brevoError.code}`;
-      }
-      
+      const errorMessage = brevoError.message || `Brevo error code: ${brevoError.code}` || 'Unknown Brevo error';
       console.error('[EMAIL] Brevo Error:', errorMessage);
-      console.error('[EMAIL] =================================');
-      
-      return {
-        success: false,
-        error: errorMessage,
-        code: brevoError.code,
-        status: error.response.status,
-      };
+      return { success: false, error: errorMessage, code: brevoError.code, status: error.response.status };
     } else if (error.request) {
-      // Request was made but no response
       console.error('[EMAIL] No response received from Brevo');
-      console.error('[EMAIL] Request:', error.request);
-      console.error('[EMAIL] =================================');
-      
-      return {
-        success: false,
-        error: 'No response from Brevo API. Please check your network connection and API endpoint.',
-      };
+      return { success: false, error: 'No response from Brevo API. Check network connection.' };
     } else {
-      // Something else happened
-      console.error('[EMAIL] Request setup error:', error.message);
-      console.error('[EMAIL] =================================');
-      
-      return {
-        success: false,
-        error: error.message,
-      };
+      return { success: false, error: error.message };
     }
   }
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  Shared HTML wrapper
+// ─────────────────────────────────────────────────────────────────────────────
+const emailWrapper = (bodyHtml) => `
+  <div style="font-family: Inter, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f0f4f8;">
+    <div style="background: linear-gradient(135deg, #FF5E00 0%, #E05000 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+      <h1 style="color: white; margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -1px;">⚡ Olafasta</h1>
+      <p style="color: rgba(255,255,255,0.85); margin: 6px 0 0 0; font-size: 13px; font-weight: 500;">Fasta Fasta — Everything You Need</p>
+    </div>
+    <div style="background: #ffffff; padding: 36px 32px; border-radius: 0 0 12px 12px; border: 1px solid #e2e8f0; border-top: none;">
+      ${bodyHtml}
+      <p style="color: #94a3b8; font-size: 11px; margin-top: 32px; text-align: center;">
+        This is an automated message from Olafasta · <a href="https://olafasta.com" style="color: #FF5E00;">olafasta.com</a><br/>
+        Support: +254 748 459757 | 0707 841 747
+      </p>
+    </div>
+  </div>
+`;
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Exported email functions
+// ─────────────────────────────────────────────────────────────────────────────
+
 /**
  * Send email verification code
- * @param {string} email - Recipient email address
- * @param {string} code - 6-digit verification code
- * @returns {Promise<{success: boolean, error?: string}>}
  */
 export const sendVerificationEmail = async (email, code) => {
   console.log('[EMAIL SERVICE] sendVerificationEmail called with:', { email, codeLength: code?.length, code });
-  
-  const htmlContent = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
-        <h1 style="color: white; margin: 0; font-size: 28px;">ConnectHub</h1>
-      </div>
-      <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
-        <h2 style="color: #333; margin-top: 0;">Verify Your Email</h2>
-        <p style="color: #666; line-height: 1.6;">Thank you for signing up for ConnectHub. Please use the verification code below to verify your email address:</p>
-        <div style="background: white; border: 2px solid #667eea; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0;">
-          <span style="font-size: 32px; font-weight: bold; color: #667eea; letter-spacing: 5px;">${code}</span>
-        </div>
-        <p style="color: #666; line-height: 1.6;">This code will expire in 15 minutes. If you didn't request this verification, please ignore this email.</p>
-        <p style="color: #999; font-size: 12px; margin-top: 30px;">This is an automated email. Please do not reply.</p>
-      </div>
+
+  const htmlContent = emailWrapper(`
+    <h2 style="color: #0f172a; margin-top: 0; font-size: 22px; font-weight: 700;">Verify Your Email 🔐</h2>
+    <p style="color: #475569; line-height: 1.7;">Habari! You're almost in. Enter the code below to verify your Olafasta account and start enjoying fasta fasta service:</p>
+    <div style="background: #fff7f0; border: 2px solid #FF5E00; border-radius: 10px; padding: 24px; text-align: center; margin: 24px 0;">
+      <span style="font-size: 38px; font-weight: 900; color: #FF5E00; letter-spacing: 10px;">${code}</span>
     </div>
-  `;
+    <p style="color: #64748b; line-height: 1.7; font-size: 14px;">This code expires in <strong>15 minutes</strong>. If you didn't create an Olafasta account, ignore this email.</p>
+  `);
 
-  const textContent = `ConnectHub Email Verification\n\nYour verification code is: ${code}\n\nThis code will expire in 15 minutes. If you didn't request this verification, please ignore this email.`;
+  const textContent = `Olafasta Email Verification\n\nYour verification code is: ${code}\n\nExpires in 15 minutes. Visit https://olafasta.com\nSupport: +254 748 459757`;
 
-  return sendEmail(email, 'Verify Your ConnectHub Email', htmlContent, textContent);
+  return sendEmail(email, '🔐 Verify your Olafasta account', htmlContent, textContent);
 };
 
 /**
  * Send password reset code
- * @param {string} email - Recipient email address
- * @param {string} code - 6-digit reset code
- * @returns {Promise<{success: boolean, error?: string}>}
  */
 export const sendPasswordResetEmail = async (email, code) => {
-  const htmlContent = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
-        <h1 style="color: white; margin: 0; font-size: 28px;">ConnectHub</h1>
-      </div>
-      <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
-        <h2 style="color: #333; margin-top: 0;">Password Reset Request</h2>
-        <p style="color: #666; line-height: 1.6;">You requested to reset your password. Please use the code below to proceed:</p>
-        <div style="background: white; border: 2px solid #667eea; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0;">
-          <span style="font-size: 32px; font-weight: bold; color: #667eea; letter-spacing: 5px;">${code}</span>
-        </div>
-        <p style="color: #666; line-height: 1.6;">This code will expire in 15 minutes. If you didn't request a password reset, please ignore this email and your password will remain unchanged.</p>
-        <p style="color: #999; font-size: 12px; margin-top: 30px;">This is an automated email. Please do not reply.</p>
-      </div>
+  const htmlContent = emailWrapper(`
+    <h2 style="color: #0f172a; margin-top: 0; font-size: 22px; font-weight: 700;">Reset Your Password 🔑</h2>
+    <p style="color: #475569; line-height: 1.7;">We received a request to reset your Olafasta password. Use the code below to proceed:</p>
+    <div style="background: #fff7f0; border: 2px solid #FF5E00; border-radius: 10px; padding: 24px; text-align: center; margin: 24px 0;">
+      <span style="font-size: 38px; font-weight: 900; color: #FF5E00; letter-spacing: 10px;">${code}</span>
     </div>
-  `;
+    <p style="color: #64748b; line-height: 1.7; font-size: 14px;">This code expires in <strong>15 minutes</strong>. If you didn't request a reset, your password remains safe — just ignore this email.</p>
+  `);
 
-  const textContent = `ConnectHub Password Reset\n\nYour password reset code is: ${code}\n\nThis code will expire in 15 minutes. If you didn't request a password reset, please ignore this email.`;
+  const textContent = `Olafasta Password Reset\n\nYour reset code is: ${code}\n\nExpires in 15 minutes. If you did not request this, ignore this email.`;
 
-  return sendEmail(email, 'Reset Your ConnectHub Password', htmlContent, textContent);
+  return sendEmail(email, '🔑 Reset your Olafasta password', htmlContent, textContent);
 };
 
 /**
  * Send password reset confirmation
- * @param {string} email - Recipient email address
- * @returns {Promise<{success: boolean, error?: string}>}
  */
 export const sendPasswordResetConfirmation = async (email) => {
-  const htmlContent = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
-        <h1 style="color: white; margin: 0; font-size: 28px;">ConnectHub</h1>
-      </div>
-      <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
-        <h2 style="color: #333; margin-top: 0;">Password Changed Successfully</h2>
-        <p style="color: #666; line-height: 1.6;">Your password has been successfully updated. If you didn't make this change, please contact our support team immediately.</p>
-        <div style="background: white; border: 2px solid #22c55e; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0;">
-          <span style="font-size: 24px; font-weight: bold; color: #22c55e;">✓ Password Updated</span>
-        </div>
-        <p style="color: #999; font-size: 12px; margin-top: 30px;">This is an automated email. Please do not reply.</p>
-      </div>
+  const htmlContent = emailWrapper(`
+    <h2 style="color: #0f172a; margin-top: 0; font-size: 22px; font-weight: 700;">Password Updated ✅</h2>
+    <p style="color: #475569; line-height: 1.7;">Your Olafasta password has been successfully changed. You're all set!</p>
+    <div style="background: #f0fdf4; border: 2px solid #027A2B; border-radius: 10px; padding: 20px; text-align: center; margin: 24px 0;">
+      <span style="font-size: 22px; font-weight: 700; color: #027A2B;">✓ Password Changed Successfully</span>
     </div>
-  `;
+    <p style="color: #64748b; font-size: 14px;">If you didn't make this change, contact us immediately at <strong>+254 748 459757</strong>.</p>
+  `);
 
-  const textContent = `ConnectHub Password Update\n\nYour password has been successfully changed. If you didn't make this change, please contact our support team.`;
+  const textContent = `Olafasta — Password Changed\n\nYour password was successfully updated. If this wasn't you, contact support: +254 748 459757`;
 
-  return sendEmail(email, 'Password Changed Successfully', htmlContent, textContent);
+  return sendEmail(email, '✅ Your Olafasta password was changed', htmlContent, textContent);
 };
 
 /**
  * Send welcome email after verification
- * @param {string} email - Recipient email address
- * @param {string} name - User's name
- * @param {string} role - User's role
- * @returns {Promise<{success: boolean, error?: string}>}
  */
 export const sendWelcomeEmail = async (email, name, role) => {
   const roleLabels = {
-    customer: 'Customer',
+    customer: 'Comrade',
     landlord: 'Landlord',
     business: 'Business Owner',
     rider: 'Rider',
   };
 
-  const htmlContent = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
-        <h1 style="color: white; margin: 0; font-size: 28px;">ConnectHub</h1>
-      </div>
-      <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
-        <h2 style="color: #333; margin-top: 0;">Welcome to ConnectHub, ${name}!</h2>
-        <p style="color: #666; line-height: 1.6;">Your email has been verified successfully. You're now ready to start using ConnectHub as a <strong>${roleLabels[role] || role}</strong>.</p>
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}" 
-             style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold;">
-            Go to Dashboard
-          </a>
-        </div>
-        <p style="color: #999; font-size: 12px; margin-top: 30px;">This is an automated email. Please do not reply.</p>
-      </div>
+  const htmlContent = emailWrapper(`
+    <h2 style="color: #0f172a; margin-top: 0; font-size: 22px; font-weight: 700;">Welcome to Olafasta, ${name}! 🎉</h2>
+    <p style="color: #475569; line-height: 1.7;">
+      Karibu sana! You've joined as a <strong style="color: #FF5E00;">${roleLabels[role] || role}</strong>.
+      Olafasta is your one-stop campus super-app — fasta fasta, everything you need is right here.
+    </p>
+    <div style="text-align: center; margin: 32px 0;">
+      <a href="${process.env.FRONTEND_URL || 'https://olafasta.com'}"
+         style="background: #FF5E00; color: white; padding: 14px 36px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: 700; font-size: 16px;">
+        Go to Dashboard ⚡
+      </a>
     </div>
-  `;
+    <p style="color: #64748b; font-size: 13px; text-align: center;">
+      Need help? Reach us on <strong>+254 748 459757</strong> or <strong>0707 841 747</strong>
+    </p>
+  `);
 
-  const textContent = `Welcome to ConnectHub, ${name}!\n\nYour email has been verified. You're now ready to start using ConnectHub as a ${roleLabels[role] || role}.\n\nVisit: ${process.env.FRONTEND_URL || 'http://localhost:5173'}`;
+  const textContent = `Welcome to Olafasta, ${name}!\n\nYou've joined as a ${roleLabels[role] || role}. Fasta fasta — everything you need is right here.\n\nVisit: ${process.env.FRONTEND_URL || 'https://olafasta.com'}\nSupport: +254 748 459757`;
 
-  return sendEmail(email, 'Welcome to ConnectHub!', htmlContent, textContent);
+  return sendEmail(email, `🎉 Welcome to Olafasta, ${name}!`, htmlContent, textContent);
 };
 
 export default {

@@ -26,6 +26,10 @@ const Navbar = () => {
         return '/business/dashboard';
       case 'rider':
         return '/rider/dashboard';
+      case 'assistant':
+        return '/assistant/dashboard';
+      case 'caretaker':
+        return '/caretaker/dashboard';
       case 'admin':
         return '/';
       default:
@@ -40,24 +44,24 @@ const Navbar = () => {
           {/* Logo */}
           <div className="flex items-center">
             <Link to="/" className="flex items-center gap-2">
-              <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center shadow-blue">
-                <span className="text-white font-bold text-lg">C</span>
+              <div className="w-9 h-9 bg-[#FF5E00] rounded-lg flex items-center justify-center shadow-orange">
+                <span className="text-white font-bold text-lg">O</span>
               </div>
-              <span className="text-xl font-bold text-neutral-900">ConnectHub</span>
+              <span className="text-xl font-bold text-neutral-900">Olafasta</span>
             </Link>
             
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center ml-10 gap-1">
-              <Link to="/marketplace" className="px-4 py-2 text-neutral-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium">
+              <Link to="/marketplace" className="px-4 py-2 text-neutral-600 hover:text-[#FF5E00] hover:bg-orange-50 rounded-lg transition-colors font-medium">
                 Marketplace
               </Link>
-              <Link to="/rentals" className="px-4 py-2 text-neutral-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium">
+              <Link to="/rentals" className="px-4 py-2 text-neutral-600 hover:text-[#FF5E00] hover:bg-orange-50 rounded-lg transition-colors font-medium">
                 Rentals
               </Link>
-              <Link to="/healthcare" className="px-4 py-2 text-neutral-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium">
+              <Link to="/healthcare" className="px-4 py-2 text-neutral-600 hover:text-[#FF5E00] hover:bg-orange-50 rounded-lg transition-colors font-medium">
                 Healthcare
               </Link>
-              <Link to="/transport" className="px-4 py-2 text-neutral-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium">
+              <Link to="/transport" className="px-4 py-2 text-neutral-600 hover:text-[#FF5E00] hover:bg-orange-50 rounded-lg transition-colors font-medium">
                 Bodaboda
               </Link>
             </div>
@@ -72,7 +76,7 @@ const Navbar = () => {
                 className="flex items-center gap-1 p-2 text-neutral-700 hover:text-blue-600 transition-colors select-none whitespace-nowrap shrink-0"
               >
                 <span className="text-xl sm:text-2xl" role="img" aria-label="cart">🛒</span>
-                <span className="bg-blue-600 text-white text-xs font-extrabold px-1.5 py-0.5 rounded-full flex items-center justify-center min-w-[18px] h-[18px]">
+                <span className="bg-[#FF5E00] text-white text-xs font-extrabold px-1.5 py-0.5 rounded-full flex items-center justify-center min-w-[18px] h-[18px]">
                   {cartItemCount}
                 </span>
               </Link>
@@ -87,8 +91,8 @@ const Navbar = () => {
 
                 {/* User Profile */}
                 <div className="flex items-center gap-3 pl-4 border-l border-neutral-200">
-                  <div className="w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center border border-blue-200">
-                    <span className="text-blue-600 font-semibold text-sm">
+                  <div className="w-9 h-9 bg-orange-100 rounded-full flex items-center justify-center border border-orange-200">
+                    <span className="text-[#FF5E00] font-semibold text-sm">
                       {user?.name?.charAt(0).toUpperCase() || 'U'}
                     </span>
                   </div>
@@ -129,26 +133,26 @@ const Navbar = () => {
       {mobileMenuOpen && (
         <div className="md:hidden bg-white border-t border-neutral-200 shadow-lg">
           <div className="px-4 py-4 space-y-2">
-            <Link to="/marketplace" className="block px-4 py-3 text-neutral-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg font-medium transition-colors">
+            <Link to="/marketplace" className="block px-4 py-3 text-neutral-700 hover:text-[#FF5E00] hover:bg-orange-50 rounded-lg font-medium transition-colors">
               Marketplace
             </Link>
-            <Link to="/rentals" className="block px-4 py-3 text-neutral-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg font-medium transition-colors">
+            <Link to="/rentals" className="block px-4 py-3 text-neutral-700 hover:text-[#FF5E00] hover:bg-orange-50 rounded-lg font-medium transition-colors">
               Rentals
             </Link>
-            <Link to="/healthcare" className="block px-4 py-3 text-neutral-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg font-medium transition-colors">
+            <Link to="/healthcare" className="block px-4 py-3 text-neutral-700 hover:text-[#FF5E00] hover:bg-orange-50 rounded-lg font-medium transition-colors">
               Healthcare
             </Link>
-            <Link to="/transport" className="block px-4 py-3 text-neutral-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg font-medium transition-colors">
+            <Link to="/transport" className="block px-4 py-3 text-neutral-700 hover:text-[#FF5E00] hover:bg-orange-50 rounded-lg font-medium transition-colors">
               Bodaboda
             </Link>
             
             <div className="border-t border-neutral-200 my-2"></div>
             
             {cartItemCount > 0 && (
-              <Link to="/cart" className="block px-4 py-3 text-neutral-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg font-medium transition-colors flex items-center gap-2">
+              <Link to="/cart" className="block px-4 py-3 text-neutral-700 hover:text-[#FF5E00] hover:bg-orange-50 rounded-lg font-medium transition-colors flex items-center gap-2">
                 <span className="text-xl" role="img" aria-label="cart">🛒</span>
                 Cart
-                <span className="bg-blue-600 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                <span className="bg-[#FF5E00] text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
                   {cartItemCount}
                 </span>
               </Link>

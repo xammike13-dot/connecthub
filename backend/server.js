@@ -30,9 +30,9 @@ console.log('[Server] CLOUDINARY_API_SECRET:', process.env.CLOUDINARY_API_SECRET
 const whatsappVerifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
 if (!whatsappVerifyToken) {
   console.warn('');
-  console.warn('═══════════════════════════════════════════════════════════');
+  console.warn('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
   console.warn('  WARNING: WhatsApp Webhook Configuration');
-  console.warn('═══════════════════════════════════════════════════════════');
+  console.warn('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
   console.warn('');
   console.warn('  WHATSAPP_VERIFY_TOKEN is not configured.');
   console.warn('  WhatsApp webhook verification will be disabled.');
@@ -40,16 +40,16 @@ if (!whatsappVerifyToken) {
   console.warn('  To enable WhatsApp webhooks, add to backend/.env:');
   console.warn('    WHATSAPP_VERIFY_TOKEN=your_secure_verify_token');
   console.warn('');
-  console.warn('═══════════════════════════════════════════════════════════');
+  console.warn('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
   console.warn('');
 } else {
   console.log('');
-  console.log('═══════════════════════════════════════════════════════════');
+  console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
   console.log('  WhatsApp Webhook Verification Token Loaded');
-  console.log('═══════════════════════════════════════════════════════════');
-  console.log('[Server] WHATSAPP_VERIFY_TOKEN: LOADED ✓');
+  console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
+  console.log('[Server] WHATSAPP_VERIFY_TOKEN: LOADED âœ“');
   console.log('[Server] Webhook endpoint: GET/POST /api/notifications/webhook');
-  console.log('═══════════════════════════════════════════════════════════');
+  console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
   console.log('');
 }
 
@@ -65,9 +65,9 @@ const requiredMpesaVars = [
 const missingMpesaVars = requiredMpesaVars.filter(v => !process.env[v] || process.env[v].startsWith('your_'));
 if (missingMpesaVars.length > 0) {
   console.error('');
-  console.error('═══════════════════════════════════════════════════════════');
+  console.error('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
   console.error('  FATAL: Missing required MPesa Daraja configuration');
-  console.error('═══════════════════════════════════════════════════════════');
+  console.error('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
   console.error('');
   console.error('  The following environment variables must be set in backend/.env:');
   missingMpesaVars.forEach(v => console.error(`    - ${v}`));
@@ -75,22 +75,22 @@ if (missingMpesaVars.length > 0) {
   console.error('  These are required for M-Pesa STK Push payments.');
   console.error('  Please configure your Daraja API credentials.');
   console.error('');
-  console.error('═══════════════════════════════════════════════════════════');
+  console.error('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
   console.error('');
   // Don't exit - allow server to run for non-payment features
   console.warn('[Server] MPesa payments will be disabled. Set all MPESA_* variables to enable.');
 } else {
   console.log('');
-  console.log('═══════════════════════════════════════════════════════════');
+  console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
   console.log('  MPesa Daraja API Configuration Loaded');
-  console.log('═══════════════════════════════════════════════════════════');
-  console.log('[Server] MPESA_CONSUMER_KEY:', process.env.MPESA_CONSUMER_KEY ? 'LOADED ✓' : 'MISSING ✗');
-  console.log('[Server] MPESA_CONSUMER_SECRET:', process.env.MPESA_CONSUMER_SECRET ? 'LOADED ✓' : 'MISSING ✗');
+  console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
+  console.log('[Server] MPESA_CONSUMER_KEY:', process.env.MPESA_CONSUMER_KEY ? 'LOADED âœ“' : 'MISSING âœ—');
+  console.log('[Server] MPESA_CONSUMER_SECRET:', process.env.MPESA_CONSUMER_SECRET ? 'LOADED âœ“' : 'MISSING âœ—');
   console.log('[Server] MPESA_SHORTCODE:', process.env.MPESA_SHORTCODE || 'MISSING');
-  console.log('[Server] MPESA_PASSKEY:', process.env.MPESA_PASSKEY ? 'LOADED ✓' : 'MISSING ✗');
+  console.log('[Server] MPESA_PASSKEY:', process.env.MPESA_PASSKEY ? 'LOADED âœ“' : 'MISSING âœ—');
   console.log('[Server] MPESA_CALLBACK_URL:', process.env.MPESA_CALLBACK_URL || 'DEFAULT');
   console.log('[Server] MPESA_ENVIRONMENT:', process.env.MPESA_ENVIRONMENT || 'sandbox');
-  console.log('═══════════════════════════════════════════════════════════');
+  console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
   console.log('');
 }
 
@@ -121,7 +121,7 @@ const b2cResultUrl = process.env.MPESA_B2C_RESULT_URL ||
     ? b2cBaseUrl
     : `${b2cBaseUrl}/api/withdrawals/b2c/callback`);
 
-console.log('════════════════ [B2C CONFIG STARTUP DIAGNOSTICS] ════════════════');
+console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• [B2C CONFIG STARTUP DIAGNOSTICS] â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
 console.log(`[B2C CONFIG]`);
 console.log(`Environment: ${b2cEnv === 'production' ? 'Production' : 'Sandbox'}`);
 console.log(`B2C Security Credential: ${b2cCred}`);
@@ -130,7 +130,7 @@ console.log(`B2C PartyA: ${b2cPartyA}`);
 console.log(`B2C PartyB: DYNAMIC (Recipient Phone Number)`);
 console.log(`B2C ResultURL: ${b2cResultUrl}`);
 console.log(`B2C TimeoutURL: ${b2cTimeoutUrl}`);
-console.log('══════════════════════════════════════════════════════════════════');
+console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
 console.log('');
 
 import connectDB from './config/db.js';
@@ -159,8 +159,7 @@ import setupRoutes from './routes/setupRoutes.js';
 import caretakerRoutes from './routes/caretakerRoutes.js';
 import assistantRoutes from './routes/assistantRoutes.js';
 
-// Connect Database
-connectDB();
+// Database connection is initialized in startServer()
 
 const app = express();
 const httpServer = createServer(app);
@@ -191,8 +190,9 @@ const isAllowedOrigin = (origin) => {
 
   // Explicitly allow secure production origins
   const secureProductionOrigins = [
-    'https://connecthub.website',
-    'https://connecthubadmin.vercel.app'
+    'https://olafasta.com',
+    'https://www.olafasta.com',
+    'https://admin.olafasta.com',
   ];
 
   if (secureProductionOrigins.includes(origin)) {
@@ -282,7 +282,7 @@ app.use(morgan('dev'));
 app.get('/api/health', (req, res) => {
   res.status(200).json({
     success: true,
-    message: 'ConnectHub API is running',
+    message: 'Olafasta API is running ⚡',
     timestamp: new Date().toISOString(),
   });
 });
@@ -361,27 +361,38 @@ app.use(errorHandler);
 const PORT = Number(process.env.PORT) || 5000;
 
 // Start Server
-httpServer.listen(PORT, () => {
-  console.log(
-    `Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`
-  );
-});
+const startServer = async () => {
+  try {
+    await connectDB();
 
-// Start scheduled jobs
-startRentReminderJob();
+    httpServer.listen(PORT, () => {
+      console.log(
+        `Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`
+      );
+    });
 
-// Scheduled cleanup job - run every hour
-const CLEANUP_INTERVAL = 60 * 60 * 1000; // 1 hour in milliseconds
-setInterval(async () => {
-  console.log('[SCHEDULED] Running notification cleanup job...');
-  await cleanupOldNotifications();
-}, CLEANUP_INTERVAL);
+    // Start scheduled jobs after successful DB connection
+    startRentReminderJob();
 
-// Run initial cleanup after server starts
-setTimeout(async () => {
-  console.log('[SCHEDULED] Running initial notification cleanup...');
-  await cleanupOldNotifications();
-}, 5000); // Run 5 seconds after server starts
+    // Scheduled cleanup job - run every hour
+    const CLEANUP_INTERVAL = 60 * 60 * 1000; // 1 hour in milliseconds
+    setInterval(async () => {
+      console.log('[SCHEDULED] Running notification cleanup job...');
+      await cleanupOldNotifications();
+    }, CLEANUP_INTERVAL);
+
+    // Run initial cleanup after server starts
+    setTimeout(async () => {
+      console.log('[SCHEDULED] Running initial notification cleanup...');
+      await cleanupOldNotifications();
+    }, 5000);
+  } catch (err) {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  }
+};
+
+startServer();
 
 // Handle Unhandled Promise Rejections
 process.on('unhandledRejection', (err) => {

@@ -131,7 +131,7 @@ const CaretakerInvitePage = () => {
         {/* Banner */}
         <div className="bg-gradient-to-r from-blue-600 to-indigo-700 px-6 py-8 text-white text-center">
           <CheckCircle className="w-16 h-16 text-white/90 mx-auto animate-bounce" />
-          <h1 className="text-2xl font-extrabold tracking-tight mt-3">ConnectHub Caretaker Invite</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight mt-3">Olafasta Caretaker Invite</h1>
           <p className="text-blue-100 text-sm mt-1">
             You have been invited by <span className="font-bold">{invitation?.landlord?.name}</span> to manage <span className="font-bold">{invitation?.landlord?.propertyName}</span>.
           </p>

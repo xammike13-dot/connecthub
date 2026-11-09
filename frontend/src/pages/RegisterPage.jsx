@@ -103,15 +103,15 @@ const RegisterPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-neutral-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-2xl w-full">
         {/* Logo */}
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center gap-2 justify-center">
-            <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center shadow-blue">
-              <span className="text-white font-bold text-2xl">C</span>
+            <div className="w-12 h-12 bg-[#FF5E00] rounded-xl flex items-center justify-center shadow-orange">
+              <span className="text-white font-bold text-2xl">O</span>
             </div>
-            <span className="text-2xl font-bold text-neutral-900">ConnectHub</span>
+            <span className="text-2xl font-bold text-neutral-900">Olafasta</span>
           </Link>
           <p className="mt-2 text-neutral-500 text-sm">Create your account to get started</p>
         </div>
@@ -119,7 +119,7 @@ const RegisterPage = () => {
         {/* Form Card */}
         <div className="bg-white rounded-2xl shadow-xl p-8 border border-neutral-200">
           <h2 className="text-2xl font-bold text-neutral-900 mb-6 text-center">
-            Join ConnectHub
+            Join Olafasta
           </h2>
 
           {error && (

@@ -3,18 +3,18 @@ import { Mail, Phone, MessageCircle, Clock, ShieldCheck, HelpCircle } from 'luci
 import { Link } from 'react-router-dom';
 
 const SupportPage = () => {
-  const officialEmail = 'connecthub387@gmail.com';
-  const officialPhone = '0794603837';
+  const officialEmail = 'support@olafasta.com';
+  const officialPhone = '+254748459757';
 
   // Format WhatsApp Link: 254 country code for Kenya
-  const whatsappUrl = 'https://wa.me/254794603837';
+  const whatsappUrl = 'https://wa.me/254748459757';
 
   return (
     <div className="bg-slate-50 min-h-screen py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
         {/* Friendly support message / header */}
         <div className="text-center mb-12">
-          <span className="px-3.5 py-1.5 bg-blue-50 text-blue-700 text-xs font-semibold rounded-full tracking-wide uppercase">
+          <span className="px-3.5 py-1.5 bg-orange-50 text-[#FF5E00] text-xs font-semibold rounded-full tracking-wide uppercase">
             Support Desk
           </span>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-neutral-900 mt-3 tracking-tight">

@@ -27,16 +27,16 @@
   }
 
   a {
-    @apply text-blue-600 hover:text-blue-700 transition-colors;
+    @apply text-[#FF5E00] hover:text-[#CC4B00] transition-colors;
   }
 }
 
 @layer components {
   /* Primary button - Blue */
   .btn-primary {
-    @apply bg-blue-600 text-white font-semibold px-6 py-3 rounded-lg
-           hover:bg-blue-700 hover:shadow-lg transition-all duration-300
-           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+    @apply bg-[#FF5E00] text-white font-semibold px-6 py-3 rounded-lg
+           hover:bg-[#CC4B00] hover:shadow-lg transition-all duration-300
+           focus:outline-none focus:ring-2 focus:ring-[#FF5E00] focus:ring-offset-2
            focus:ring-offset-white
            disabled:opacity-50 disabled:cursor-not-allowed
            text-base;
@@ -44,9 +44,9 @@
 
   /* Secondary button - Outline blue */
   .btn-secondary {
-    @apply border-2 border-blue-600 text-blue-600 font-semibold px-6 py-3 rounded-lg
-           hover:bg-blue-50 hover:border-blue-500 transition-all duration-300
-           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+    @apply border-2 border-[#FF5E00] text-[#FF5E00] font-semibold px-6 py-3 rounded-lg
+           hover:bg-orange-50 hover:border-blue-500 transition-all duration-300
+           focus:outline-none focus:ring-2 focus:ring-[#FF5E00] focus:ring-offset-2
            focus:ring-offset-white
            disabled:opacity-50 disabled:cursor-not-allowed
            text-base;
@@ -66,7 +66,7 @@
   .input-field {
     @apply w-full px-4 py-3 bg-white border border-gray-300 rounded-lg
            text-gray-900 placeholder-gray-400
-           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+           focus:outline-none focus:ring-2 focus:ring-[#FF5E00] focus:border-transparent
            transition-all duration-200;
   }
 
@@ -92,11 +92,11 @@
   /* Sidebar link style - Light theme */
   .sidebar-link {
     @apply flex items-center gap-3 px-4 py-3 text-gray-600 rounded-lg
-           hover:bg-blue-50 hover:text-blue-600 transition-all duration-200;
+           hover:bg-orange-50 hover:text-blue-600 transition-all duration-200;
   }
 
   .sidebar-link.active {
-    @apply bg-blue-100 text-blue-600 font-medium border-l-2 border-blue-500;
+    @apply bg-orange-50 text-[#FF5E00] font-medium border-l-2 border-[#FF5E00];
   }
 
   /* Badge styles */
@@ -179,7 +179,7 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #94A3B8;
+  background: #FF5E00;
   border-radius: 4px;
 }
 

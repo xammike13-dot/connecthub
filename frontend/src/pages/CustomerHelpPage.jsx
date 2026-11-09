@@ -13,7 +13,7 @@ const faqCategories = [
     icon: UserPlus,
     items: [
       {
-        question: 'How do I create a ConnectHub account?',
+        question: 'How do I create a Olafasta account?',
         answer: 'To create an account, click the "Sign Up" button on the homepage. Choose your role as "Customer", fill in your name, email, phone number, and password, then click "Register".'
       },
       {
@@ -28,7 +28,7 @@ const faqCategories = [
     icon: ShoppingBag,
     items: [
       {
-        question: 'How do I shop on ConnectHub?',
+        question: 'How do I shop on Olafasta?',
         answer: 'You can browse products by visiting the "Marketplace" from the main navigation. You can filter products by standardized categories like Food, Household, Electronics, Fashion, Gas, Wines & Spirits, Second Hand, and Health Care.'
       },
       {
@@ -66,8 +66,8 @@ const faqCategories = [
         answer: 'Yes, you can request order cancellation from the order details page if the order is still "Processing" or "Paid" but not yet shipped. If a business cancels an order due to out of stock, you will be notified instantly.'
       },
       {
-        question: 'How do refunds work on ConnectHub?',
-        answer: 'If your order is cancelled or a return is approved, the refund is automatically processed. Funds are immediately returned to your ConnectHub online Wallet, which you can use for other purchases or withdraw via M-Pesa.'
+        question: 'How do refunds work on Olafasta?',
+        answer: 'If your order is cancelled or a return is approved, the refund is automatically processed. Funds are immediately returned to your Olafasta online Wallet, which you can use for other purchases or withdraw via M-Pesa.'
       }
     ]
   },
@@ -96,7 +96,7 @@ const faqCategories = [
     icon: Wallet,
     items: [
       {
-        question: 'What is the ConnectHub Wallet?',
+        question: 'What is the Olafasta Wallet?',
         answer: 'Your Wallet stores online funds, cashbacks, and refunds. You can deposit money into your Wallet via M-Pesa or use your existing balance to quickly checkout without waiting for M-Pesa prompts.'
       },
       {

@@ -178,10 +178,10 @@ const EmailVerificationPage = () => {
         {/* Logo */}
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center gap-2 justify-center">
-            <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center shadow-blue">
-              <span className="text-white font-bold text-2xl">C</span>
+            <div className="w-12 h-12 bg-[#FF5E00] rounded-xl flex items-center justify-center shadow-blue">
+              <span className="text-white font-bold text-2xl">O</span>
             </div>
-            <span className="text-2xl font-bold text-neutral-900">ConnectHub</span>
+            <span className="text-2xl font-bold text-neutral-900">Olafasta</span>
           </Link>
           <p className="mt-2 text-neutral-500 text-sm">Verify your email address</p>
         </div>

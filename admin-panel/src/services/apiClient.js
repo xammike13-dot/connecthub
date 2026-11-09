@@ -9,7 +9,7 @@ export let configErrorMessage = '';
 if (!import.meta.env.DEV) {
   // In production, keep fallback to the live Render endpoint
   if (!rawApiUrl || !rawApiUrl.startsWith('http')) {
-    rawApiUrl = 'https://connecthub-60j4.onrender.com/api';
+    rawApiUrl = 'https://Olafasta-60j4.onrender.com/api';
   }
 } else {
   // In development, require VITE_API_URL to be explicitly set.

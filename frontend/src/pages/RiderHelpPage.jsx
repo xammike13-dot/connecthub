@@ -13,7 +13,7 @@ const faqCategories = [
     icon: User,
     items: [
       {
-        question: 'How do I register as a Rider on ConnectHub?',
+        question: 'How do I register as a Rider on Olafasta?',
         answer: 'During account registration, choose the "Rider" role. Fill out the Rider Setup form with your full name, phone number, working area (County, Town), standard motorcycle details, and rate per kilometre.'
       },
       {

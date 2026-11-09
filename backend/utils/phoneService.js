@@ -86,7 +86,7 @@ export const sendWhatsAppVerification = async (phone, code) => {
 
     let bodyPayload = {
       to: phone,
-      message: `Your ConnectHub verification code is: ${code}. This code will expire in 5 minutes.`,
+      message: `Your Olafasta verification code is: ${code}. Code expires in 5 minutes. — olafasta.com`,
     };
 
     if (whatsappApiUrl.includes('graph.facebook.com') || whatsappApiUrl.includes('whatsapp.com')) {
@@ -159,7 +159,7 @@ export const sendSMSVerification = async (phone, code) => {
     // Example using Twilio SDK (install with: npm install twilio)
     // const client = require('twilio')(twilioAccountSid, twilioAuthToken);
     // await client.messages.create({
-    //   body: `Your ConnectHub verification code is: ${code}. This code will expire in 15 minutes.`,
+    //   body: `Your Olafasta verification code is: ${code}. Code expires in 15 minutes. — olafasta.com`,
     //   from: twilioPhoneNumber,
     //   to: phone,
     // });

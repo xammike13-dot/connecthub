@@ -27,36 +27,36 @@
   }
 
   a {
-    @apply text-blue-600 hover:text-blue-700 transition-colors;
+    @apply text-[#FF5E00] hover:text-[#CC4B00] transition-colors;
   }
 }
 
 @layer components {
-  /* Primary button - Blue */
+  /* Primary button - Olafasta Orange */
   .btn-primary {
-    @apply bg-blue-600 text-white font-semibold px-6 py-3 rounded-lg 
-           hover:bg-blue-700 hover:shadow-lg transition-all duration-300 
-           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 
+    @apply bg-[#FF5E00] text-white font-semibold px-6 py-3 rounded-lg 
+           hover:bg-[#CC4B00] hover:shadow-lg transition-all duration-300 
+           focus:outline-none focus:ring-2 focus:ring-[#FF5E00] focus:ring-offset-2 
            focus:ring-offset-white 
            disabled:opacity-50 disabled:cursor-not-allowed
            text-base;
   }
 
-  /* Secondary button - Outline blue */
+  /* Secondary button - Outline orange */
   .btn-secondary {
-    @apply border-2 border-blue-600 text-blue-600 font-semibold px-6 py-3 rounded-lg
-           hover:bg-blue-50 hover:border-blue-500 transition-all duration-300
-           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+    @apply border-2 border-[#FF5E00] text-[#FF5E00] font-semibold px-6 py-3 rounded-lg
+           hover:bg-orange-50 hover:border-[#CC4B00] transition-all duration-300
+           focus:outline-none focus:ring-2 focus:ring-[#FF5E00] focus:ring-offset-2
            focus:ring-offset-white
            disabled:opacity-50 disabled:cursor-not-allowed
            text-base;
   }
 
-  /* Success button - Green */
+  /* Success button - Olafasta Deep Green */
   .btn-success {
-    @apply bg-green-600 text-white font-semibold px-6 py-3 rounded-lg
-           hover:bg-green-700 hover:shadow-lg transition-all duration-300
-           focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2
+    @apply bg-[#027A2B] text-white font-semibold px-6 py-3 rounded-lg
+           hover:bg-[#025D20] hover:shadow-lg transition-all duration-300
+           focus:outline-none focus:ring-2 focus:ring-[#027A2B] focus:ring-offset-2
            focus:ring-offset-white
            disabled:opacity-50 disabled:cursor-not-allowed
            text-base;
@@ -66,7 +66,7 @@
   .input-field {
     @apply w-full px-4 py-3 bg-white border border-gray-300 rounded-lg 
            text-gray-900 placeholder-gray-400
-           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent 
+           focus:outline-none focus:ring-2 focus:ring-[#FF5E00] focus:border-transparent 
            transition-all duration-200;
   }
 
@@ -75,7 +75,7 @@
   }
 
   .input-field:focus {
-    @apply border-blue-500;
+    border-color: #FF5E00;
   }
 
   /* Card style - Light elegant */
@@ -86,26 +86,26 @@
 
   /* Card hover effect */
   .card-hover {
-    @apply hover:border-blue-400 hover:shadow-lg transition-all duration-300;
+    @apply hover:border-[#FF5E00] hover:shadow-orange transition-all duration-300;
   }
 
   /* Sidebar link style - Light theme */
   .sidebar-link {
     @apply flex items-center gap-3 px-4 py-3 text-gray-600 rounded-lg 
-           hover:bg-blue-50 hover:text-blue-600 transition-all duration-200;
+           hover:bg-orange-50 hover:text-[#FF5E00] transition-all duration-200;
   }
 
   .sidebar-link.active {
-    @apply bg-blue-100 text-blue-600 font-medium border-l-2 border-blue-500;
+    @apply bg-orange-50 text-[#FF5E00] font-medium border-l-2 border-[#FF5E00];
   }
 
   /* Badge styles */
   .badge-primary {
-    @apply bg-blue-100 text-blue-600 px-3 py-1 rounded-full text-sm font-medium;
+    @apply bg-orange-100 text-[#FF5E00] px-3 py-1 rounded-full text-sm font-medium;
   }
 
   .badge-success {
-    @apply bg-green-100 text-green-600 px-3 py-1 rounded-full text-sm font-medium;
+    @apply bg-green-100 text-[#027A2B] px-3 py-1 rounded-full text-sm font-medium;
   }
 
   .badge-error {
@@ -123,12 +123,12 @@
 
   /* Price display */
   .price-display {
-    @apply text-2xl font-bold text-blue-600;
+    @apply text-2xl font-bold text-[#FF5E00];
   }
 
   /* Status indicators */
   .status-online {
-    @apply w-2 h-2 bg-green-500 rounded-full animate-pulse;
+    @apply w-2 h-2 bg-[#6BE319] rounded-full animate-pulse;
   }
 
   .status-offline {
@@ -153,9 +153,9 @@
   .text-secondary-100 { color: #F1F5F9 !important; }
   .hover\:bg-secondary-100:hover { background-color: #F1F5F9 !important; }
   .hover\:bg-secondary-200:hover { background-color: #E2E8F0 !important; }
-  .bg-primary-50 { background-color: #EFF6FF !important; }
-  .bg-primary-100 { background-color: #DBEAFE !important; }
-  .border-primary-200 { border-color: #BFDBFE !important; }
+  .bg-primary-50 { background-color: #FFF3EC !important; }
+  .bg-primary-100 { background-color: #FFE4CC !important; }
+  .border-primary-200 { border-color: #FF7A2E !important; }
   textarea, select {
     background-color: #FFFFFF;
     color: #1E293B;
@@ -168,7 +168,7 @@
   }
 }
 
-/* Custom scrollbar - Light theme */
+/* Custom scrollbar - Olafasta themed */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -179,18 +179,19 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #94A3B8;
+  background: #FF5E00;
   border-radius: 4px;
+  opacity: 0.7;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #64748B;
+  background: #CC4B00;
 }
 
-/* Selection color */
+/* Selection color - Olafasta Orange */
 ::selection {
-  background: rgba(59, 130, 246, 0.2);
-  color: #1E3A8A;
+  background: rgba(255, 94, 0, 0.2);
+  color: #CC4B00;
 }
 
 /* Safe area for mobile devices */
@@ -198,18 +199,32 @@
   padding-bottom: env(safe-area-inset-bottom);
 }
 
-/* Blue glow animation */
-@keyframes bluePulse {
+/* Olafasta Orange glow animation */
+@keyframes orangePulse {
   0%, 100% {
-    box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
+    box-shadow: 0 0 20px rgba(255, 94, 0, 0.2);
   }
   50% {
-    box-shadow: 0 0 40px rgba(59, 130, 246, 0.4);
+    box-shadow: 0 0 40px rgba(255, 94, 0, 0.4);
   }
 }
 
-.animate-blue-pulse {
-  animation: bluePulse 2s ease-in-out infinite;
+.animate-orange-pulse {
+  animation: orangePulse 2s ease-in-out infinite;
+}
+
+/* Neon Green glow for live status */
+@keyframes neonGlow {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(107, 227, 25, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(107, 227, 25, 0.8);
+  }
+}
+
+.animate-neon-glow {
+  animation: neonGlow 2s ease-in-out infinite;
 }
 
 /* Shimmer effect for loading states */
@@ -243,3 +258,9 @@
 .animate-fade-in {
   animation: fadeIn 0.5s ease-out forwards;
 }
+
+/* Hide scrollbar for horizontal scroll rows */
+.scrollbar-hide::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.scrollbar-hide,
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

@@ -107,7 +107,7 @@ const AdminBroadcastPage = () => {
           <div>
             <label className="block text-xs font-semibold text-slate-400 mb-2">Action / Deep Link URL (Optional)</label>
             <Input
-              placeholder="e.g. /customer/orders or https://connecthub.app/news"
+              placeholder="e.g. /customer/orders or https://Olafasta.app/news"
               value={actionUrl}
               onChange={(e) => setActionUrl(e.target.value)}
               className="bg-slate-950 border-slate-800 text-slate-100 placeholder-slate-600"

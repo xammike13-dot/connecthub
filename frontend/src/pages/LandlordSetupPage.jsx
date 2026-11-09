@@ -128,7 +128,7 @@ const LandlordSetupPage = () => {
         profilePhoto: '',
         businessLogo: defaultLogo,
         propertyName: `${user?.name || 'My'}'s Rental`,
-        propertyDescription: 'A premium residential property managed with ConnectHub.',
+        propertyDescription: 'A premium residential property managed with Olafasta.',
         propertyLocation: 'Eldoret',
         contactDetails: user?.phone || 'Phone not provided',
       });

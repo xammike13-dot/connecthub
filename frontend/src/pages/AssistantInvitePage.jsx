@@ -119,7 +119,7 @@ const AssistantInvitePage = () => {
         {/* Banner */}
         <div className="bg-blue-600 p-8 text-center text-white space-y-2">
           <CheckCircle2 className="w-12 h-12 mx-auto" />
-          <h2 className="text-2xl font-black tracking-tight">ConnectHub Invitation</h2>
+          <h2 className="text-2xl font-black tracking-tight">Olafasta Invitation</h2>
           <p className="text-blue-100 text-xs font-bold uppercase tracking-widest">
             Join as Business Assistant
           </p>

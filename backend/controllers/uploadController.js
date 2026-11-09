@@ -28,7 +28,7 @@ function ensureCloudinaryConfigured() {
 export const getUploadSignature = asyncHandler(async (req, res) => {
   ensureCloudinaryConfigured();
   
-  const { folder = 'connecthub', public_id } = req.body;
+  const { folder = 'olafasta', public_id } = req.body;
   
   if (!folder) {
     throw new ResponseError('Folder name is required', 400);
@@ -77,7 +77,7 @@ export const uploadImages = asyncHandler(async (req, res) => {
   const uploadPromises = req.files.map(file => {
     console.log('[uploadImages] Uploading to Cloudinary:', file.path);
     return cloudinary.uploader.upload(file.path, {
-      folder: 'connecthub',
+      folder: 'olafasta',
       resource_type: 'auto',
     });
   });
@@ -162,7 +162,7 @@ export const uploadImage = asyncHandler(async (req, res) => {
   console.log('[uploadImage] Starting Cloudinary upload...');
   try {
     const result = await cloudinary.uploader.upload(req.file.path, {
-      folder: 'connecthub',
+      folder: 'olafasta',
       resource_type: 'auto',
     });
 

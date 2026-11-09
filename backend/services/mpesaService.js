@@ -576,7 +576,7 @@ class MpesaService {
         Amount: Math.round(amount),
         PartyA: partyA,
         PartyB: formattedPhone,
-        Remarks: 'ConnectHub Withdrawal',
+        Remarks: 'Olafasta Withdrawal',
         QueueTimeOutURL: queueTimeOutUrl,
         ResultURL: resultUrl,
         Occasion: 'Wallet Withdrawal',

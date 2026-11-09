@@ -6,7 +6,7 @@ import SystemLog from '../models/SystemLog.js';
 // VAPID Keys - loaded from env if present, with reliable fallbacks
 export const vapidPublicKey = process.env.VAPID_PUBLIC_KEY || 'BGixtKJV9Uh2ov9bXcNo-9IanofbeUOJcIV2pZ6R4fBk478mbbZwYd5DNowJ-GExxlBUQaCt9Ba1Ybv74zALyvE';
 const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || '27udMCopf2g1kFEtuRN2C2svLOpvqJf0sbFsCf9BzTg';
-const vapidEmail = process.env.VAPID_EMAIL || 'mailto:connecthub387@gmail.com';
+const vapidEmail = process.env.VAPID_EMAIL || 'mailto:support@olafasta.com';
 
 webpush.setVapidDetails(
   vapidEmail,
@@ -25,7 +25,7 @@ console.log('[WebPush] Initialized with public key:', vapidPublicKey.slice(0, 10
 export const sendPushToSubscription = async (subDoc, payload) => {
   try {
     const payloadString = JSON.stringify({
-      title: payload.title || 'ConnectHub',
+      title: payload.title || 'Olafasta',
       body: payload.body || payload.message || '',
       icon: '/icon-192.png',
       badge: '/icon-192.png',

@@ -1,376 +1,263 @@
-import { useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { useEffect, useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { 
-  ShoppingBag, 
-  Home, 
-  Bike, 
-  Heart, 
-  Shield, 
-  Truck,
-  CreditCard,
-  Phone,
-  Star,
-  ChevronRight,
-  ArrowRight,
-} from 'lucide-react';
-import Button from '../components/ui/Button';
+import PromoCarousel from '../components/PromoCarousel';
+import CategoryIconBar from '../components/CategoryIconBar';
+import ProductScrollRow from '../components/ProductScrollRow';
+import ProductFeed from '../components/ProductFeed';
 
-const features = [
-  {
-    icon: <ShoppingBag className="w-6 h-6" />,
-    title: 'Online Shopping',
-    description: 'Browse and buy products from verified businesses',
-    color: 'bg-blue-600',
-    gradient: 'from-blue-500 to-blue-600',
-  },
-  {
-    icon: <Home className="w-6 h-6" />,
-    title: 'Property Rentals',
-    description: 'Find and book rental properties easily',
-    color: 'bg-blue-600',
-    gradient: 'from-blue-400 to-blue-600',
-  },
-  {
-    icon: <Bike className="w-6 h-6" />,
-    title: 'Bodaboda Transport',
-    description: 'Quick and reliable motorcycle taxi service',
-    color: 'bg-blue-600',
-    gradient: 'from-blue-500 to-blue-700',
-  },
-  {
-    icon: <Heart className="w-6 h-6" />,
-    title: 'Healthcare Services',
-    description: 'Access healthcare providers and services',
-    color: 'bg-blue-600',
-    gradient: 'from-blue-400 to-blue-500',
-  },
+// ─── Mock data (shown immediately while API loads) ─────────────────────────────
+const FLASH_MOCK = [
+  { _id: 'm1', name: 'Wireless Earbuds Pro', price: 850, oldPrice: 1500, discountPct: 43, images: [] },
+  { _id: 'm2', name: 'Leather Belt – Black', price: 180, oldPrice: 300, discountPct: 40, images: [] },
+  { _id: 'm3', name: 'Smart Phone Holder', price: 120, oldPrice: 250, discountPct: 52, images: [] },
+  { _id: 'm4', name: '1L Cooking Oil', price: 215, oldPrice: 280, discountPct: 23, images: [] },
+  { _id: 'm5', name: 'Hoodie – Campus Edition', price: 650, oldPrice: 900, discountPct: 28, images: [] },
 ];
 
-const benefits = [
-  {
-    icon: <Shield className="w-8 h-8" />,
-    title: 'Secure Payments',
-    description: 'All transactions are protected with industry-standard encryption',
-  },
-  {
-    icon: <Truck className="w-8 h-8" />,
-    title: 'Fast Delivery',
-    description: 'Get your orders delivered quickly and efficiently',
-  },
-  {
-    icon: <CreditCard className="w-8 h-8" />,
-    title: 'Easy Wallet',
-    description: 'Manage your funds with our integrated wallet system',
-  },
-  {
-    icon: <Phone className="w-8 h-8" />,
-    title: '24/7 Support',
-    description: 'Our team is always ready to help you',
-  },
+const FOOD_MOCK = [
+  { _id: 'f1', name: 'Ugali + Sukuma Wiki Combo', price: 60, oldPrice: null, images: [], isLive: true },
+  { _id: 'f2', name: 'Pilau Bowl (Large)', price: 120, oldPrice: null, images: [], isLive: true },
+  { _id: 'f3', name: 'Chips Mwitu + Kachumbari', price: 80, oldPrice: null, images: [], isLive: false },
+  { _id: 'f4', name: 'Mandazi x6 Pack', price: 30, oldPrice: null, images: [] },
+  { _id: 'f5', name: 'Soda 500ml (Any Brand)', price: 55, oldPrice: null, images: [] },
 ];
 
-const testimonials = [
-  {
-    name: 'John Kamau',
-    role: 'Customer',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100',
-    rating: 5,
-    text: 'Connect Hub has made shopping so convenient. I can order everything I need and pay securely.',
-  },
-  {
-    name: 'Sarah Mwangi',
-    role: 'Business Owner',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100',
-    rating: 5,
-    text: 'Since joining Connect Hub, my business has grown significantly. The platform is easy to use.',
-  },
-  {
-    name: 'Peter Ochieng',
-    role: 'Rider',
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100',
-    rating: 5,
-    text: 'As a bodaboda rider, this app has helped me get more customers and manage my earnings better.',
-  },
+const FASHION_MOCK = [
+  { _id: 'fa1', name: 'Slim Jeans – Blue Wash', price: 350, oldPrice: 600, discountPct: 42, images: [] },
+  { _id: 'fa2', name: 'Ladies Blouse – Pink', price: 220, oldPrice: 400, discountPct: 45, images: [] },
+  { _id: 'fa3', name: 'Nike-Style Sneakers', price: 800, oldPrice: 1200, discountPct: 33, images: [] },
+  { _id: 'fa4', name: 'Vintage Denim Jacket', price: 550, oldPrice: 900, discountPct: 39, images: [] },
+  { _id: 'fa5', name: 'Ankara Dress – L/XL', price: 400, oldPrice: 650, discountPct: 38, images: [] },
 ];
 
+const TECH_MOCK = [
+  { _id: 't1', name: 'USB-C Fast Charging Cable 2m', price: 150, oldPrice: 300, discountPct: 50, images: [] },
+  { _id: 't2', name: 'Power Bank 10,000mAh', price: 1200, oldPrice: 2000, discountPct: 40, images: [] },
+  { _id: 't3', name: 'Phone Screen Protector 9D', price: 80, oldPrice: 150, discountPct: 47, images: [] },
+  { _id: 't4', name: 'Bluetooth Speaker Mini', price: 650, oldPrice: 1100, discountPct: 41, images: [] },
+  { _id: 't5', name: 'Laptop Cooling Stand', price: 900, oldPrice: 1500, discountPct: 40, images: [] },
+];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const normaliseProducts = (json) => {
+  if (!json) return [];
+  if (Array.isArray(json)) return json;
+  if (Array.isArray(json.data)) return json.data;
+  return [];
+};
+
+// ─── Component ────────────────────────────────────────────────────────────────
 const HomePage = () => {
   const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
 
+  // Live API rows (fall back to mock while loading)
+  const [flashProducts, setFlashProducts] = useState(FLASH_MOCK);
+  const [foodProducts, setFoodProducts] = useState(FOOD_MOCK);
+  const [fashionProducts, setFashionProducts] = useState(FASHION_MOCK);
+  const [techProducts, setTechProducts] = useState(TECH_MOCK);
+
+  // Redirect logged-in users to their dashboards
   useEffect(() => {
     if (isAuthenticated && user) {
-      const dashboardMap = {
+      const map = {
         customer: '/customer/dashboard',
         landlord: '/landlord/dashboard',
         business: '/business/dashboard',
         rider: '/rider/dashboard',
         admin: '/',
         assistant: '/assistant/dashboard',
+        caretaker: '/caretaker/dashboard',
       };
-      const targetPath = dashboardMap[user.role] || '/';
-      navigate(targetPath, { replace: true });
+      navigate(map[user.role] || '/', { replace: true });
     }
   }, [isAuthenticated, user, navigate]);
 
+  // Load live products in the background; replace mocks when ready
+  useEffect(() => {
+    const load = (params, setter) =>
+      fetch(`/api/products?${params}&limit=10`)
+        .then((r) => r.json())
+        .then((j) => {
+          const d = normaliseProducts(j);
+          if (d.length) setter(d);
+        })
+        .catch(() => {/* retain mocks if network or api fails */});
+
+    load('page=1', setFlashProducts);
+    load('category=food&page=1', setFoodProducts);
+    load('category=fashion&page=1', setFashionProducts);
+    load('category=electronics&page=1', setTechProducts);
+  }, []);
+
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Hero Section */}
-      <section className="relative bg-gradient-to-br from-blue-50 via-white to-slate-100 overflow-hidden">
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTTAgNjBMMCAwTDYwIDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSg1OSwgMTMwLCAyNDYsIDAuMDUpIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-30" />
-        <div className="relative max-w-7xl mx-auto px-4 py-24 md:py-32">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="max-w-3xl text-left"
+    <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col font-sans">
+
+      {/* ── 1. Top Promo Banner Carousel ─────────────────────── */}
+      <div className="max-w-7xl w-full mx-auto px-3 sm:px-4 pt-3 sm:pt-4 pb-2">
+        <PromoCarousel />
+      </div>
+
+      {/* ── 2. Compact Sticky Category Icon Bar ─────────────── */}
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md shadow-sm border-b border-gray-200/80">
+        <div className="max-w-7xl mx-auto">
+          <CategoryIconBar />
+        </div>
+      </div>
+
+      {/* ── 3. High-Velocity Product Rows ────────────────────── */}
+      <div className="max-w-7xl w-full mx-auto space-y-2 md:space-y-4 my-2">
+
+        <ProductScrollRow
+          title="⚡ Flash Sales"
+          viewAllLink="/marketplace?sort=discount"
+          products={flashProducts}
+        />
+
+        <div className="border-t border-gray-200/60 mx-4" />
+
+        <ProductScrollRow
+          title="🍔 Hot Food & Drinks"
+          viewAllLink="/marketplace?category=food"
+          products={foodProducts}
+        />
+
+        <div className="border-t border-gray-200/60 mx-4" />
+
+        <ProductScrollRow
+          title="👗 Fresh Mitumba Drops"
+          viewAllLink="/marketplace?category=fashion"
+          products={fashionProducts}
+        />
+
+        <div className="border-t border-gray-200/60 mx-4" />
+
+        <ProductScrollRow
+          title="🔌 Tech & Gadgets"
+          viewAllLink="/marketplace?category=electronics"
+          products={techProducts}
+        />
+      </div>
+
+      {/* ── 4. Hyperlocal Service Promo Strips ────────────────── */}
+      <div className="max-w-7xl w-full mx-auto px-4 py-4 md:py-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+
+        {/* Boda Card */}
+        <div className="bg-gradient-to-r from-[#FF5E00] to-[#E05200] rounded-2xl p-5 md:p-6 flex items-center gap-4 shadow-md text-white">
+          <span className="text-4xl md:text-5xl select-none">🏍️</span>
+          <div className="flex-1">
+            <h3 className="text-white font-extrabold text-lg md:text-xl leading-tight">Request a Boda Ride</h3>
+            <p className="text-orange-100 text-xs md:text-sm mt-0.5 font-medium">Kesses · Chebarus · Mabs · Stage</p>
+          </div>
+          <Link
+            to="/transport"
+            className="bg-white text-[#FF5E00] font-bold text-xs md:text-sm px-4 md:px-5 py-2.5 rounded-xl shadow hover:bg-orange-50 active:scale-95 transition-all whitespace-nowrap"
           >
-            <div className="inline-flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 rounded-full px-4 py-2 mb-6">
-              <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-              <span className="text-blue-600 text-sm font-medium">Kenya's Premier Multi-Service Platform</span>
-            </div>
-            <h1 className="text-4xl md:text-6xl font-bold mb-6 text-neutral-900 leading-tight">
-              Everything You Need,
-              <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-blue-800">In One Place</span>
-            </h1>
-            <p className="text-lg md:text-xl text-neutral-600 mb-8 max-w-2xl">
-              Shop, rent properties, book rides, and access healthcare services - all through one secure platform.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Link to="/register">
-                <Button size="lg" className="group btn-primary">
-                  Get Started
-                  <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform" size={20} />
-                </Button>
-              </Link>
-              <Link to="/marketplace">
-                <Button size="lg" variant="secondary" className="bg-white hover:bg-neutral-100 text-blue-600 border border-blue-200">
-                  Browse Marketplace
-                </Button>
-              </Link>
-            </div>
-          </motion.div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mt-16 pt-16 border-t border-neutral-200">
-            {[
-              { value: '10K+', label: 'Active Users' },
-              { value: '5K+', label: 'Products' },
-              { value: '1K+', label: 'Properties' },
-              { value: '500+', label: 'Riders' },
-            ].map((stat, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1, duration: 0.5 }}
-                className="text-left"
-              >
-                <p className="text-3xl md:text-4xl font-bold text-blue-600">{stat.value}</p>
-                <p className="text-neutral-500 text-sm mt-1">{stat.label}</p>
-              </motion.div>
-            ))}
-          </div>
+            Book Ride
+          </Link>
         </div>
-      </section>
 
-      {/* Services Section */}
-      <section className="py-20 bg-white">
+        {/* Rentals Card */}
+        <div className="bg-gradient-to-r from-[#027A2B] to-[#015C20] rounded-2xl p-5 md:p-6 flex items-center gap-4 shadow-md text-white">
+          <span className="text-4xl md:text-5xl select-none">🏠</span>
+          <div className="flex-1">
+            <h3 className="text-white font-extrabold text-lg md:text-xl leading-tight">Find a Bedsitter / Hostel</h3>
+            <p className="text-green-100 text-xs md:text-sm mt-0.5 font-medium">Verified rooms around campus</p>
+          </div>
+          <Link
+            to="/rentals"
+            className="bg-white text-[#027A2B] font-bold text-xs md:text-sm px-4 md:px-5 py-2.5 rounded-xl shadow hover:bg-green-50 active:scale-95 transition-all whitespace-nowrap"
+          >
+            Search Rooms
+          </Link>
+        </div>
+      </div>
+
+      {/* ── 5. Full Marketplace Feed (Infinite Grid) ─────────── */}
+      <div className="border-t border-gray-200/80 bg-gray-50 pt-6">
+        <div className="max-w-7xl mx-auto px-4 pb-2 flex items-center justify-between">
+          <h2 className="text-gray-900 font-extrabold text-base md:text-xl">🛒 All Marketplace Items</h2>
+          <Link to="/marketplace" className="text-[#FF5E00] hover:text-[#CC4B00] text-xs md:text-sm font-bold flex items-center gap-1">
+            Full Catalog →
+          </Link>
+        </div>
+        <ProductFeed />
+      </div>
+
+      {/* ── 6. Clean Light-Mode Footer ───────────────────────── */}
+      <footer className="bg-white border-t border-gray-200 py-12 mt-auto">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-neutral-900 mb-4">
-              Our Services
-            </h2>
-            <p className="text-lg text-neutral-600 max-w-2xl mx-auto">
-              Discover all the ways Connect Hub can help you
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {features.map((feature, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1 }}
-                whileHover={{ y: -5 }}
-                className="bg-slate-50 rounded-xl shadow-sm p-6 border border-neutral-200 hover:border-blue-500 hover:shadow-md transition-all text-left"
-              >
-                <div className={`w-12 h-12 bg-gradient-to-br ${feature.gradient} rounded-lg flex items-center justify-center text-white mb-4 shadow-sm`}>
-                  {feature.icon}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-left">
+            <div className="col-span-2 md:col-span-1">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-9 h-9 bg-[#FF5E00] rounded-lg flex items-center justify-center shadow-sm">
+                  <span className="text-white font-extrabold text-lg">O</span>
                 </div>
-                <h3 className="text-lg font-bold text-neutral-900 mb-2">
-                  {feature.title}
-                </h3>
-                <p className="text-neutral-600 text-sm mb-4 leading-relaxed">{feature.description}</p>
-                <Link
-                  to={
-                    index === 0
-                      ? '/marketplace'
-                      : index === 1
-                      ? '/rentals'
-                      : index === 2
-                      ? '/transport'
-                      : '/healthcare'
-                  }
-                  className="text-blue-600 font-semibold flex items-center gap-1 hover:gap-2 transition-all text-sm"
-                >
-                  Learn More <ChevronRight size={16} />
-                </Link>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Why Choose Us */}
-      <section className="py-20 bg-slate-50">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-neutral-900 mb-4">
-              Why Choose Connect Hub?
-            </h2>
-            <p className="text-lg text-neutral-600 max-w-2xl mx-auto">
-              We're committed to providing the best experience
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {benefits.map((benefit, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1 }}
-                className="text-center"
-              >
-                <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center text-blue-600 mx-auto mb-4 border border-blue-500/20">
-                  {benefit.icon}
-                </div>
-                <h3 className="text-lg font-bold text-neutral-900 mb-2">{benefit.title}</h3>
-                <p className="text-neutral-600 text-sm leading-relaxed">{benefit.description}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials */}
-      <section className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-neutral-900 mb-4">
-              What People Say
-            </h2>
-            <p className="text-lg text-neutral-600 max-w-2xl mx-auto">Join thousands of satisfied users</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {testimonials.map((testimonial, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1 }}
-                className="bg-slate-50 rounded-xl shadow-sm p-6 border border-neutral-200 text-left"
-              >
-                <div className="flex items-center gap-1 mb-4">
-                  {[...Array(testimonial.rating)].map((_, i) => (
-                    <Star key={i} className="w-4 h-4 text-yellow-400 fill-current" />
-                  ))}
-                </div>
-                <p className="text-neutral-700 text-sm mb-6 leading-relaxed italic">"{testimonial.text}"</p>
-                <div className="flex items-center gap-3">
-                  <img
-                    src={testimonial.avatar}
-                    alt={testimonial.name}
-                    className="w-12 h-12 rounded-full object-cover border-2 border-blue-500/20"
-                  />
-                  <div>
-                    <p className="font-bold text-neutral-900 text-sm">{testimonial.name}</p>
-                    <p className="text-xs text-neutral-500 mt-0.5">{testimonial.role}</p>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-20 bg-gradient-to-r from-blue-600 via-blue-500 to-blue-700 text-white">
-        <div className="max-w-4xl mx-auto px-4 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Ready to Get Started?
-          </h2>
-          <p className="text-lg text-blue-100 mb-8 leading-relaxed max-w-2xl mx-auto">
-            Join Connect Hub today and experience the convenience of having everything in one place.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link to="/register">
-              <Button size="lg" className="bg-white text-blue-600 hover:bg-neutral-100 hover:text-blue-700 border border-transparent shadow-md font-semibold">
-                Create Account
-              </Button>
-            </Link>
-            <Link to="/login">
-              <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/10 hover:text-white font-semibold">
-                Sign In
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="bg-slate-50 border-t border-neutral-200 py-16">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 text-left">
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-lg">C</span>
-                </div>
-                <h3 className="text-neutral-900 font-bold text-lg">Connect Hub</h3>
+                <h3 className="text-gray-900 font-extrabold text-xl tracking-tight">Olafasta</h3>
               </div>
-              <p className="text-neutral-500 text-sm leading-relaxed">
-                Your one-stop platform for shopping, rentals, transport, and healthcare services.
+              <p className="text-gray-500 text-xs md:text-sm leading-relaxed mb-3">
+                The hyperlocal student super-app. Built by comrades, for comrades — fasta fasta, kila kitu.
               </p>
+              <div className="text-gray-500 text-xs space-y-1">
+                <p className="font-semibold text-gray-700">+254 748 459757 | 0707 841 747</p>
+                <p>support@olafasta.com</p>
+              </div>
             </div>
+
             <div>
-              <h4 className="text-neutral-800 font-bold text-sm uppercase tracking-wider mb-4">Quick Links</h4>
-              <ul className="space-y-2 text-sm">
-                <li><Link to="/marketplace" className="text-neutral-600 hover:text-blue-600 transition-colors">Marketplace</Link></li>
-                <li><Link to="/rentals" className="text-neutral-600 hover:text-blue-600 transition-colors">Rentals</Link></li>
-                <li><Link to="/transport" className="text-neutral-600 hover:text-blue-600 transition-colors">Bodaboda</Link></li>
-                <li><Link to="/healthcare" className="text-neutral-600 hover:text-blue-600 transition-colors">Healthcare</Link></li>
+              <h4 className="text-gray-900 font-bold text-xs uppercase tracking-wider mb-3">Services</h4>
+              <ul className="space-y-2 text-xs md:text-sm">
+                {[
+                  ['Marketplace', '/marketplace'],
+                  ['Bodaboda Rides', '/transport'],
+                  ['Campus Rentals', '/rentals'],
+                  ['Healthcare & Chemist', '/marketplace?category=health']
+                ].map(([label, href]) => (
+                  <li key={label}>
+                    <Link to={href} className="text-gray-600 hover:text-[#FF5E00] transition-colors">{label}</Link>
+                  </li>
+                ))}
               </ul>
             </div>
+
             <div>
-              <h4 className="text-neutral-800 font-bold text-sm uppercase tracking-wider mb-4">Company</h4>
-              <ul className="space-y-2 text-sm">
-                <li><Link to="/about" className="text-neutral-600 hover:text-blue-600 transition-colors">About Us</Link></li>
-                <li><a href="#" className="text-neutral-600 hover:text-blue-600 transition-colors">Careers</a></li>
-                <li><a href="#" className="text-neutral-600 hover:text-blue-600 transition-colors">Press</a></li>
-                <li><Link to="/support" className="text-neutral-600 hover:text-blue-600 transition-colors">Contact</Link></li>
+              <h4 className="text-gray-900 font-bold text-xs uppercase tracking-wider mb-3">Company</h4>
+              <ul className="space-y-2 text-xs md:text-sm">
+                {[
+                  ['About Olafasta', '/about'],
+                  ['Customer Support', '/support'],
+                  ['Partner with Us', '/register?role=business']
+                ].map(([label, href]) => (
+                  <li key={label}>
+                    <Link to={href} className="text-gray-600 hover:text-[#FF5E00] transition-colors">{label}</Link>
+                  </li>
+                ))}
               </ul>
             </div>
+
             <div>
-              <h4 className="text-neutral-800 font-bold text-sm uppercase tracking-wider mb-4">Support</h4>
-              <ul className="space-y-2 text-sm">
-                <li><Link to="/support" className="text-neutral-600 hover:text-blue-600 transition-colors">Help Center</Link></li>
-                <li><a href="#" className="text-neutral-600 hover:text-blue-600 transition-colors">Safety</a></li>
-                <li><a href="#" className="text-neutral-600 hover:text-blue-600 transition-colors">Terms of Service</a></li>
-                <li><a href="#" className="text-neutral-600 hover:text-blue-600 transition-colors">Privacy Policy</a></li>
+              <h4 className="text-gray-900 font-bold text-xs uppercase tracking-wider mb-3">Legal & Safety</h4>
+              <ul className="space-y-2 text-xs md:text-sm">
+                {[
+                  ['Safety Guidelines', '/support'],
+                  ['Terms of Service', '#'],
+                  ['Privacy Policy', '#']
+                ].map(([label, href]) => (
+                  <li key={label}>
+                    <a href={href} className="text-gray-600 hover:text-[#FF5E00] transition-colors">{label}</a>
+                  </li>
+                ))}
               </ul>
             </div>
           </div>
-          <div className="border-t border-neutral-200 mt-12 pt-8 text-center text-sm text-neutral-500">
-            <p>&copy; 2024 Connect Hub. All rights reserved.</p>
+
+          <div className="border-t border-gray-100 mt-10 pt-6 flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-gray-500">
+            <p>© 2025 Olafasta. All rights reserved. Moi University Main Campus.</p>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 bg-[#027A2B] rounded-full animate-pulse" />
+              <span className="text-[#027A2B] font-semibold">Live in Kesses & Chebarus</span>
+            </div>
           </div>
         </div>
       </footer>

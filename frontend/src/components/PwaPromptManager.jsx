@@ -37,7 +37,7 @@ export default function PwaPromptManager() {
       window.navigator.standalone === true;
     setIsStandalone(checkStandalone);
 
-    const isDismissed = localStorage.getItem('connecthub_install_dismissed') === 'true';
+    const isDismissed = localStorage.getItem('olafasta_install_dismissed') === 'true';
 
     // If beforeinstallprompt was already captured early, check and set it
     if (window.deferredPrompt && !isDismissed && !checkStandalone) {
@@ -86,7 +86,7 @@ export default function PwaPromptManager() {
   useEffect(() => {
     if (isAuthenticated && typeof window !== 'undefined' && 'Notification' in window) {
       const permission = window.Notification.permission;
-      const alreadyAsked = localStorage.getItem('connecthub_push_asked');
+      const alreadyAsked = localStorage.getItem('olafasta_push_asked');
 
       if (permission === 'default' && alreadyAsked !== 'denied' && alreadyAsked !== 'granted') {
         const timer = setTimeout(() => {
@@ -156,7 +156,7 @@ export default function PwaPromptManager() {
         notificationPermission: 'granted'
       });
 
-      localStorage.setItem('connecthub_push_asked', 'granted');
+      localStorage.setItem('olafasta_push_asked', 'granted');
       console.log('[PWA Prompt] Successfully synchronized push subscription with backend.');
     } catch (error) {
       console.error('[PWA Prompt] Failed to sync push subscription:', error);
@@ -175,7 +175,7 @@ export default function PwaPromptManager() {
     if (outcome === 'accepted') {
       setIsStandalone(true);
     } else {
-      localStorage.setItem('connecthub_install_dismissed', 'true');
+      localStorage.setItem('olafasta_install_dismissed', 'true');
     }
 
     setDeferredPrompt(null);
@@ -183,7 +183,7 @@ export default function PwaPromptManager() {
 
   const handleInstallLater = () => {
     setShowInstallBanner(false);
-    localStorage.setItem('connecthub_install_dismissed', 'true');
+    localStorage.setItem('olafasta_install_dismissed', 'true');
   };
 
   const handleAllowNotifications = async () => {
@@ -195,10 +195,10 @@ export default function PwaPromptManager() {
     try {
       const permission = await window.Notification.requestPermission();
       if (permission === 'granted') {
-        localStorage.setItem('connecthub_push_asked', 'granted');
+        localStorage.setItem('olafasta_push_asked', 'granted');
         await syncPushSubscription();
       } else {
-        localStorage.setItem('connecthub_push_asked', 'denied');
+        localStorage.setItem('olafasta_push_asked', 'denied');
       }
     } catch (e) {
       console.error('[PWA Prompt] Notification permission request error:', e);
@@ -207,7 +207,7 @@ export default function PwaPromptManager() {
 
   const handleDismissNotifications = () => {
     setShowPermissionBanner(false);
-    localStorage.setItem('connecthub_push_asked', 'dismissed');
+    localStorage.setItem('olafasta_push_asked', 'dismissed');
   };
 
   return (
@@ -219,7 +219,7 @@ export default function PwaPromptManager() {
             <svg className="w-5 h-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4.978 4.978 0 01-1.414-3.536 4.978 4.978 0 011.414-3.536m0 0L2 21m11-13a3 3 0 10-6 0 3 3 0 006 0z" />
             </svg>
-            <span className="text-sm font-semibold">You are offline. ConnectHub is operating in cached mode.</span>
+            <span className="text-sm font-semibold">You are offline. Olafasta is operating in cached mode.</span>
           </div>
         </div>
       )}
@@ -233,7 +233,7 @@ export default function PwaPromptManager() {
               </svg>
             </div>
             <div>
-              <h3 className="font-bold text-gray-900 text-sm">Install ConnectHub</h3>
+              <h3 className="font-bold text-gray-900 text-sm">Install Olafasta</h3>
               <p className="text-xs text-gray-500 mt-0.5">
                 Install our application directly onto your home screen for an extremely fast, polished native app experience!
               </p>
@@ -265,7 +265,7 @@ export default function PwaPromptManager() {
               </svg>
             </div>
             <div>
-              <h3 className="font-bold text-gray-900 text-sm">Allow ConnectHub to send notifications?</h3>
+              <h3 className="font-bold text-gray-900 text-sm">Allow Olafasta to send notifications?</h3>
               <p className="text-xs text-gray-500 mt-0.5">
                 Stay updated instantly when your orders ship, rentals are approved, or riders arrive.
               </p>

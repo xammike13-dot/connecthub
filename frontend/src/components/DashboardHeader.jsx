@@ -36,7 +36,7 @@ const DashboardHeader = ({ onMenuClick }) => {
                 <span className="text-white font-black text-lg">C</span>
               </div>
               <span className="text-xl font-extrabold text-neutral-900 tracking-tight group-hover:text-blue-600 transition-colors">
-                ConnectHub
+                Olafasta
               </span>
             </Link>
           </div>
@@ -112,12 +112,12 @@ const DashboardHeader = ({ onMenuClick }) => {
       <Modal
         isOpen={helpOpen}
         onClose={() => setHelpOpen(false)}
-        title="ConnectHub Help Center"
+        title="Olafasta Help Center"
         size="md"
       >
         <div className="space-y-4">
           <p className="text-sm text-secondary-600">
-            Welcome to the ConnectHub self-service Help Center. Select from the frequently asked questions or explore user manuals.
+            Welcome to the Olafasta self-service Help Center. Select from the frequently asked questions or explore user manuals.
           </p>
 
           <div className="space-y-3 pt-2">
@@ -186,11 +186,11 @@ const DashboardHeader = ({ onMenuClick }) => {
               </div>
             </a>
 
-            <a href="mailto:connecthub387@gmail.com" className="flex items-center gap-3 hover:bg-neutral-100 p-1.5 rounded-lg transition-colors block">
+            <a href="mailto:Olafasta387@gmail.com" className="flex items-center gap-3 hover:bg-neutral-100 p-1.5 rounded-lg transition-colors block">
               <Mail size={16} className="text-blue-600" />
               <div>
                 <p className="font-semibold text-secondary-700 text-xs">Email Desk</p>
-                <p className="font-bold text-secondary-800 text-sm mt-0.5 break-all">connecthub387@gmail.com</p>
+                <p className="font-bold text-secondary-800 text-sm mt-0.5 break-all">Olafasta387@gmail.com</p>
               </div>
             </a>
 

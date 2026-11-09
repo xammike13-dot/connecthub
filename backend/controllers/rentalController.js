@@ -497,7 +497,7 @@ export const bookRental = asyncHandler(async (req, res) => {
     months,
     status: 'pending',
     paymentStatus: 'pending',
-    paymentMethod: 'mpesa', // Required field - ConnectHub only supports M-Pesa
+    paymentMethod: 'mpesa', // Required field - Olafasta only supports M-Pesa
     escrowStatus: 'held', // Money will be held in escrow until move-in confirmed
     fundsReleased: false,
   };

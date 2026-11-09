@@ -323,7 +323,7 @@ const LandlordCaretakersPage = () => {
 
             <div className="grid grid-cols-3 gap-2 pt-2 border-t">
               <a
-                href={`https://wa.me/?text=${encodeURIComponent(`Hi, I would like to invite you to join ConnectHub as a caretaker to manage my properties. Use this secure invitation link to register or sign in: ${generatedLink}`)}`}
+                href={`https://wa.me/?text=${encodeURIComponent(`Hi, I would like to invite you to join Olafasta as a caretaker to manage my properties. Use this secure invitation link to register or sign in: ${generatedLink}`)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex flex-col items-center justify-center p-3 bg-green-50 hover:bg-green-100 rounded-xl transition-all border border-green-100 group text-green-600"
@@ -333,7 +333,7 @@ const LandlordCaretakersPage = () => {
               </a>
 
               <a
-                href={`mailto:?subject=${encodeURIComponent('ConnectHub Caretaker Invitation')}&body=${encodeURIComponent(`Hi,\n\nI would like to invite you to join ConnectHub as a caretaker to manage my properties. Use this secure invitation link to register or sign in:\n\n${generatedLink}\n\nThis link will expire in 7 days.`)}`}
+                href={`mailto:?subject=${encodeURIComponent('Olafasta Caretaker Invitation')}&body=${encodeURIComponent(`Hi,\n\nI would like to invite you to join Olafasta as a caretaker to manage my properties. Use this secure invitation link to register or sign in:\n\n${generatedLink}\n\nThis link will expire in 7 days.`)}`}
                 className="flex flex-col items-center justify-center p-3 bg-blue-50 hover:bg-blue-100 rounded-xl transition-all border border-blue-100 group text-blue-600"
               >
                 <Mail size={20} className="group-hover:scale-110 transition-transform" />
@@ -341,7 +341,7 @@ const LandlordCaretakersPage = () => {
               </a>
 
               <a
-                href={`sms:?body=${encodeURIComponent(`Register as caretaker on ConnectHub: ${generatedLink}`)}`}
+                href={`sms:?body=${encodeURIComponent(`Register as caretaker on Olafasta: ${generatedLink}`)}`}
                 className="flex flex-col items-center justify-center p-3 bg-neutral-50 hover:bg-neutral-100 rounded-xl transition-all border border-neutral-200 group text-neutral-700"
               >
                 <Phone size={20} className="group-hover:scale-110 transition-transform" />

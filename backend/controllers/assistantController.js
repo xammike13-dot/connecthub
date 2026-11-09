@@ -25,7 +25,7 @@ export const getActiveBusinessId = (user) => {
   }
   return null;
 };
-
+<AssistantInvitation>   </AssistantInvitation>
 /**
  * @desc    Generate Assistant Invitation (Business only)
  * @route   POST /api/assistants/invite
@@ -33,7 +33,7 @@ export const getActiveBusinessId = (user) => {
  */
 export const generateInvitation = asyncHandler(async (req, res) => {
   const { assistantName, assistantPhone } = req.body;
-  const businessId = req.user._id;
+  const businessId = req.user._id; 
 
   // Generate unique secure token
   const token = crypto.randomBytes(24).toString('hex');
@@ -49,7 +49,7 @@ export const generateInvitation = asyncHandler(async (req, res) => {
   });
 
   // Construct sharing link
-  const origin = req.headers.referer || req.headers.origin || 'https://connecthub.website';
+  const origin = req.headers.referer || req.headers.origin || 'https://olafasta.com';
   const parsedOrigin = new URL(origin).origin;
   const inviteLink = `${parsedOrigin}/assistant/invite/${token}`;
 
@@ -299,7 +299,7 @@ export const listAssistants = asyncHandler(async (req, res) => {
         lastActive: a.assistantProfile?.lastActive || a.lastLogin || null,
       })),
       invitations: invitations.map(i => {
-        const origin = req.headers.referer || req.headers.origin || 'https://connecthub.website';
+        const origin = req.headers.referer || req.headers.origin || 'https://olafasta.com';
         const parsedOrigin = new URL(origin).origin;
         return {
           id: i._id,
@@ -415,7 +415,7 @@ export const resendInvitation = asyncHandler(async (req, res) => {
   invite.status = 'pending';
   await invite.save();
 
-  const origin = req.headers.referer || req.headers.origin || 'https://connecthub.website';
+  const origin = req.headers.referer || req.headers.origin || 'https://olafasta.com';
   const parsedOrigin = new URL(origin).origin;
   const inviteLink = `${parsedOrigin}/assistant/invite/${token}`;
 

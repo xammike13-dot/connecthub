@@ -41,7 +41,7 @@ const faqCategories = [
       },
       {
         question: 'What are the standardized property categories?',
-        answer: 'ConnectHub standardizes the rental type enum in the backend and page filters to support: "single", "bedsitter", "one-bedroom", "two-bedroom", "three-bedroom", "apartment", "hostel", and "commercial". Ensure you map your property to these categories to ensure synchronized search displays.'
+        answer: 'Olafasta standardizes the rental type enum in the backend and page filters to support: "single", "bedsitter", "one-bedroom", "two-bedroom", "three-bedroom", "apartment", "hostel", and "commercial". Ensure you map your property to these categories to ensure synchronized search displays.'
       },
       {
         question: 'How do I edit an existing listing?',

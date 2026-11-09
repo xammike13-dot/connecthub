@@ -49,7 +49,7 @@ export const generateInvitation = asyncHandler(async (req, res) => {
   });
 
   // Construct sharing link
-  const origin = req.headers.referer || req.headers.origin || 'https://connecthub.website';
+  const origin = req.headers.referer || req.headers.origin || 'https://olafasta.com';
   const parsedOrigin = new URL(origin).origin;
   const inviteLink = `${parsedOrigin}/caretaker/invite/${token}`;
 
@@ -302,7 +302,7 @@ export const listCaretakers = asyncHandler(async (req, res) => {
         lastActive: c.caretakerProfile?.lastActive || c.lastLogin || null,
       })),
       invitations: invitations.map(i => {
-        const origin = req.headers.referer || req.headers.origin || 'https://connecthub.website';
+        const origin = req.headers.referer || req.headers.origin || 'https://olafasta.com';
         const parsedOrigin = new URL(origin).origin;
         return {
           id: i._id,
@@ -418,7 +418,7 @@ export const resendInvitation = asyncHandler(async (req, res) => {
   invite.status = 'pending';
   await invite.save();
 
-  const origin = req.headers.referer || req.headers.origin || 'https://connecthub.website';
+  const origin = req.headers.referer || req.headers.origin || 'https://olafasta.com';
   const parsedOrigin = new URL(origin).origin;
   const inviteLink = `${parsedOrigin}/caretaker/invite/${token}`;
 

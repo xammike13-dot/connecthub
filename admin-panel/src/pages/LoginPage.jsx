@@ -61,7 +61,7 @@ const LoginPage = () => {
           </div>
           <h2 className="text-3xl font-extrabold text-white">Admin Control</h2>
           <p className="text-slate-400 text-sm">
-            Sign in to access ConnectHub's admin panel
+            Sign in to access Olafasta's admin panel
           </p>
         </div>
 
@@ -83,7 +83,7 @@ const LoginPage = () => {
               </span>
               <Input
                 type="email"
-                placeholder="admin@connecthub.website"
+                placeholder="admin@Olafasta.website"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="pl-10 w-full bg-slate-950 border-slate-700 text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900 caret-white"

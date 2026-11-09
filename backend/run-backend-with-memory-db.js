@@ -23,10 +23,10 @@ async function seedData(uri) {
   await Order.deleteMany({});
 
   // Seed exact admin user
-  const adminEmail = 'connecthubadmin_prod@gmail.com';
+  const adminEmail = 'olafastaadmin@olafasta.com';
   const adminPassword = 'Password123!';
   const admin = await User.create({
-    name: 'ConnectHub Admin',
+    name: 'Olafasta Admin',
     email: adminEmail,
     password: adminPassword,
     phone: '0711111111',
@@ -71,7 +71,7 @@ async function seedData(uri) {
     businessProfile: {
       businessName: 'Apex Electronics',
       businessLocation: 'Nairobi',
-      businessCategory: 'Electronics',
+      businessCategory: 'Electronics & Gadgets',
       businessContact: '0733333333'
     }
   });
@@ -91,7 +91,7 @@ async function seedData(uri) {
     businessProfile: {
       businessName: 'Aga Khan Pharmacy',
       businessLocation: 'Nairobi CBD',
-      businessCategory: 'healthcare',
+      businessCategory: 'Health & Pharmacy',
       businessContact: '0744444444'
     }
   });
@@ -102,9 +102,9 @@ async function seedData(uri) {
     name: 'Wireless Bluetooth Headphones',
     description: 'High performance active noise cancelling wireless over-ear headphones with superb sound reproduction and premium comfort.',
     price: 3500,
-    businessCategory: 'Electronics',
-    category: 'Audio',
-    subcategory: 'Headphones',
+    businessCategory: 'Electronics & Gadgets',
+    category: 'Electronics',
+    subcategory: 'Repairs & Accessories',
     images: ['https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500'],
     stock: 25,
     views: 145,
@@ -116,9 +116,9 @@ async function seedData(uri) {
     name: 'USB-C Cable Fast Charger',
     description: 'Nylon braided high speed charging USB-C to USB-C cable. Heavy-duty construction and highly compatible.',
     price: 600,
-    businessCategory: 'Electronics',
-    category: 'Accessories',
-    subcategory: 'Chargers',
+    businessCategory: 'Electronics & Gadgets',
+    category: 'Repairs & Accessories',
+    subcategory: 'Repairs & Accessories',
     images: ['https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=500'],
     stock: 0,
     views: 92,
@@ -130,9 +130,9 @@ async function seedData(uri) {
     name: 'Retro 12-Cup Coffee Maker',
     description: 'Elegant automatic coffee brewer with programmable delay, strength settings, and vintage accents.',
     price: 7500,
-    businessCategory: 'Shop',
-    category: 'Kitchen',
-    subcategory: 'Appliances',
+    businessCategory: 'Daily Shops & Groceries',
+    category: 'Shop',
+    subcategory: 'Shop',
     images: ['https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?w=500'],
     stock: 8,
     views: 14,
@@ -144,9 +144,9 @@ async function seedData(uri) {
     name: 'Counterfeit Activation Key',
     description: 'Suspicious unlicensed counterfeit software license key sold at highly discounted rates.',
     price: 150,
-    businessCategory: 'Services',
-    category: 'Software',
-    subcategory: 'Keys',
+    businessCategory: 'General Campus Services',
+    category: 'Everyday Services',
+    subcategory: 'Everyday Services',
     images: ['https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=500'],
     stock: 999,
     views: 8,
@@ -159,9 +159,9 @@ async function seedData(uri) {
     name: 'Aspirin Pain Reliever 100mg',
     description: 'Effective Aspirin pills for headache, muscle ache, fever, and minor pain alleviation.',
     price: 250,
-    businessCategory: 'Healthcare',
-    category: 'Medicine',
-    subcategory: 'Pain Relief',
+    businessCategory: 'Health & Pharmacy',
+    category: 'Chemist',
+    subcategory: 'Chemist',
     images: ['https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500'],
     stock: 120,
     views: 65,

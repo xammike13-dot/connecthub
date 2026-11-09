@@ -1,5 +1,5 @@
 {
-  "name": "connecthub-backend",
+  "name": "olafasta-backend",
   "version": "1.0.0",
   "description": "ConnectHub API Server",
   "main": "server.js",
@@ -9,13 +9,13 @@
     "dev": "nodemon server.js"
   },
   "keywords": [
-    "connecthub",
+    "olafasta",
     "marketplace",
     "rentals",
     "healthcare",
     "bodaboda"
   ],
-  "author": "ConnectHub",
+  "author": "olafasta",
   "license": "MIT",
   "dependencies": {
     "axios": "^1.6.0",

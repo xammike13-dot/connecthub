@@ -29,7 +29,7 @@ const createAdmin = async () => {
     await mongoose.connect(mongoUri);
     console.log('Connected to MongoDB successfully.');
 
-    const targetEmail = 'connecthub387@gmail.com';
+    const targetEmail = 'support@olafasta.com';
     const targetPassword = 'Mike3870@';
 
     const existingUser = await User.findOne({ email: targetEmail });
@@ -79,7 +79,7 @@ const createAdmin = async () => {
     // No existing user, create a new admin
     console.log(`Creating new admin user with email: ${targetEmail}...`);
     const newAdmin = new User({
-      name: 'ConnectHub Admin',
+      name: 'Olafasta Admin',
       email: targetEmail,
       phone: '0794603837',
       password: targetPassword,
