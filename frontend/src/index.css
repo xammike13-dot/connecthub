@@ -27,7 +27,7 @@
   }
 
   a {
-    @apply text-[#FF5E00] hover:text-[#CC4B00] transition-colors;
+    @apply transition-colors;
   }
 }
 

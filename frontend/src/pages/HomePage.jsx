@@ -1,42 +1,92 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { Flame, ArrowRight, Compass } from 'lucide-react';
 import PromoCarousel from '../components/PromoCarousel';
 import CategoryIconBar from '../components/CategoryIconBar';
 import ProductScrollRow from '../components/ProductScrollRow';
 import ProductFeed from '../components/ProductFeed';
 
-// ─── Mock data (shown immediately while API loads) ─────────────────────────────
+// ─── 8 Quick Category Shortcuts (Bail-out shortcuts before infinite feed) ─────
+const CATEGORY_SHORTCUTS = [
+  { label: 'Food',        emoji: '🍔', route: '/marketplace?category=Food+%26+Drinks' },
+  { label: 'Boda',        emoji: '🏍️', route: '/transport' },
+  { label: 'Hostels',     emoji: '🏠', route: '/rentals' },
+  { label: 'Mitumba',     emoji: '👗', route: '/marketplace?category=Fashion+%26+Mitumba' },
+  { label: 'Gas',         emoji: '🔥', route: '/marketplace?category=Hostel+Setup' },
+  { label: 'Electronics', emoji: '🔌', route: '/marketplace?category=Tech+%26+Gadgets' },
+  { label: 'Chemist',     emoji: '💊', route: '/marketplace?category=Chemist+%26+Wellness' },
+  { label: 'Printing',    emoji: '🖨️', route: '/marketplace?category=Printing+%26+Academics' },
+];
+
+// ─── 1. Flash Sales Mock Data (High urgency, steep discounts) ─────────────────
 const FLASH_MOCK = [
-  { _id: 'm1', name: 'Wireless Earbuds Pro', price: 850, oldPrice: 1500, discountPct: 43, images: [] },
-  { _id: 'm2', name: 'Leather Belt – Black', price: 180, oldPrice: 300, discountPct: 40, images: [] },
-  { _id: 'm3', name: 'Smart Phone Holder', price: 120, oldPrice: 250, discountPct: 52, images: [] },
-  { _id: 'm4', name: '1L Cooking Oil', price: 215, oldPrice: 280, discountPct: 23, images: [] },
-  { _id: 'm5', name: 'Hoodie – Campus Edition', price: 650, oldPrice: 900, discountPct: 28, images: [] },
+  { _id: 'fl-1', name: 'Oraimo 27,000mAh Massive Fast-Charge Power Bank', price: 2400, oldPrice: 3200, discountPct: 25, images: [], emoji: '🔋', category: 'Tech & Gadgets', isLive: true },
+  { _id: 'fl-2', name: 'Wireless Bluetooth Noise-Cancelling Earbuds Pro', price: 850, oldPrice: 1500, discountPct: 43, images: [], emoji: '🎧', category: 'Tech & Gadgets' },
+  { _id: 'fl-3', name: 'High-Waist Thrift Vintage Mom Jeans (Grade A)', price: 350, oldPrice: 600, discountPct: 42, images: [], emoji: '👖', category: 'Fashion & Mitumba' },
+  { _id: 'fl-4', name: '6kg Gas Cylinder Refill Delivery Voucher', price: 1350, oldPrice: 1550, discountPct: 13, images: [], emoji: '🔥', category: 'Hostel Setup', isLive: true },
+  { _id: 'fl-5', name: 'Heavy Cotton Comrade Graphic Pullover Hoodie', price: 650, oldPrice: 900, discountPct: 28, images: [], emoji: '🧥', category: 'Fashion & Mitumba' },
+  { _id: 'fl-6', name: '5-Metre 4-Way Heavy Duty Extension Cable', price: 450, oldPrice: 650, discountPct: 31, images: [], emoji: '🔌', category: 'Tech & Gadgets' },
 ];
 
+// ─── 2. Hot Food & Drinks (Kibandas, fast food, liquor) ───────────────────────
 const FOOD_MOCK = [
-  { _id: 'f1', name: 'Ugali + Sukuma Wiki Combo', price: 60, oldPrice: null, images: [], isLive: true },
-  { _id: 'f2', name: 'Pilau Bowl (Large)', price: 120, oldPrice: null, images: [], isLive: true },
-  { _id: 'f3', name: 'Chips Mwitu + Kachumbari', price: 80, oldPrice: null, images: [], isLive: false },
-  { _id: 'f4', name: 'Mandazi x6 Pack', price: 30, oldPrice: null, images: [] },
-  { _id: 'f5', name: 'Soda 500ml (Any Brand)', price: 55, oldPrice: null, images: [] },
+  { _id: 'fd-1', name: 'Ugali + Sukuma Wiki + Beef Stew (Hot Kibanda Meal)', price: 100, oldPrice: 140, discountPct: 28, images: [], emoji: '🍛', category: 'Food & Drinks', isLive: true },
+  { _id: 'fd-2', name: 'Special Pilau Bowl (Large + Kachumbari + Banana)', price: 120, oldPrice: 150, discountPct: 20, images: [], emoji: '🍚', category: 'Food & Drinks', isLive: true },
+  { _id: 'fd-3', name: 'Crispy Chips Mwitu + 2 Smoky Sausages Combo', price: 110, oldPrice: 140, discountPct: 21, images: [], emoji: '🍟', category: 'Food & Drinks', isLive: true },
+  { _id: 'fd-4', name: 'Fresh Mandazi (6-Pack Hot from Karai)', price: 50, oldPrice: 60, discountPct: 16, images: [], emoji: '🥐', category: 'Food & Drinks' },
+  { _id: 'fd-5', name: 'Nile Special Lager (6-Pack Chilled Cans)', price: 1100, oldPrice: 1350, discountPct: 19, images: [], emoji: '🍺', category: 'Food & Drinks' },
+  { _id: 'fd-6', name: 'Ice Cold 500ml Soda (Coke / Fanta / Sprite)', price: 60, oldPrice: 70, discountPct: 14, images: [], emoji: '🥤', category: 'Food & Drinks' },
 ];
 
-const FASHION_MOCK = [
-  { _id: 'fa1', name: 'Slim Jeans – Blue Wash', price: 350, oldPrice: 600, discountPct: 42, images: [] },
-  { _id: 'fa2', name: 'Ladies Blouse – Pink', price: 220, oldPrice: 400, discountPct: 45, images: [] },
-  { _id: 'fa3', name: 'Nike-Style Sneakers', price: 800, oldPrice: 1200, discountPct: 33, images: [] },
-  { _id: 'fa4', name: 'Vintage Denim Jacket', price: 550, oldPrice: 900, discountPct: 39, images: [] },
-  { _id: 'fa5', name: 'Ankara Dress – L/XL', price: 400, oldPrice: 650, discountPct: 38, images: [] },
+// ─── 3. Fresh Mitumba Drops (Second-hand clothing, shoes, jackets) ───────────
+const MITUMBA_MOCK = [
+  { _id: 'mt-1', name: 'Vintage Distressed Oversized Denim Jacket', price: 550, oldPrice: 900, discountPct: 39, images: [], emoji: '🧥', category: 'Fashion & Mitumba' },
+  { _id: 'mt-2', name: 'Slim Fit Blue Wash Thrift Jeans (Grade A)', price: 350, oldPrice: 600, discountPct: 42, images: [], emoji: '👖', category: 'Fashion & Mitumba' },
+  { _id: 'mt-3', name: 'Ladies Chiffon Floral Blouse – Pastel Pink', price: 220, oldPrice: 400, discountPct: 45, images: [], emoji: '👚', category: 'Fashion & Mitumba' },
+  { _id: 'mt-4', name: 'Nike-Style Streetwear Sneakers (Triple White)', price: 800, oldPrice: 1200, discountPct: 33, images: [], emoji: '👟', category: 'Fashion & Mitumba' },
+  { _id: 'mt-5', name: 'Flared Ankara Pattern Maxi Dress (L/XL)', price: 400, oldPrice: 650, discountPct: 38, images: [], emoji: '👗', category: 'Fashion & Mitumba' },
+  { _id: 'mt-6', name: 'Vintage Corduroy Long-Sleeve Shirt (Olive Green)', price: 380, oldPrice: 550, discountPct: 31, images: [], emoji: '👔', category: 'Fashion & Mitumba' },
 ];
 
+// ─── 4. Comrade Second-Hand Market (Subwoofers, TVs, beds, cylinders) ─────────
+const SECOND_HAND_MOCK = [
+  { _id: 'sh-1', name: 'Sayona 3.1 Bluetooth Subwoofer System (Gently Used)', price: 3200, oldPrice: 4800, discountPct: 33, images: [], emoji: '📻', category: 'Second Hand' },
+  { _id: 'sh-2', name: '32-inch Frameless Digital LED TV (Sharp Display)', price: 8500, oldPrice: 12000, discountPct: 29, images: [], emoji: '📺', category: 'Second Hand' },
+  { _id: 'sh-3', name: 'Heavy Steel 3x6 Single Bed Frame (Dismountable)', price: 2800, oldPrice: 4500, discountPct: 38, images: [], emoji: '🛏️', category: 'Second Hand' },
+  { _id: 'sh-4', name: '6kg Empty Gas Cylinder (Total Brand, Tested Valve)', price: 2100, oldPrice: 3000, discountPct: 30, images: [], emoji: '🛢️', category: 'Second Hand' },
+  { _id: 'sh-5', name: 'Comrade Study Desk & Ergonomic Mesh Chair Combo', price: 3500, oldPrice: 5200, discountPct: 33, images: [], emoji: '🪑', category: 'Second Hand' },
+  { _id: 'sh-6', name: 'Laundry Kit: 1 Large Basin + 2 Heavy Water Buckets', price: 600, oldPrice: 900, discountPct: 33, images: [], emoji: '🪣', category: 'Second Hand' },
+];
+
+// ─── 5. Tech, Gadgets & Repairs (Phones, flash drives, chargers, screens) ──────
 const TECH_MOCK = [
-  { _id: 't1', name: 'USB-C Fast Charging Cable 2m', price: 150, oldPrice: 300, discountPct: 50, images: [] },
-  { _id: 't2', name: 'Power Bank 10,000mAh', price: 1200, oldPrice: 2000, discountPct: 40, images: [] },
-  { _id: 't3', name: 'Phone Screen Protector 9D', price: 80, oldPrice: 150, discountPct: 47, images: [] },
-  { _id: 't4', name: 'Bluetooth Speaker Mini', price: 650, oldPrice: 1100, discountPct: 41, images: [] },
-  { _id: 't5', name: 'Laptop Cooling Stand', price: 900, oldPrice: 1500, discountPct: 40, images: [] },
+  { _id: 'tc-1', name: 'Original HP Blue-Pin 65W Laptop Charger', price: 950, oldPrice: 1400, discountPct: 32, images: [], emoji: '💻', category: 'Tech & Gadgets' },
+  { _id: 'tc-2', name: 'SanDisk 64GB Ultra Dual USB-C & USB-A Flash Drive', price: 650, oldPrice: 950, discountPct: 32, images: [], emoji: '💾', category: 'Tech & Gadgets' },
+  { _id: 'tc-3', name: '9D Full Screen Protector + Instant Installation (Stage)', price: 100, oldPrice: 200, discountPct: 50, images: [], emoji: '📲', category: 'Tech & Gadgets' },
+  { _id: 'tc-4', name: 'Smartphone Broken Screen Replacement (Any Model - 1hr)', price: 1500, oldPrice: 2200, discountPct: 32, images: [], emoji: '🛠️', category: 'Tech & Gadgets', isLive: true },
+  { _id: 'tc-5', name: 'Braided 2-Metre 65W Fast Charge Cable Type-C', price: 150, oldPrice: 300, discountPct: 50, images: [], emoji: '🔌', category: 'Tech & Gadgets' },
+  { _id: 'tc-6', name: 'Dual-Fan Ergonomic Laptop Cooling Pad Stand', price: 900, oldPrice: 1500, discountPct: 40, images: [], emoji: '❄️', category: 'Tech & Gadgets' },
+];
+
+// ─── 6. Beauty & Glow Up (Cosmetics, skincare, salon braiding offers) ──────────
+const BEAUTY_MOCK = [
+  { _id: 'bt-1', name: 'Knotless Box Braids Session (Full Head - Mabs)', price: 650, oldPrice: 950, discountPct: 32, images: [], emoji: '💇🏽‍♀️', category: 'Kinyozi & Salon', isLive: true },
+  { _id: 'bt-2', name: 'Clean Fade, Beard Sculpt & Hot Towel (Stage Barber)', price: 150, oldPrice: 250, discountPct: 40, images: [], emoji: '💈', category: 'Kinyozi & Salon' },
+  { _id: 'bt-3', name: 'Dreadlock Retwist & Interlocking (Chebarus Corridor)', price: 500, oldPrice: 800, discountPct: 38, images: [], emoji: '✨', category: 'Kinyozi & Salon' },
+  { _id: 'bt-4', name: 'CeraVe Foaming Cleanser 236ml (Authentic Skincare)', price: 1400, oldPrice: 1800, discountPct: 22, images: [], emoji: '🧴', category: 'Chemist & Wellness' },
+  { _id: 'bt-5', name: 'Gel Polish Manicure & Pedicure Grooming Package', price: 400, oldPrice: 650, discountPct: 38, images: [], emoji: '💅', category: 'Kinyozi & Salon' },
+  { _id: 'bt-6', name: 'Anti-Scald Ceramic Hair Straightener Hot Comb', price: 700, oldPrice: 1100, discountPct: 36, images: [], emoji: '🎀', category: 'Kinyozi & Salon' },
+];
+
+// ─── 7. Hostel Setup & Essentials (Gas refills, Mali Mali, plasticware) ────────
+const HOSTEL_MOCK = [
+  { _id: 'hs-1', name: '6kg Complete Gas Cylinder + Burner & Regulator', price: 2900, oldPrice: 3600, discountPct: 19, images: [], emoji: '🔥', category: 'Hostel Setup' },
+  { _id: 'hs-2', name: '6x6 Heavy Velvet Comforter Duvet (Navy Blue)', price: 1600, oldPrice: 2200, discountPct: 27, images: [], emoji: '🛏️', category: 'Hostel Setup' },
+  { _id: 'hs-3', name: 'Stainless Steel Cordless Electric Kettle 2.0L', price: 650, oldPrice: 950, discountPct: 32, images: [], emoji: '☕', category: 'Hostel Setup' },
+  { _id: 'hs-4', name: '24-Piece Student Cutlery, Plates & Mug Starter Set', price: 450, oldPrice: 650, discountPct: 31, images: [], emoji: '🥣', category: 'Hostel Setup' },
+  { _id: 'hs-5', name: 'Heavy Non-Stick Granite Frying Pan 24cm', price: 550, oldPrice: 800, discountPct: 31, images: [], emoji: '🍳', category: 'Hostel Setup' },
+  { _id: 'hs-6', name: '4-Tier Plastic Storage Rack for Hostel Shoes & Goods', price: 580, oldPrice: 850, discountPct: 32, images: [], emoji: '🪜', category: 'Hostel Setup' },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -47,18 +97,21 @@ const normaliseProducts = (json) => {
   return [];
 };
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── HomePage Component ───────────────────────────────────────────────────────
 const HomePage = () => {
   const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
 
-  // Live API rows (fall back to mock while loading)
+  // State for all 7 specialized rows (defaults to rich mocks immediately)
   const [flashProducts, setFlashProducts] = useState(FLASH_MOCK);
   const [foodProducts, setFoodProducts] = useState(FOOD_MOCK);
-  const [fashionProducts, setFashionProducts] = useState(FASHION_MOCK);
+  const [mitumbaProducts, setMitumbaProducts] = useState(MITUMBA_MOCK);
+  const [secondHandProducts, setSecondHandProducts] = useState(SECOND_HAND_MOCK);
   const [techProducts, setTechProducts] = useState(TECH_MOCK);
+  const [beautyProducts, setBeautyProducts] = useState(BEAUTY_MOCK);
+  const [hostelProducts, setHostelProducts] = useState(HOSTEL_MOCK);
 
-  // Redirect logged-in users to their dashboards
+  // Redirect logged-in users to their respective role dashboard
   useEffect(() => {
     if (isAuthenticated && user) {
       const map = {
@@ -74,7 +127,7 @@ const HomePage = () => {
     }
   }, [isAuthenticated, user, navigate]);
 
-  // Load live products in the background; replace mocks when ready
+  // Load live products from backend in the background and replace mocks when ready
   useEffect(() => {
     const load = (params, setter) =>
       fetch(`/api/products?${params}&limit=10`)
@@ -83,12 +136,15 @@ const HomePage = () => {
           const d = normaliseProducts(j);
           if (d.length) setter(d);
         })
-        .catch(() => {/* retain mocks if network or api fails */});
+        .catch(() => {/* retain mocks on network error */});
 
-    load('page=1', setFlashProducts);
-    load('category=food&page=1', setFoodProducts);
-    load('category=fashion&page=1', setFashionProducts);
-    load('category=electronics&page=1', setTechProducts);
+    load('sort=discount&page=1', setFlashProducts);
+    load('category=Food+%26+Drinks&page=1', setFoodProducts);
+    load('category=Fashion+%26+Mitumba&page=1', setMitumbaProducts);
+    load('category=Second+Hand&page=1', setSecondHandProducts);
+    load('category=Tech+%26+Gadgets&page=1', setTechProducts);
+    load('category=Kinyozi+%26+Salon&page=1', setBeautyProducts);
+    load('category=Hostel+Setup&page=1', setHostelProducts);
   }, []);
 
   return (
@@ -99,55 +155,93 @@ const HomePage = () => {
         <PromoCarousel />
       </div>
 
-      {/* ── 2. Compact Sticky Category Icon Bar ─────────────── */}
-      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md shadow-sm border-b border-gray-200/80">
-        <div className="max-w-7xl mx-auto">
-          <CategoryIconBar />
-        </div>
+      {/* ── 2. Compact Sticky Category Icon Bar (11 Micro-Economies) ── */}
+      <div className="sticky top-[56px] sm:top-[64px] md:top-[68px] z-30">
+        <CategoryIconBar />
       </div>
 
-      {/* ── 3. High-Velocity Product Rows ────────────────────── */}
-      <div className="max-w-7xl w-full mx-auto space-y-2 md:space-y-4 my-2">
+      {/* ── 3. The 7 Merchandising Horizontal Product Rows ───── */}
+      <div className="max-w-7xl w-full mx-auto my-2 space-y-2 md:space-y-4">
 
+        {/* Row 1: ⚡ Flash Sales with Live Urgency Countdown */}
         <ProductScrollRow
           title="⚡ Flash Sales"
+          hasCountdown={true}
+          badge="High Urgency"
           viewAllLink="/marketplace?sort=discount"
           products={flashProducts}
         />
 
         <div className="border-t border-gray-200/60 mx-4" />
 
+        {/* Row 2: 🍔 Hot Food & Drinks */}
         <ProductScrollRow
           title="🍔 Hot Food & Drinks"
-          viewAllLink="/marketplace?category=food"
+          subtitle="Kibandas, Fast Food & Refreshments"
+          viewAllLink="/marketplace?category=Food+%26+Drinks"
           products={foodProducts}
         />
 
         <div className="border-t border-gray-200/60 mx-4" />
 
+        {/* Row 3: 👗 Fresh Mitumba Drops */}
         <ProductScrollRow
           title="👗 Fresh Mitumba Drops"
-          viewAllLink="/marketplace?category=fashion"
-          products={fashionProducts}
+          subtitle="Hand-picked Thrift Drops & Streetwear"
+          viewAllLink="/marketplace?category=Fashion+%26+Mitumba"
+          products={mitumbaProducts}
         />
 
         <div className="border-t border-gray-200/60 mx-4" />
 
+        {/* Row 4: ♻️ Comrade Second-Hand Market */}
         <ProductScrollRow
-          title="🔌 Tech & Gadgets"
-          viewAllLink="/marketplace?category=electronics"
+          title="♻️ Comrade Second-Hand Market"
+          subtitle="Pre-loved Subwoofers, TVs, Gas Cylinders & Beds"
+          badge="Comrade Deals"
+          viewAllLink="/marketplace?category=Second+Hand"
+          products={secondHandProducts}
+        />
+
+        <div className="border-t border-gray-200/60 mx-4" />
+
+        {/* Row 5: 🔌 Tech, Gadgets & Repairs */}
+        <ProductScrollRow
+          title="🔌 Tech, Gadgets & Repairs"
+          subtitle="Laptops, Powerbanks, Screen Repairs in 1hr"
+          viewAllLink="/marketplace?category=Tech+%26+Gadgets"
           products={techProducts}
+        />
+
+        <div className="border-t border-gray-200/60 mx-4" />
+
+        {/* Row 6: 💅 Beauty & Glow Up */}
+        <ProductScrollRow
+          title="💅 Beauty & Glow Up"
+          subtitle="Braiding Sessions, Kinyozi Fades & Skincare"
+          viewAllLink="/marketplace?category=Kinyozi+%26+Salon"
+          products={beautyProducts}
+        />
+
+        <div className="border-t border-gray-200/60 mx-4" />
+
+        {/* Row 7: 🏠 Hostel Setup & Essentials */}
+        <ProductScrollRow
+          title="🏠 Hostel Setup & Essentials"
+          subtitle="Gas Refills, Mali Mali Supplies & Bedding"
+          viewAllLink="/marketplace?category=Hostel+Setup"
+          products={hostelProducts}
         />
       </div>
 
       {/* ── 4. Hyperlocal Service Promo Strips ────────────────── */}
-      <div className="max-w-7xl w-full mx-auto px-4 py-4 md:py-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="max-w-7xl w-full mx-auto px-4 py-6 grid grid-cols-1 md:grid-cols-2 gap-4">
 
         {/* Boda Card */}
-        <div className="bg-gradient-to-r from-[#FF5E00] to-[#E05200] rounded-2xl p-5 md:p-6 flex items-center gap-4 shadow-md text-white">
+        <div className="bg-gradient-to-r from-[#FF5E00] to-[#E05200] rounded-2xl p-5 md:p-6 flex items-center gap-4 shadow-md text-white hover:shadow-lg transition-shadow">
           <span className="text-4xl md:text-5xl select-none">🏍️</span>
           <div className="flex-1">
-            <h3 className="text-white font-extrabold text-lg md:text-xl leading-tight">Request a Boda Ride</h3>
+            <h3 className="text-white font-extrabold text-lg md:text-xl leading-tight">Request an Olafasta Boda</h3>
             <p className="text-orange-100 text-xs md:text-sm mt-0.5 font-medium">Kesses · Chebarus · Mabs · Stage</p>
           </div>
           <Link
@@ -159,11 +253,11 @@ const HomePage = () => {
         </div>
 
         {/* Rentals Card */}
-        <div className="bg-gradient-to-r from-[#027A2B] to-[#015C20] rounded-2xl p-5 md:p-6 flex items-center gap-4 shadow-md text-white">
+        <div className="bg-gradient-to-r from-[#027A2B] to-[#015C20] rounded-2xl p-5 md:p-6 flex items-center gap-4 shadow-md text-white hover:shadow-lg transition-shadow">
           <span className="text-4xl md:text-5xl select-none">🏠</span>
           <div className="flex-1">
             <h3 className="text-white font-extrabold text-lg md:text-xl leading-tight">Find a Bedsitter / Hostel</h3>
-            <p className="text-green-100 text-xs md:text-sm mt-0.5 font-medium">Verified rooms around campus</p>
+            <p className="text-green-100 text-xs md:text-sm mt-0.5 font-medium">Verified rooms around Moi University</p>
           </div>
           <Link
             to="/rentals"
@@ -174,93 +268,85 @@ const HomePage = () => {
         </div>
       </div>
 
-      {/* ── 5. Full Marketplace Feed (Infinite Grid) ─────────── */}
-      <div className="border-t border-gray-200/80 bg-gray-50 pt-6">
-        <div className="max-w-7xl mx-auto px-4 pb-2 flex items-center justify-between">
-          <h2 className="text-gray-900 font-extrabold text-base md:text-xl">🛒 All Marketplace Items</h2>
-          <Link to="/marketplace" className="text-[#FF5E00] hover:text-[#CC4B00] text-xs md:text-sm font-bold flex items-center gap-1">
-            Full Catalog →
-          </Link>
-        </div>
-        <ProductFeed />
-      </div>
-
-      {/* ── 6. Clean Light-Mode Footer ───────────────────────── */}
-      <footer className="bg-white border-t border-gray-200 py-12 mt-auto">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-left">
-            <div className="col-span-2 md:col-span-1">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-9 h-9 bg-[#FF5E00] rounded-lg flex items-center justify-center shadow-sm">
-                  <span className="text-white font-extrabold text-lg">O</span>
-                </div>
-                <h3 className="text-gray-900 font-extrabold text-xl tracking-tight">Olafasta</h3>
-              </div>
-              <p className="text-gray-500 text-xs md:text-sm leading-relaxed mb-3">
-                The hyperlocal student super-app. Built by comrades, for comrades — fasta fasta, kila kitu.
+      {/* ── 5. "Explore Categories" Grid Shortcuts (Pre-Feed Bailout) ── */}
+      <section className="max-w-7xl w-full mx-auto px-4 py-4 md:py-6">
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 shadow-xs">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-gray-900 font-extrabold text-sm sm:text-base tracking-tight flex items-center gap-2">
+                <Compass size={16} className="text-[#FF5E00]" />
+                <span>Explore Top Categories</span>
+              </h3>
+              <p className="text-gray-400 text-xs hidden sm:block mt-0.5">
+                Quick jump to your favorite campus micro-economy
               </p>
-              <div className="text-gray-500 text-xs space-y-1">
-                <p className="font-semibold text-gray-700">+254 748 459757 | 0707 841 747</p>
-                <p>support@olafasta.com</p>
-              </div>
             </div>
-
-            <div>
-              <h4 className="text-gray-900 font-bold text-xs uppercase tracking-wider mb-3">Services</h4>
-              <ul className="space-y-2 text-xs md:text-sm">
-                {[
-                  ['Marketplace', '/marketplace'],
-                  ['Bodaboda Rides', '/transport'],
-                  ['Campus Rentals', '/rentals'],
-                  ['Healthcare & Chemist', '/marketplace?category=health']
-                ].map(([label, href]) => (
-                  <li key={label}>
-                    <Link to={href} className="text-gray-600 hover:text-[#FF5E00] transition-colors">{label}</Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="text-gray-900 font-bold text-xs uppercase tracking-wider mb-3">Company</h4>
-              <ul className="space-y-2 text-xs md:text-sm">
-                {[
-                  ['About Olafasta', '/about'],
-                  ['Customer Support', '/support'],
-                  ['Partner with Us', '/register?role=business']
-                ].map(([label, href]) => (
-                  <li key={label}>
-                    <Link to={href} className="text-gray-600 hover:text-[#FF5E00] transition-colors">{label}</Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="text-gray-900 font-bold text-xs uppercase tracking-wider mb-3">Legal & Safety</h4>
-              <ul className="space-y-2 text-xs md:text-sm">
-                {[
-                  ['Safety Guidelines', '/support'],
-                  ['Terms of Service', '#'],
-                  ['Privacy Policy', '#']
-                ].map(([label, href]) => (
-                  <li key={label}>
-                    <a href={href} className="text-gray-600 hover:text-[#FF5E00] transition-colors">{label}</a>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <Link
+              to="/marketplace"
+              className="text-xs font-bold text-[#FF5E00] hover:text-[#CC4B00] transition-colors"
+            >
+              All Categories →
+            </Link>
           </div>
 
-          <div className="border-t border-gray-100 mt-10 pt-6 flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-gray-500">
-            <p>© 2025 Olafasta. All rights reserved. Moi University Main Campus.</p>
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 bg-[#027A2B] rounded-full animate-pulse" />
-              <span className="text-[#027A2B] font-semibold">Live in Kesses & Chebarus</span>
-            </div>
+          {/* Tight 8-Item Category Grid (grid-cols-4 md:grid-cols-8 gap-4) */}
+          <div className="grid grid-cols-4 md:grid-cols-8 gap-3 sm:gap-4">
+            {CATEGORY_SHORTCUTS.map((item) => (
+              <Link
+                key={item.label}
+                to={item.route}
+                className="flex flex-col items-center group active:scale-95 transition-transform"
+              >
+                <div className="rounded-full w-13 h-13 sm:w-14 sm:h-14 bg-gray-50 border border-gray-100 group-hover:border-[#FF5E00]/40 group-hover:bg-orange-50/50 group-hover:shadow-xs flex items-center justify-center text-2xl transition-all">
+                  <span className="transform group-hover:scale-110 transition-transform select-none">
+                    {item.emoji}
+                  </span>
+                </div>
+                <span className="text-xs text-center mt-1.5 text-gray-700 font-medium group-hover:text-[#FF5E00] transition-colors line-clamp-1">
+                  {item.label}
+                </span>
+              </Link>
+            ))}
           </div>
         </div>
-      </footer>
+      </section>
+
+      {/* ── 6. Massive "More To Explore" / "Just For You" Infinite Feed ── */}
+      <section className="border-t border-gray-200/80 bg-gray-50 pt-8 pb-12">
+        <div className="max-w-7xl mx-auto px-4">
+          
+          {/* Section Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
+            <div>
+              <div className="inline-flex items-center gap-1.5 bg-orange-100/80 text-[#FF5E00] font-bold text-[11px] px-2.5 py-0.5 rounded-full mb-1">
+                <Flame size={13} className="text-[#FF5E00]" />
+                <span>MASSIVE CAMPUS CATALOG</span>
+              </div>
+              <h2 className="text-gray-900 font-extrabold text-xl sm:text-2xl tracking-tight flex items-center gap-2">
+                <span>More To Explore</span>
+                <span className="text-gray-400 font-normal text-sm sm:text-base hidden sm:inline">
+                  (Just For You)
+                </span>
+              </h2>
+              <p className="text-gray-500 text-xs sm:text-sm mt-0.5">
+                Everyday essentials, meals, second-hand bargains & campus services from verified vendors.
+              </p>
+            </div>
+
+            <Link
+              to="/marketplace"
+              className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-[#FF5E00] hover:text-[#CC4B00] transition-colors self-start sm:self-auto py-1"
+            >
+              <span>Explore All 11 Categories</span>
+              <ArrowRight size={15} />
+            </Link>
+          </div>
+
+          {/* Grid Feed with Infinite Scroll */}
+          <ProductFeed />
+        </div>
+      </section>
+
     </div>
   );
 };

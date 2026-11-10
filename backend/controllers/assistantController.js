@@ -25,7 +25,7 @@ export const getActiveBusinessId = (user) => {
   }
   return null;
 };
-<AssistantInvitation>   </AssistantInvitation>
+
 /**
  * @desc    Generate Assistant Invitation (Business only)
  * @route   POST /api/assistants/invite
@@ -33,7 +33,7 @@ export const getActiveBusinessId = (user) => {
  */
 export const generateInvitation = asyncHandler(async (req, res) => {
   const { assistantName, assistantPhone } = req.body;
-  const businessId = req.user._id; 
+  const businessId = req.user._id;
 
   // Generate unique secure token
   const token = crypto.randomBytes(24).toString('hex');
