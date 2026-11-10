@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Flame, ArrowRight, Compass } from 'lucide-react';
 import PromoCarousel from '../components/PromoCarousel';
 import CategoryIconBar from '../components/CategoryIconBar';
-import ProductScrollRow from '../components/ProductScrollRow';
+import ProductRow from '../components/ProductRow';
 import ProductFeed from '../components/ProductFeed';
 
 // ─── 8 Quick Category Shortcuts (Bail-out shortcuts before infinite feed) ─────
@@ -164,7 +164,7 @@ const HomePage = () => {
       <div className="max-w-7xl w-full mx-auto my-2 space-y-2 md:space-y-4">
 
         {/* Row 1: ⚡ Flash Sales with Live Urgency Countdown */}
-        <ProductScrollRow
+        <ProductRow
           title="⚡ Flash Sales"
           hasCountdown={true}
           badge="High Urgency"
@@ -175,7 +175,7 @@ const HomePage = () => {
         <div className="border-t border-gray-200/60 mx-4" />
 
         {/* Row 2: 🍔 Hot Food & Drinks */}
-        <ProductScrollRow
+        <ProductRow
           title="🍔 Hot Food & Drinks"
           subtitle="Kibandas, Fast Food & Refreshments"
           viewAllLink="/marketplace?category=Food+%26+Drinks"
@@ -185,7 +185,7 @@ const HomePage = () => {
         <div className="border-t border-gray-200/60 mx-4" />
 
         {/* Row 3: 👗 Fresh Mitumba Drops */}
-        <ProductScrollRow
+        <ProductRow
           title="👗 Fresh Mitumba Drops"
           subtitle="Hand-picked Thrift Drops & Streetwear"
           viewAllLink="/marketplace?category=Fashion+%26+Mitumba"
@@ -195,7 +195,7 @@ const HomePage = () => {
         <div className="border-t border-gray-200/60 mx-4" />
 
         {/* Row 4: ♻️ Comrade Second-Hand Market */}
-        <ProductScrollRow
+        <ProductRow
           title="♻️ Comrade Second-Hand Market"
           subtitle="Pre-loved Subwoofers, TVs, Gas Cylinders & Beds"
           badge="Comrade Deals"
@@ -206,7 +206,7 @@ const HomePage = () => {
         <div className="border-t border-gray-200/60 mx-4" />
 
         {/* Row 5: 🔌 Tech, Gadgets & Repairs */}
-        <ProductScrollRow
+        <ProductRow
           title="🔌 Tech, Gadgets & Repairs"
           subtitle="Laptops, Powerbanks, Screen Repairs in 1hr"
           viewAllLink="/marketplace?category=Tech+%26+Gadgets"
@@ -216,7 +216,7 @@ const HomePage = () => {
         <div className="border-t border-gray-200/60 mx-4" />
 
         {/* Row 6: 💅 Beauty & Glow Up */}
-        <ProductScrollRow
+        <ProductRow
           title="💅 Beauty & Glow Up"
           subtitle="Braiding Sessions, Kinyozi Fades & Skincare"
           viewAllLink="/marketplace?category=Kinyozi+%26+Salon"
@@ -226,7 +226,7 @@ const HomePage = () => {
         <div className="border-t border-gray-200/60 mx-4" />
 
         {/* Row 7: 🏠 Hostel Setup & Essentials */}
-        <ProductScrollRow
+        <ProductRow
           title="🏠 Hostel Setup & Essentials"
           subtitle="Gas Refills, Mali Mali Supplies & Bedding"
           viewAllLink="/marketplace?category=Hostel+Setup"
