@@ -21,25 +21,21 @@ import { useToast } from '../components/Toast';
 import { productAPI } from '../services/api';
 import { useSocket } from '../context/SocketContext';
 
-// Fixed Business Categories list as per requirements (excluding Healthcare which has its own page)
 const businessCategories = [
-  { id: 'all', name: 'All Business Categories' },
-  { id: 'Shop', name: 'Shop' },
-  { id: 'Cosmetics', name: 'Cosmetics' },
-  { id: 'Hotel', name: 'Hotel' },
-  { id: 'Electronics', name: 'Electronics' },
-  { id: 'Wines & Spirits', name: 'Wines & Spirits' },
-  { id: 'Services', name: 'Services' },
-  { id: 'Boutiques', name: 'Boutiques' },
-  { id: 'Shoes Parlor', name: 'Shoes Parlor' },
-  { id: 'Secondhand items', name: 'Secondhand items' },
-  { id: 'Mali mali', name: 'Mali mali' },
-  { id: 'Gas refill', name: 'Gas refill' },
-  { id: 'Furniture stores', name: 'Furniture stores' },
-  { id: 'Fast foods', name: 'Fast foods' },
-  { id: 'Cake shop', name: 'Cake shop' },
-  { id: 'Kibanda', name: 'Kibanda' },
-  { id: 'Others', name: 'Others' },
+  { id: 'all', name: 'All Categories' },
+  { id: 'Olafasta Foods', name: 'Olafasta Foods' },
+  { id: 'Olafasta Mitumba', name: 'Olafasta Mitumba' },
+  { id: 'Olafasta Tech', name: 'Olafasta Tech' },
+  { id: 'Olafasta Chemist', name: 'Olafasta Chemist' },
+  { id: 'Olafasta Fashion', name: 'Olafasta Fashion' },
+  { id: 'Olafasta Shoes', name: 'Olafasta Shoes' },
+  { id: 'Olafasta Materials', name: 'Olafasta Materials' },
+  { id: 'Olafasta Home', name: 'Olafasta Home' },
+  { id: 'Olafasta Stores', name: 'Olafasta Stores' },
+  { id: 'Olafasta Cakes', name: 'Olafasta Cakes' },
+  { id: 'Olafasta Wines & Spirits', name: 'Olafasta Wines & Spirits' },
+  { id: 'Olafasta Gas', name: 'Olafasta Gas' },
+  { id: 'Olafasta Kibanda', name: 'Olafasta Kibanda' },
 ];
 
 const sortOptions = [
@@ -54,23 +50,7 @@ const mapBusinessCategoryName = (product) => {
     return product.businessCategory;
   }
   if (!product?.category) return 'Others';
-  const lower = product.category.toLowerCase();
-  if (lower === 'electronics') return 'Electronics';
-  if (lower === 'wines & spirits' || lower === 'wines-spirits') return 'Wines & Spirits';
-  if (lower === 'boutique' || lower === 'boutiques') return 'Boutiques';
-  if (lower === 'hotel') return 'Hotel';
-  if (lower === 'cosmetics') return 'Cosmetics';
-  if (lower === 'services') return 'Services';
-  if (lower === 'gas' || lower === 'gas refill') return 'Gas refill';
-  if (lower === 'furniture' || lower === 'furniture stores') return 'Furniture stores';
-  if (lower === 'fast foods' || lower === 'fast food') return 'Fast foods';
-  if (lower === 'cake shop') return 'Cake shop';
-  if (lower === 'kibanda') return 'Kibanda';
-  if (lower === 'mali mali') return 'Mali mali';
-  if (lower === 'secondhand items' || lower === 'second hand') return 'Secondhand items';
-  if (lower === 'shoes parlor') return 'Shoes Parlor';
-  if (lower === 'shop') return 'Shop';
-  return 'Others';
+  return product.category;
 };
 
 const ShopPage = () => {
@@ -96,7 +76,6 @@ const ShopPage = () => {
   const [hasMore, setHasMore] = useState(true);
   const [viewedProducts, setViewedProducts] = useState(new Set());
 
-  // Check for category from URL
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const category = params.get('category');
@@ -105,7 +84,6 @@ const ShopPage = () => {
     }
   }, [location.search]);
 
-  // Load viewed products from localStorage on mount
   useEffect(() => {
     const viewed = new Set();
     Object.keys(localStorage).forEach(key => {
@@ -119,12 +97,10 @@ const ShopPage = () => {
     setViewedProducts(viewed);
   }, []);
 
-  // Clear subcategory when category changes
   useEffect(() => {
     setSelectedSubcategory('');
   }, [selectedCategory]);
 
-  // Fetch products
   const fetchProducts = async (pageNumber = 1, append = false) => {
     try {
       setLoading(true);
@@ -132,18 +108,17 @@ const ShopPage = () => {
 
       const params = {
         page: pageNumber,
-        limit: 24, // increased limit to fetch more products for grouping
+        limit: 24,
         businessCategory: selectedCategory !== 'all' ? selectedCategory : undefined,
         search: searchQuery || undefined,
         sort: sortBy,
         minPrice: priceRange.min > 0 ? priceRange.min : undefined,
         maxPrice: priceRange.max < 1000000 ? priceRange.max : undefined,
-        excludeHealthcare: true, // Exclude healthcare products from marketplace
+        excludeHealthcare: true,
       };
 
       const response = await productAPI.getAll(params);
 
-      // Backend returns: { success: true, data: [...], pagination: {...} }
       const productsData = response.data?.data || [];
       const pagination = response.data?.pagination || {};
 
@@ -171,13 +146,11 @@ const ShopPage = () => {
     fetchProducts(1, false);
   }, [selectedCategory, selectedSubcategory, sortBy, searchQuery, priceRange]);
 
-  // Real-time Marketplace synchronization (Feature 7)
   const { socket } = useSocket();
   useEffect(() => {
     if (!socket) return;
 
     const handleProductCreated = (newProduct) => {
-      console.log('[ShopPage] Real-time product_created received:', newProduct);
       if (newProduct && newProduct.isActive) {
         setProducts(prev => {
           if (prev.some(p => p._id === newProduct._id)) return prev;
@@ -187,7 +160,6 @@ const ShopPage = () => {
     };
 
     const handleProductUpdated = (updatedProduct) => {
-      console.log('[ShopPage] Real-time product_updated received:', updatedProduct);
       if (updatedProduct) {
         setProducts(prev =>
           prev.map(p => p._id === updatedProduct._id ? { ...p, ...updatedProduct } : p)
@@ -196,14 +168,12 @@ const ShopPage = () => {
     };
 
     const handleProductDeleted = ({ productId }) => {
-      console.log('[ShopPage] Real-time product_deleted received:', productId);
       if (productId) {
         setProducts(prev => prev.filter(p => p._id !== productId));
       }
     };
 
     const handleProductStockUpdated = ({ productId, stock, isActive }) => {
-      console.log('[ShopPage] Real-time product_stock_updated received:', { productId, stock, isActive });
       if (productId) {
         setProducts(prev =>
           prev.map(p => p._id === productId ? { ...p, stock, isActive } : p)
@@ -241,7 +211,6 @@ const ShopPage = () => {
     const wasFavorite = isInWishlist(productId);
     await toggleWishlist(productId);
 
-    // Update local product state to reflect count change
     setProducts(prevProducts =>
       prevProducts.map(product => {
         if (product._id === productId) {
@@ -265,10 +234,8 @@ const ShopPage = () => {
         }
         localStorage.setItem(`viewed_product_${productId}`, 'true');
 
-        // Update local viewed products state immediately
         setViewedProducts(prev => new Set([...prev, productId]));
 
-        // Update local product state to reflect view count change
         setProducts(prevProducts =>
           prevProducts.map(product => {
             if (product._id === productId) {
@@ -295,7 +262,6 @@ const ShopPage = () => {
     setPriceRange({ min: 0, max: 1000000 });
   };
 
-  // Group products by business category when selectedCategory is "all"
   const groupProducts = (items) => {
     const grouped = {};
     items.forEach(product => {
@@ -312,10 +278,8 @@ const ShopPage = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header / Filter Panel */}
       <div className="bg-white border-b border-neutral-200 sticky top-0 z-30 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-4">
-          {/* Search Bar */}
           <form onSubmit={handleSearch} className="relative">
             <Input
               type="text"
@@ -338,14 +302,13 @@ const ShopPage = () => {
             />
           </form>
 
-          {/* Quick Filters / Toolbar */}
           <div className="flex items-center justify-between mt-4 gap-2 overflow-visible">
             <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar flex-1">
               <button
                 onClick={() => setShowFilters(!showFilters)}
                 className={`flex items-center gap-1.5 px-3 py-2 border rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
                   showFilters
-                    ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                    ? 'bg-[#FF5E00] border-[#FF5E00] text-white shadow-sm'
                     : 'bg-neutral-50 border-neutral-200 text-neutral-700 hover:bg-neutral-100 hover:border-neutral-300'
                 }`}
               >
@@ -356,7 +319,7 @@ const ShopPage = () => {
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
-                className="px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs font-semibold text-neutral-700 hover:bg-neutral-100 transition-all cursor-pointer outline-none focus:border-blue-500"
+                className="px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs font-semibold text-neutral-700 hover:bg-neutral-100 transition-all cursor-pointer outline-none focus:border-[#FF5E00]"
               >
                 {businessCategories.map((cat) => (
                   <option key={cat.id} value={cat.id}>
@@ -368,7 +331,7 @@ const ShopPage = () => {
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs font-semibold text-neutral-700 hover:bg-neutral-100 transition-all cursor-pointer outline-none focus:border-blue-500"
+                className="px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs font-semibold text-neutral-700 hover:bg-neutral-100 transition-all cursor-pointer outline-none focus:border-[#FF5E00]"
               >
                 {sortOptions.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -387,7 +350,7 @@ const ShopPage = () => {
                   onClick={() => setViewMode('grid')}
                   className={`p-1.5 rounded transition-all ${
                     viewMode === 'grid'
-                      ? 'bg-white text-blue-600 shadow-xs'
+                      ? 'bg-white text-[#FF5E00] shadow-xs'
                       : 'text-neutral-500 hover:text-neutral-700'
                   }`}
                   title="Grid View"
@@ -398,7 +361,7 @@ const ShopPage = () => {
                   onClick={() => setViewMode('list')}
                   className={`p-1.5 rounded transition-all ${
                     viewMode === 'list'
-                      ? 'bg-white text-blue-600 shadow-xs'
+                      ? 'bg-white text-[#FF5E00] shadow-xs'
                       : 'text-neutral-500 hover:text-neutral-700'
                   }`}
                   title="List View"
@@ -410,7 +373,6 @@ const ShopPage = () => {
           </div>
         </div>
 
-        {/* Expanded Filters Box */}
         {showFilters && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
@@ -463,10 +425,8 @@ const ShopPage = () => {
         )}
       </div>
 
-      {/* Main Marketplace Area */}
       <div className="max-w-7xl mx-auto px-4 py-6">
         {loading && products.length === 0 ? (
-          /* Loading skeleton grid */
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
             {Array.from({ length: 8 }).map((_, i) => (
               <SkeletonCard key={i} />
@@ -491,7 +451,6 @@ const ShopPage = () => {
         ) : (
           <>
             {selectedCategory !== 'all' ? (
-              /* Single Category View Grid */
               <div
                 className={`grid gap-4 sm:gap-6 ${
                   viewMode === 'grid'
@@ -499,24 +458,16 @@ const ShopPage = () => {
                     : 'grid-cols-1'
                 }`}
               >
-                {products.map((product, idx) => (
+                {products.map((product) => (
                   <ProductCard
                     key={product._id}
                     product={product}
-                    onAddToCart={handleAddToCart}
-                    onFavorite={handleFavorite}
-                    isFavorite={isInWishlist(product._id)}
-                    onView={handleViewProduct}
-                    isViewed={viewedProducts.has(product._id)}
-                    priority={idx < 4} // Eagerly load the first 4 visible images above-the-fold
                   />
                 ))}
               </div>
             ) : (
-              /* Grouped by Categories View */
               <div className="space-y-12">
-                {/* Hero Feature Box / Prompt */}
-                <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl p-6 sm:p-8 text-white shadow-md relative overflow-hidden mb-8">
+                <div className="bg-gradient-to-r from-[#FF5E00] to-[#E05200] rounded-2xl p-6 sm:p-8 text-white shadow-md relative overflow-hidden mb-8">
                   <div className="relative z-10 max-w-lg">
                     <span className="bg-white/25 text-white text-[10px] uppercase font-bold tracking-widest px-2.5 py-1 rounded-full flex items-center gap-1 w-fit mb-3">
                       <Sparkles size={12} /> Local Marketplace
@@ -528,26 +479,23 @@ const ShopPage = () => {
                       Discover amazing goods from verified local vendors near you, grouped by category for your convenience.
                     </p>
                   </div>
-                  {/* Decorative background circle */}
                   <div className="absolute -right-12 -bottom-12 w-48 h-48 bg-white/10 rounded-full blur-2xl"></div>
                 </div>
 
                 {Object.entries(groupedProducts).map(([categoryName, categoryProducts]) => (
                   <div key={categoryName} className="space-y-4">
-                    {/* Category Header */}
                     <div className="flex items-center justify-between border-b border-neutral-200 pb-2">
                       <div className="flex items-center gap-2">
-                        <span className="w-1.5 h-6 bg-blue-600 rounded-full"></span>
+                        <span className="w-1.5 h-6 bg-[#FF5E00] rounded-full"></span>
                         <h2 className="text-lg sm:text-xl font-extrabold text-neutral-800 tracking-tight">
                           {categoryName}
                         </h2>
                       </div>
-                      <span className="text-[10px] sm:text-xs font-bold bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full border border-blue-100 shadow-2xs">
+                      <span className="text-[10px] sm:text-xs font-bold bg-orange-50 text-[#FF5E00] px-2.5 py-1 rounded-full border border-orange-100 shadow-2xs">
                         {categoryProducts.length} {categoryProducts.length === 1 ? 'item' : 'items'}
                       </span>
                     </div>
 
-                    {/* Category Products Grid */}
                     <div
                       className={`grid gap-4 sm:gap-6 ${
                         viewMode === 'grid'
@@ -555,16 +503,10 @@ const ShopPage = () => {
                           : 'grid-cols-1'
                       }`}
                     >
-                      {categoryProducts.map((product, idx) => (
+                      {categoryProducts.map((product) => (
                         <ProductCard
                           key={product._id}
                           product={product}
-                          onAddToCart={handleAddToCart}
-                          onFavorite={handleFavorite}
-                          isFavorite={isInWishlist(product._id)}
-                          onView={handleViewProduct}
-                          isViewed={viewedProducts.has(product._id)}
-                          priority={idx < 4} // Eagerly load above-the-fold category images
                         />
                       ))}
                     </div>
@@ -573,7 +515,6 @@ const ShopPage = () => {
               </div>
             )}
 
-            {/* Load More Button */}
             {hasMore && (
               <div className="flex justify-center mt-12 pb-8">
                 <Button
