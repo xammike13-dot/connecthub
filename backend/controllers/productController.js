@@ -22,6 +22,10 @@ export const createProduct = asyncHandler(async (req, res) => {
     businessCategory,
     category,
     subcategory,
+    condition,
+    model,
+    specifications,
+    coverImage,
     stock,
     sku,
     brand,
@@ -42,11 +46,6 @@ export const createProduct = asyncHandler(async (req, res) => {
     throw new ResponseError('Missing required fields', 400);
   }
 
-  // Validate single image limit for products
-  if (images && Array.isArray(images) && images.length > 1) {
-    throw new ResponseError('Only one product image is allowed', 400);
-  }
-
   const product = await Product.create({
     business: businessId,
     name,
@@ -56,6 +55,10 @@ export const createProduct = asyncHandler(async (req, res) => {
     businessCategory: resolvedBusinessCategory,
     category,
     subcategory: subcategory || '',
+    condition: condition || '',
+    model: model || '',
+    specifications: specifications || {},
+    coverImage: coverImage || 0,
     stock,
     sku,
     brand,
@@ -168,6 +171,91 @@ export const getProduct = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Get related products by category, brand, and price range
+ */
+export const getRelatedProducts = asyncHandler(async (req, res) => {
+  const { productId } = req.params;
+  const { page = 1, limit = 12 } = req.query;
+
+  const product = await Product.findById(productId).select('category subcategory brand price businessCategory');
+
+  if (!product) {
+    throw new ResponseError('Product not found', 404);
+  }
+
+  const skip = (page - 1) * limit;
+
+  // Priority 1: Same category and subcategory
+  let related = await Product.find({
+    _id: { $ne: productId },
+    isActive: true,
+    category: product.category,
+    subcategory: product.subcategory,
+  })
+    .populate('business', 'name businessProfile avatar')
+    .sort('-createdAt')
+    .skip(skip)
+    .limit(parseInt(limit));
+
+  // Priority 2: Same category, different subcategory
+  if (related.length < limit) {
+    const existingIds = related.map(p => p._id.toString());
+    existingIds.push(productId);
+    const more = await Product.find({
+      _id: { $nin: existingIds },
+      isActive: true,
+      category: product.category,
+    })
+      .populate('business', 'name businessProfile avatar')
+      .sort('-createdAt')
+      .limit(parseInt(limit) - related.length);
+    related = [...related, ...more];
+  }
+
+  // Priority 3: Same businessCategory
+  if (related.length < limit && product.businessCategory) {
+    const existingIds = related.map(p => p._id.toString());
+    existingIds.push(productId);
+    const more = await Product.find({
+      _id: { $nin: existingIds },
+      isActive: true,
+      businessCategory: product.businessCategory,
+    })
+      .populate('business', 'name businessProfile avatar')
+      .sort('-createdAt')
+      .limit(parseInt(limit) - related.length);
+    related = [...related, ...more];
+  }
+
+  // Priority 4: Similar price range (+/- 50%)
+  if (related.length < limit) {
+    const existingIds = related.map(p => p._id.toString());
+    existingIds.push(productId);
+    const minPrice = product.price * 0.5;
+    const maxPrice = product.price * 1.5;
+    const more = await Product.find({
+      _id: { $nin: existingIds },
+      isActive: true,
+      price: { $gte: minPrice, $lte: maxPrice },
+    })
+      .populate('business', 'name businessProfile avatar')
+      .sort('-createdAt')
+      .limit(parseInt(limit) - related.length);
+    related = [...related, ...more];
+  }
+
+  res.status(200).json({
+    success: true,
+    data: related,
+    pagination: {
+      total: related.length,
+      currentPage: parseInt(page),
+      perPage: parseInt(limit),
+    },
+  });
+});
+
+/**
  * Update product
  */
 export const updateProduct = asyncHandler(async (req, res) => {
@@ -182,12 +270,6 @@ export const updateProduct = asyncHandler(async (req, res) => {
 
   if (!businessId || product.business.toString() !== businessId.toString()) {
     throw new ResponseError('Not authorized to update this product', 403);
-  }
-
-  // Validate single image limit for products
-  const { images } = req.body;
-  if (images && Array.isArray(images) && images.length > 1) {
-    throw new ResponseError('Only one product image is allowed', 400);
   }
 
   const updatedProduct = await Product.findByIdAndUpdate(
@@ -229,7 +311,6 @@ export const deleteProduct = asyncHandler(async (req, res) => {
   await Product.findByIdAndDelete(productId);
 
   // Remove product from all customer wishlists
-  console.log('[WISHLIST CLEANUP] Removing deleted product from all customer wishlists:', productId);
   await Wishlist.updateMany({}, { $pull: { products: { product: productId } } });
 
   // Update business profile
@@ -339,11 +420,8 @@ export const trackProductView = asyncHandler(async (req, res) => {
   const userId = req.user._id;
   const userRole = req.user.role;
 
-  console.log('[VIEW BACKEND] Tracking view for product:', productId, 'User:', userId, 'Role:', userRole);
-
   const product = await Product.findById(productId);
   if (!product) {
-    console.log('[VIEW BACKEND] Product not found:', productId);
     throw new ResponseError('Product not found', 404);
   }
 
@@ -354,7 +432,6 @@ export const trackProductView = asyncHandler(async (req, res) => {
     activeBusinessId &&
     product.business.toString() === activeBusinessId.toString()
   ) {
-    console.log('[VIEW BACKEND] View not counted (business/assistant viewing own product):', productId);
     return res.status(200).json({
       success: true,
       message: 'View not counted (business/assistant)',
@@ -366,28 +443,21 @@ export const trackProductView = asyncHandler(async (req, res) => {
 
   // Track view for authenticated customer users
   if (userRole === 'customer') {
-    // Check if already viewed
     const user = await User.findById(userId).select('customerProfile.viewedProducts');
     const viewedProducts = user?.customerProfile?.viewedProducts || [];
     hasViewed = viewedProducts.some(id => id.toString() === productId);
 
     if (!hasViewed) {
-      // Add to viewed products
       await User.findByIdAndUpdate(userId, {
         $addToSet: { 'customerProfile.viewedProducts': productId }
       });
       hasViewed = true;
 
-      // Increment view count
       product.views = (product.views || 0) + 1;
       await product.save();
       viewCount = product.views;
-      console.log('[VIEW BACKEND] Views incremented for product:', productId, 'New count:', viewCount);
-    } else {
-      console.log('[VIEW BACKEND] Already viewed by customer, ignoring increment:', productId);
     }
   } else {
-    // For other roles, just increment the view count (or ignore if not desired, let's increment)
     product.views = (product.views || 0) + 1;
     await product.save();
     viewCount = product.views;
