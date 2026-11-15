@@ -6,6 +6,7 @@ import {
   getUser,
   updateUserStatus,
   deleteUser,
+  verifyUserEmail,
   getAdminOrders,
   updateAdminOrder,
   getAdminProperties,
@@ -65,6 +66,7 @@ router.get('/disputes/report', getDisputeReport);
 router.get('/users', getUsers);
 router.get('/users/:userId', getUser);
 router.put('/users/:userId/status', updateUserStatus);
+router.put('/users/:userId/verify-email', verifyUserEmail);
 router.delete('/users/:userId', deleteUser);
 
 // Product management

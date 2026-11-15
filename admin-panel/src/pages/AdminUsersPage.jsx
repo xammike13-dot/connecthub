@@ -28,23 +28,49 @@ const AdminUsersPage = () => {
     }
   };
 
-  const handleToggleStatus = async (user) => {
+  const handleActivateUser = async (user) => {
     try {
-      const updatedStatus = !user.isActive;
-      await adminAPI.updateUserStatus(user._id, { isActive: updatedStatus });
-      setUsers(users.map(u => u._id === user._id ? { ...u, isActive: updatedStatus } : u));
+      await adminAPI.updateUserStatus(user._id, { isActive: true });
+      alert('Account activated successfully.');
+      setUsers(users.map(u => u._id === user._id ? { ...u, isActive: true } : u));
     } catch (err) {
-      console.error('Failed to update status:', err);
+      console.error('Failed to activate account:', err);
+      alert('Failed to activate account. Please try again.');
+    }
+  };
+
+  const handleSuspendUser = async (user) => {
+    if (!window.confirm('Are you sure you want to suspend this account?')) return;
+    try {
+      await adminAPI.updateUserStatus(user._id, { isActive: false });
+      alert('Account suspended successfully.');
+      setUsers(users.map(u => u._id === user._id ? { ...u, isActive: false } : u));
+    } catch (err) {
+      console.error('Failed to suspend account:', err);
+      alert('Failed to suspend account. Please try again.');
+    }
+  };
+
+  const handleVerifyEmail = async (user) => {
+    try {
+      await adminAPI.verifyUserEmail(user._id);
+      alert('Email verified successfully.');
+      setUsers(users.map(u => u._id === user._id ? { ...u, emailVerified: true } : u));
+    } catch (err) {
+      console.error('Failed to verify email:', err);
+      alert('Failed to verify email. Please try again.');
     }
   };
 
   const handleDeleteUser = async (userId) => {
-    if (!window.confirm('Are you absolutely sure you want to delete this user? This action soft-deletes the user profile.')) return;
+    if (!window.confirm('Are you sure you want to permanently delete this account? This action cannot be undone.')) return;
     try {
       await adminAPI.deleteUser(userId);
+      alert('Account deleted successfully.');
       setUsers(users.filter(u => u._id !== userId));
     } catch (err) {
       console.error('Failed to delete user:', err);
+      alert('Failed to delete user. Please try again.');
     }
   };
 
@@ -110,33 +136,70 @@ const AdminUsersPage = () => {
                     </span>
                   </td>
                   <td className="p-4">
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                      u.isActive ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'
-                    }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${u.isActive ? 'bg-green-400' : 'bg-red-400'}`} />
-                      {u.isActive ? 'Active' : 'Suspended'}
-                    </span>
+                    <div className="flex flex-col gap-1">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold w-fit ${
+                        u.isActive ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${u.isActive ? 'bg-green-400' : 'bg-red-400'}`} />
+                        {u.isActive ? 'Active' : 'Suspended'}
+                      </span>
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold w-fit ${
+                        u.emailVerified ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                      }`}>
+                        {u.emailVerified ? 'Verified' : 'Unverified'}
+                      </span>
+                    </div>
                   </td>
                   <td className="p-4 text-slate-400">{new Date(u.createdAt).toLocaleDateString()}</td>
                   <td className="p-4">
-                    <div className="flex justify-center gap-2">
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {u.isActive ? (
+                        <Button
+                          variant="danger"
+                          size="xs"
+                          onClick={() => handleSuspendUser(u)}
+                          title="Suspend Account"
+                          className="flex items-center gap-1"
+                        >
+                          <ShieldAlert size={14} />
+                          Suspend
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="success"
+                          size="xs"
+                          onClick={() => handleActivateUser(u)}
+                          title="Activate Account"
+                          className="flex items-center gap-1"
+                        >
+                          <CheckCircle size={14} />
+                          Activate
+                        </Button>
+                      )}
+
+                      {!u.emailVerified && (
+                        <Button
+                          variant="warning"
+                          size="xs"
+                          onClick={() => handleVerifyEmail(u)}
+                          title="Verify Email"
+                          className="flex items-center gap-1"
+                        >
+                          <CheckCircle size={14} />
+                          Verify Email
+                        </Button>
+                      )}
+
                       <Button
-                        variant={u.isActive ? 'danger' : 'success'}
+                        variant="danger"
                         size="xs"
-                        onClick={() => handleToggleStatus(u)}
-                        title={u.isActive ? 'Suspend User' : 'Reactivate User'}
+                        onClick={() => handleDeleteUser(u._id)}
+                        title="Delete Account"
                         className="flex items-center gap-1"
                       >
-                        {u.isActive ? <ShieldAlert size={14} /> : <CheckCircle size={14} />}
-                        {u.isActive ? 'Suspend' : 'Activate'}
-                      </Button>
-                      <button
-                        onClick={() => handleDeleteUser(u._id)}
-                        className="p-1.5 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors border border-red-500/20"
-                        title="Delete User"
-                      >
                         <Trash2 size={14} />
-                      </button>
+                        Delete
+                      </Button>
                     </div>
                   </td>
                 </tr>
