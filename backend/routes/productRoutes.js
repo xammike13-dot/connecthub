@@ -3,6 +3,7 @@ import {
   createProduct,
   getProducts,
   getProduct,
+  getRelatedProducts,
   updateProduct,
   deleteProduct,
   updateProductStock,
@@ -29,6 +30,7 @@ router.put('/:productId', authorize('business', 'assistant'), updateProduct);
 router.delete('/:productId', authorize('business', 'assistant'), deleteProduct);
 
 // Public routes with dynamic params (after protected routes)
+router.get('/:productId/related', validateObjectId('productId'), getRelatedProducts);
 router.get('/:productId', validateObjectId('productId'), getProduct);
 router.get('/business/:businessId', validateObjectId('businessId'), getBusinessProducts);
 
