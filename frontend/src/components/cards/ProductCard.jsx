@@ -1,36 +1,14 @@
+// cards/ProductCard.jsx — redesigned product card for grid/list views, wired to CartContext
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import {
-  ShoppingCart,
-  Heart,
-  Star,
-  Eye,
-  BadgeCheck,
-  Zap,
-  Truck,
-} from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { Link } from 'react-router-dom';
+import { Plus, Check, Tag } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
-import { useToast } from '../Toast';
-import { productAPI } from '../../services/api';
-import Avatar from '../ui/Avatar';
-import OptimizedImage from '../ui/OptimizedImage';
 
-const ProductCard = ({
-  product,
-  onAddToCart,
-  onFavorite,
-  isFavorite = false,
-  onView,
-  isViewed = false,
-  priority = false,
-}) => {
-  const navigate = useNavigate();
-  const { user } = useAuth();
+const ProductCard = ({ product, isGrid = true, className = '' }) => {
+  const { addToCart } = useCart();
+  const [added, setAdded] = useState(false);
 
   if (!product) {
-    console.warn('[ProductCard] Received null or undefined product');
     return null;
   }
 
@@ -40,276 +18,132 @@ const ProductCard = ({
     price,
     originalPrice,
     images,
+    coverImage = 0,
     category,
-    business,
-    rating,
-    reviewCount,
+    businessCategory,
+    condition,
     stock,
-    isVerified,
-    discount,
-    deliveryFee = 0,
-    views = 0,
-    favoritesCount = 0,
+    isActive,
   } = product;
 
-  const isHealthcareProduct = category?.toLowerCase() === 'healthcare';
+  const mainImage =
+    images?.[coverImage] ||
+    images?.[0] ||
+    (typeof images?.[0] === 'object' ? images[0]?.url : null) ||
+    null;
 
-  const mainImage = (images?.[0] && typeof images[0] === 'string' && images[0].trim() !== '')
-    ? images[0]
-    : (images?.[0]?.url && typeof images[0].url === 'string' && images[0].url.trim() !== '')
-      ? images[0].url
-      : 'https://via.placeholder.com/300x300?text=No+Image';
-
-  const discountPercent = discount || (originalPrice && originalPrice > price
+  const hasDiscount = originalPrice && originalPrice > price;
+  const discountPercent = hasDiscount
     ? Math.round(((originalPrice - price) / originalPrice) * 100)
-    : 0);
+    : 0;
 
-  const isOutOfStock = stock === 0;
+  const isOutOfStock = stock === 0 || !isActive;
+  const displayCategory = businessCategory || category || '';
 
-  const { isInCart, addToCart } = useCart();
-  const { success: toastSuccess, error: toastError } = useToast();
-  const [isAdding, setIsAdding] = useState(false);
-
-  const handleAddClick = async (e) => {
+  const handleAddClick = (e) => {
     e.preventDefault();
-    if (isAdding) return;
-
-    setIsAdding(true);
-    try {
-      // Query backend to confirm the product exists and has stock
-      const response = await productAPI.getById(_id);
-      const fetchedProduct = response.data?.data;
-
-      if (!fetchedProduct) {
-        toastError('Failed to add product to cart. Product not found.');
-        return;
-      }
-
-      if (!fetchedProduct.isActive) {
-        toastError('Failed to add product to cart. Product is no longer active.');
-        return;
-      }
-
-      if (fetchedProduct.stock <= 0) {
-        toastError('Failed to add product to cart. Product is out of stock.');
-        return;
-      }
-
-      // Add to cart
-      addToCart(product);
-      toastSuccess('✓ Product added to cart successfully.');
-    } catch (err) {
-      console.error('[ADD TO CART ERROR]', err);
-      toastError('Failed to add product to cart. Please try again.');
-    } finally {
-      setIsAdding(false);
-    }
+    e.stopPropagation();
+    if (isOutOfStock) return;
+    addToCart({
+      _id,
+      name,
+      price,
+      images,
+      coverImage,
+      category: displayCategory,
+      stock,
+    });
+    setAdded(true);
+    setTimeout(() => setAdded(false), 1500);
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 15 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      className="group bg-white rounded-xl shadow-sm hover:shadow-md border border-neutral-250/70 hover:border-blue-400 transition-all duration-300 flex flex-col h-full overflow-hidden"
+    <Link
+      to={`/product/${_id}`}
+      className={`group relative flex flex-col bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-md hover:border-orange-200 transition-all duration-200 ${className}`}
     >
-      {/* Image Container with standard ratio */}
-      <div className="relative aspect-square overflow-hidden bg-neutral-100">
-        <OptimizedImage
-          src={mainImage}
-          alt={name}
-          priority={priority}
-          aspectRatioClass="aspect-square"
-          className="transition-transform duration-500 group-hover:scale-105"
-        />
-
-        {/* Badges */}
-        <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
-          {discountPercent > 0 && (
-            <span className="bg-red-500 text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded shadow">
-              -{discountPercent}%
-            </span>
-          )}
-          {isVerified && (
-            <span className="bg-green-500 text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded flex items-center gap-0.5 shadow">
-              <BadgeCheck size={10} /> Verified
-            </span>
-          )}
-          {isOutOfStock && (
-            <span className="bg-neutral-800 text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded shadow">
-              Out of Stock
-            </span>
-          )}
-        </div>
-
-        {/* Favorite Button */}
-        <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
-          onClick={(e) => {
-            e.preventDefault();
-            console.log('[FAVORITE CLICK] Product:', _id, 'Is Favorite:', isFavorite);
-            onFavorite?.(_id);
-          }}
-          className="absolute top-2 right-2 p-1.5 rounded-full transition-all duration-200 backdrop-blur-sm shadow bg-white/90 text-neutral-500 hover:bg-white hover:text-red-500 z-10"
-        >
-          <Heart
-            size={14}
-            fill={isFavorite ? 'currentColor' : 'none'}
-            className={isFavorite ? 'text-red-500' : ''}
+      {/* Image Area */}
+      <div className="relative w-full aspect-square bg-gray-100 overflow-hidden">
+        {mainImage ? (
+          <img
+            src={mainImage}
+            alt={name}
+            loading="lazy"
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
-        </motion.button>
-      </div>
-
-      {/* Content area: takes remaining vertical space */}
-      <div className="p-3 sm:p-4 flex flex-col flex-grow">
-        {/* Category */}
-        <p className="text-[10px] sm:text-xs text-blue-600 font-bold uppercase tracking-wider mb-1">
-          {category}
-        </p>
-
-        {/* Product Name (clamped & with exact line height minimums to align the card bodies perfectly) */}
-        {isHealthcareProduct ? (
-          <div
-            onClick={() => onView?.(_id)}
-            className="block mb-2 flex-grow cursor-pointer"
-          >
-            <h3 className="font-semibold text-neutral-900 line-clamp-2 hover:text-blue-600 transition-colors text-xs sm:text-sm md:text-base leading-snug min-h-[2.5rem]">
-              {name}
-            </h3>
-          </div>
         ) : (
-          <Link to={`/marketplace/${_id}`} onClick={() => onView?.(_id)} className="block mb-2 flex-grow">
-            <h3 className="font-semibold text-neutral-900 line-clamp-2 hover:text-blue-600 transition-colors text-xs sm:text-sm md:text-base leading-snug min-h-[2.5rem]">
-              {name}
-            </h3>
-          </Link>
+          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-orange-50 to-gray-50">
+            <Tag size={32} className="text-gray-300" />
+          </div>
         )}
 
-        {/* Ratings, Views & Favorites Stats */}
-        <div className="flex items-center justify-between mb-2 pb-2 border-b border-neutral-50">
-          {rating ? (
-            <div className="flex items-center gap-0.5">
-              <Star size={12} className="text-yellow-500 fill-current" />
-              <span className="text-xs font-bold text-neutral-800">
-                {rating.toFixed(1)}
-              </span>
-              {reviewCount > 0 && (
-                <span className="text-[10px] text-neutral-400 font-medium">({reviewCount})</span>
-              )}
-            </div>
-          ) : (
-            <div className="flex items-center gap-0.5">
-              <Star size={12} className="text-neutral-200" />
-              <span className="text-[10px] text-neutral-400">No reviews</span>
-            </div>
-          )}
+        {/* Discount badge */}
+        {hasDiscount && (
+          <span className="absolute top-2 left-2 text-[10px] font-black bg-[#FF5E00] text-white px-2 py-0.5 rounded-full shadow-sm z-10">
+            -{discountPercent}%
+          </span>
+        )}
 
-          <div className="flex items-center gap-2 text-[10px] text-neutral-400 font-semibold">
-            <span className="flex items-center gap-0.5">
-              <Eye size={11} /> {views || 0}
-            </span>
-            <span className="flex items-center gap-0.5">
-              <Heart size={11} className={favoritesCount > 0 ? 'text-red-400 fill-current' : ''} /> {favoritesCount || 0}
+        {/* Condition badge */}
+        {condition && (
+          <span className="absolute top-2 right-2 text-[9px] font-bold bg-white/95 backdrop-blur-sm text-gray-700 px-1.5 py-0.5 rounded-md shadow-sm z-10">
+            {condition}
+          </span>
+        )}
+
+        {/* Out of stock overlay */}
+        {isOutOfStock && (
+          <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-10">
+            <span className="text-white text-xs font-bold bg-black/60 px-3 py-1 rounded-full">
+              Out of Stock
             </span>
           </div>
+        )}
+
+        {/* Category label */}
+        {displayCategory && (
+          <span className="absolute bottom-2 left-2 text-[9px] font-bold bg-white/90 backdrop-blur-sm text-gray-700 px-1.5 py-0.5 rounded-md shadow-sm max-w-[85%] truncate z-10">
+            {displayCategory}
+          </span>
+        )}
+      </div>
+
+      {/* Details Area */}
+      <div className="flex flex-col flex-1 p-2.5 md:p-3 gap-1.5 justify-between">
+        <div>
+          <p className="text-gray-900 text-xs md:text-sm font-bold leading-snug line-clamp-2 group-hover:text-[#FF5E00] transition-colors">
+            {name}
+          </p>
         </div>
 
-        {/* Pricing & Delivery Details */}
-        <div className="flex flex-col gap-1 mb-2">
-          <div className="flex items-baseline gap-1.5 flex-wrap">
-            <span className="text-sm sm:text-base md:text-lg font-extrabold text-blue-600">
-              KSh {price?.toLocaleString() || '0'}
+        <div className="flex items-center justify-between mt-auto pt-1.5 border-t border-gray-50">
+          <div className="flex flex-col min-w-0 pr-1">
+            <span className="text-[#FF5E00] font-extrabold text-sm md:text-base leading-tight truncate">
+              KSh {price?.toLocaleString()}
             </span>
-            {originalPrice && originalPrice > price && (
-              <span className="text-[10px] sm:text-xs text-neutral-400 line-through font-medium">
-                KSh {originalPrice?.toLocaleString()}
+            {hasDiscount && (
+              <span className="text-gray-400 text-[11px] line-through leading-tight truncate">
+                KSh {originalPrice.toLocaleString()}
               </span>
             )}
           </div>
-          <div className="flex items-center gap-1 text-[10px] text-neutral-500 font-medium">
-            <Truck size={11} className="text-neutral-450" />
-            <span>Delivery: {deliveryFee === 0 ? <span className="text-green-600 font-semibold">FREE</span> : `KSh ${deliveryFee}`}</span>
-          </div>
-        </div>
 
-        {/* Business Partner Info */}
-        {business && (
-          <div className="flex items-center gap-1.5 mt-1 mb-3">
-            <Avatar
-              src={business.businessProfile?.businessLogo || business.avatar}
-              alt={business.businessProfile?.businessName || business.name}
-              size="xs"
-              className="border border-neutral-100"
-            />
-            <p className="text-[10px] text-neutral-400 font-medium truncate max-w-[120px] sm:max-w-[150px]">
-              by {business.businessProfile?.businessName || business.name}
-            </p>
-          </div>
-        )}
-
-        {/* Persistent Action Buttons (Touch friendly & beautifully spaced) */}
-        <div className="grid grid-cols-3 gap-1 sm:gap-2 mt-auto">
           <button
-            onClick={() => onView?.(_id)}
-            className={`py-2 px-1 sm:px-1.5 rounded-lg text-[10px] sm:text-xs font-bold flex items-center justify-center gap-1 border transition-all ${
-              isViewed
-                ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
-                : 'bg-neutral-50 text-neutral-600 border-neutral-200 hover:bg-neutral-100 hover:text-neutral-800'
-            }`}
-            title="View details"
-          >
-            <Eye size={12} />
-            <span>View</span>
-          </button>
-          {isInCart(_id) ? (
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                navigate('/cart');
-              }}
-              className="py-2 px-1 sm:px-1.5 rounded-lg text-[10px] sm:text-xs font-bold flex items-center justify-center gap-1 bg-green-50 text-green-600 border border-green-200 hover:bg-green-100 hover:text-green-700 transition-all"
-              title="View Cart"
-            >
-              <ShoppingCart size={12} />
-              <span>View Cart</span>
-            </button>
-          ) : (
-            <button
-              disabled={isOutOfStock || isAdding}
-              onClick={handleAddClick}
-              className="py-2 px-1 sm:px-1.5 rounded-lg text-[10px] sm:text-xs font-bold flex items-center justify-center gap-1 bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100 hover:text-blue-700 transition-all disabled:opacity-50 disabled:pointer-events-none"
-              title="Add to cart"
-            >
-              {isAdding ? (
-                <div className="animate-spin rounded-full h-3 w-3 border-2 border-blue-600 border-t-transparent"></div>
-              ) : (
-                <ShoppingCart size={12} />
-              )}
-              <span>{isAdding ? 'Adding...' : 'Add'}</span>
-            </button>
-          )}
-          <button
+            onClick={handleAddClick}
             disabled={isOutOfStock}
-            onClick={() => {
-              if (!user) {
-                navigate('/login', { state: { from: isHealthcareProduct ? '/healthcare' : `/marketplace/${_id}` } });
-                return;
-              }
-              if (!isInCart(_id)) {
-                addToCart(product);
-              }
-              navigate('/checkout');
-            }}
-            className="py-2 px-1 sm:px-1.5 rounded-lg text-[10px] sm:text-xs font-bold flex items-center justify-center gap-1 bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition-all disabled:opacity-50 disabled:pointer-events-none"
-            title="Buy now"
+            aria-label="Add to cart"
+            className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center transition-all duration-200 shadow-sm hover:scale-110 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: added ? '#027A2B' : '#FF5E00' }}
           >
-            <Zap size={12} />
-            <span>Buy</span>
+            {added ? (
+              <Check size={16} className="text-white stroke-[2.5]" />
+            ) : (
+              <Plus size={16} className="text-white stroke-[2.5]" />
+            )}
           </button>
         </div>
       </div>
-    </motion.div>
+    </Link>
   );
 };
 
