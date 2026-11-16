@@ -146,7 +146,7 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
  * Get all products for admin with aggregation
  */
 export const getAdminProducts = asyncHandler(async (req, res) => {
-  const { search, businessCategory, category, status, sortBy, page = 1, limit = 20 } = req.query;
+  const { search, category, status, sortBy, page = 1, limit = 20 } = req.query;
 
   const skip = (parseInt(page) - 1) * parseInt(limit);
   const parsedLimit = parseInt(limit);
@@ -187,20 +187,14 @@ export const getAdminProducts = asyncHandler(async (req, res) => {
   // Match stage filters
   const matchStage = {};
 
-  const targetCategoryFilter = businessCategory || category;
-  if (targetCategoryFilter) {
-    matchStage.$or = [
-      { businessCategory: { $regex: targetCategoryFilter, $options: 'i' } },
-      { category: { $regex: targetCategoryFilter, $options: 'i' } }
-    ];
+  if (category) {
+    matchStage.category = category;
   }
 
   if (search) {
     matchStage.$or = [
       { name: { $regex: search, $options: 'i' } },
-      { businessCategory: { $regex: search, $options: 'i' } },
       { category: { $regex: search, $options: 'i' } },
-      { subcategory: { $regex: search, $options: 'i' } },
       { 'businessDetails.businessProfile.businessName': { $regex: search, $options: 'i' } },
       { 'businessDetails.name': { $regex: search, $options: 'i' } }
     ];
@@ -254,9 +248,7 @@ export const getAdminProducts = asyncHandler(async (req, res) => {
       _id: 1,
       name: 1,
       description: 1,
-      businessCategory: 1,
       category: 1,
-      subcategory: 1,
       price: 1,
       stock: 1,
       images: 1,
@@ -367,9 +359,7 @@ export const getAdminProductById = asyncHandler(async (req, res) => {
         _id: 1,
         name: 1,
         description: 1,
-        businessCategory: 1,
         category: 1,
-        subcategory: 1,
         price: 1,
         stock: 1,
         images: 1,

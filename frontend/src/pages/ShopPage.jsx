@@ -21,7 +21,7 @@ import { useToast } from '../components/Toast';
 import { productAPI } from '../services/api';
 import { useSocket } from '../context/SocketContext';
 
-const businessCategories = [
+const categories = [
   { id: 'all', name: 'All Categories' },
   { id: 'Olafasta Foods', name: 'Olafasta Foods' },
   { id: 'Olafasta Mitumba', name: 'Olafasta Mitumba' },
@@ -37,6 +37,15 @@ const businessCategories = [
   { id: 'Olafasta Gas', name: 'Olafasta Gas' },
   { id: 'Olafasta Kibanda', name: 'Olafasta Kibanda' },
 ];
+const businessCategories = categories;
+
+// Subcategories for each main category
+const subcategories = {
+  'Food': ['Snacks', 'Beverages', 'Fries', 'Rice', 'Unga', 'Cooking Oil', 'Salt', 'Sugar', 'Flour', 'Soap', 'Other Essentials'],
+  'Household': ['New', 'Second Hand', 'Kitchenware', 'Cleaning', 'Furniture'],
+  'Electronics': ['Phones', 'Accessories', 'Home Appliances', 'Computers'],
+  'Fashion': ['Men', 'Women', 'Kids', 'Shoes', 'Bags'],
+};
 
 const sortOptions = [
   { value: '-createdAt', label: 'Newest' },
@@ -45,13 +54,15 @@ const sortOptions = [
   { value: '-rating', label: 'Highest Rated' },
 ];
 
-const mapBusinessCategoryName = (product) => {
-  if (product?.businessCategory) {
-    return product.businessCategory;
+const mapCategoryName = (productOrCat) => {
+  if (typeof productOrCat === 'object') {
+    if (productOrCat?.category) return productOrCat.category;
+    if (productOrCat?.businessCategory) return productOrCat.businessCategory;
+    return 'Others';
   }
-  if (!product?.category) return 'Others';
-  return product.category;
+  return productOrCat || 'Others';
 };
+const mapBusinessCategoryName = mapCategoryName;
 
 const ShopPage = () => {
   const navigate = useNavigate();
@@ -109,7 +120,8 @@ const ShopPage = () => {
       const params = {
         page: pageNumber,
         limit: 24,
-        businessCategory: selectedCategory !== 'all' ? selectedCategory : undefined,
+        category: selectedCategory !== 'all' ? selectedCategory : undefined,
+        subcategory: selectedSubcategory || undefined,
         search: searchQuery || undefined,
         sort: sortBy,
         minPrice: priceRange.min > 0 ? priceRange.min : undefined,
@@ -262,10 +274,11 @@ const ShopPage = () => {
     setPriceRange({ min: 0, max: 1000000 });
   };
 
+  // Group products by category when selectedCategory is "all"
   const groupProducts = (items) => {
     const grouped = {};
     items.forEach(product => {
-      const cat = mapBusinessCategoryName(product);
+      const cat = mapCategoryName(product.category);
       if (!grouped[cat]) {
         grouped[cat] = [];
       }
@@ -321,12 +334,27 @@ const ShopPage = () => {
                 onChange={(e) => setSelectedCategory(e.target.value)}
                 className="px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs font-semibold text-neutral-700 hover:bg-neutral-100 transition-all cursor-pointer outline-none focus:border-[#FF5E00]"
               >
-                {businessCategories.map((cat) => (
+                {categories.map((cat) => (
                   <option key={cat.id} value={cat.id}>
                     {cat.name}
                   </option>
                 ))}
               </select>
+
+              {selectedCategory !== 'all' && subcategories[selectedCategory] && (
+                <select
+                  value={selectedSubcategory}
+                  onChange={(e) => setSelectedSubcategory(e.target.value)}
+                  className="px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs font-semibold text-neutral-700 hover:bg-neutral-100 transition-all cursor-pointer outline-none focus:border-blue-500"
+                >
+                  <option value="">All {selectedCategory}</option>
+                  {subcategories[selectedCategory].map((sub) => (
+                    <option key={sub} value={sub}>
+                      {sub}
+                    </option>
+                  ))}
+                </select>
+              )}
 
               <select
                 value={sortBy}

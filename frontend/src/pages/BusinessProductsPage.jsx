@@ -32,26 +32,18 @@ const formatCurrency = (amount) => {
   }).format(amount);
 };
 
-// Fixed Business Categories list as per requirements
-const BUSINESS_CATEGORIES = [
-  'Healthcare',
-  'Shop',
-  'Cosmetics',
-  'Hotel',
-  'Electronics',
-  'Wines & Spirits',
-  'Services',
-  'Boutiques',
-  'Shoes Parlor',
-  'Secondhand items',
-  'Mali mali',
-  'Gas refill',
-  'Furniture stores',
-  'Fast foods',
-  'Cake shop',
-  'Kibanda',
-  'Others',
-];
+// Category and subcategory structure as per requirements
+const categories = {
+  'Food': ['Snacks', 'Beverages', 'Fries', 'Rice', 'Unga', 'Cooking Oil', 'Salt', 'Sugar', 'Flour', 'Soap', 'Other Essentials'],
+  'Household': ['New', 'Second Hand', 'Kitchenware', 'Cleaning', 'Furniture'],
+  'Electronics': ['Phones', 'Accessories', 'Home Appliances', 'Computers'],
+  'Fashion': ['Men', 'Women', 'Kids', 'Shoes', 'Bags'],
+  'Gas': [],
+  'Wines & Spirits': [],
+  'Second Hand': [],
+  'Test': [],
+  'Health Care': ['Medicines', 'Medical Supplies', 'Pharmacy Products'],
+};
 
 const BusinessProductsPage = () => {
   const navigate = useNavigate();
@@ -62,8 +54,8 @@ const BusinessProductsPage = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedBusinessCategory, setSelectedBusinessCategory] = useState('');
-  const [searchCategory, setSearchCategory] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedSubcategory, setSelectedSubcategory] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -80,7 +72,6 @@ const BusinessProductsPage = () => {
     description: '',
     price: '',
     deliveryFee: '',
-    businessCategory: user?.businessProfile?.businessCategory || '',
     category: '',
     subcategory: '',
     stock: '',
@@ -99,8 +90,7 @@ const BusinessProductsPage = () => {
       const params = {
         page: pageNumber,
         limit: 12,
-        businessCategory: selectedBusinessCategory || undefined,
-        category: searchCategory || undefined,
+        category: selectedCategory || undefined,
         search: searchQuery || undefined,
       };
 
@@ -125,7 +115,7 @@ const BusinessProductsPage = () => {
 
   useEffect(() => {
     fetchProducts(1, false);
-  }, [selectedBusinessCategory, searchCategory, searchQuery]);
+  }, [selectedCategory, searchQuery]);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -136,15 +126,11 @@ const BusinessProductsPage = () => {
     fetchProducts(page + 1, true);
   };
 
-  // Default businessCategory to profile category when opening add modal
-  useEffect(() => {
-    if (showAddModal && !formData.businessCategory) {
-      setFormData((prev) => ({
-        ...prev,
-        businessCategory: user?.businessProfile?.businessCategory || '',
-      }));
-    }
-  }, [showAddModal, user]);
+  // Handle category change
+  const handleCategoryChange = (category) => {
+    setSelectedCategory(category);
+    setSelectedSubcategory('');
+  };
 
   // Validate form
   const validateForm = () => {
@@ -152,8 +138,7 @@ const BusinessProductsPage = () => {
     if (!formData.name.trim()) errors.name = 'Product name is required';
     if (!formData.description.trim()) errors.description = 'Description is required';
     if (!formData.price || parseFloat(formData.price) <= 0) errors.price = 'Valid price is required';
-    if (!formData.businessCategory) errors.businessCategory = 'Business Category is required';
-    if (!formData.category.trim()) errors.category = 'Product Category is required';
+    if (!formData.category) errors.category = 'Category is required';
     if (formData.stock === '' || parseFloat(formData.stock) < 0) errors.stock = 'Valid stock quantity is required';
 
     setFormErrors(errors);
@@ -172,9 +157,8 @@ const BusinessProductsPage = () => {
         description: formData.description,
         price: parseFloat(formData.price),
         deliveryFee: parseFloat(formData.deliveryFee) || 0,
-        businessCategory: formData.businessCategory,
-        category: formData.category.trim(),
-        subcategory: formData.subcategory.trim(),
+        category: formData.category,
+        subcategory: formData.subcategory,
         stock: parseInt(formData.stock) || 0,
         images: formData.images,
       };
@@ -204,8 +188,7 @@ const BusinessProductsPage = () => {
       description: product.description,
       price: product.price.toString(),
       deliveryFee: (product.deliveryFee || 0).toString(),
-      businessCategory: product.businessCategory || user?.businessProfile?.businessCategory || 'Others',
-      category: product.category || '',
+      category: product.category,
       subcategory: product.subcategory || '',
       stock: (product.stock || 0).toString(),
       images: product.images || [],
@@ -227,9 +210,8 @@ const BusinessProductsPage = () => {
         description: formData.description,
         price: parseFloat(formData.price),
         deliveryFee: parseFloat(formData.deliveryFee) || 0,
-        businessCategory: formData.businessCategory,
-        category: formData.category.trim(),
-        subcategory: formData.subcategory.trim(),
+        category: formData.category,
+        subcategory: formData.subcategory,
         stock: parseInt(formData.stock) || 0,
         images: formData.images,
       };
@@ -316,7 +298,6 @@ const BusinessProductsPage = () => {
       description: '',
       price: '',
       deliveryFee: '',
-      businessCategory: user?.businessProfile?.businessCategory || '',
       category: '',
       subcategory: '',
       stock: '',
@@ -402,7 +383,7 @@ const BusinessProductsPage = () => {
           <div className="flex-1 min-w-[200px]">
             <Input
               type="text"
-              placeholder="Search products by name or details..."
+              placeholder="Search products..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               leftIcon={<Search size={18} />}
@@ -410,15 +391,27 @@ const BusinessProductsPage = () => {
             />
           </div>
           <select
-            value={selectedBusinessCategory}
-            onChange={(e) => setSelectedBusinessCategory(e.target.value)}
+            value={selectedCategory}
+            onChange={(e) => handleCategoryChange(e.target.value)}
             className="px-4 py-3 bg-secondary-50 border border-secondary-200 rounded-lg text-secondary-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
-            <option value="">All Business Categories</option>
-            {BUSINESS_CATEGORIES.map((cat) => (
+            <option value="">All Categories</option>
+            {Object.keys(categories).map((cat) => (
               <option key={cat} value={cat}>{cat}</option>
             ))}
           </select>
+          {selectedCategory && categories[selectedCategory].length > 0 && (
+            <select
+              value={selectedSubcategory}
+              onChange={(e) => setSelectedSubcategory(e.target.value)}
+              className="px-4 py-3 bg-secondary-50 border border-secondary-200 rounded-lg text-secondary-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="">All Subcategories</option>
+              {categories[selectedCategory].map((sub) => (
+                <option key={sub} value={sub}>{sub}</option>
+              ))}
+            </select>
+          )}
           <Button type="submit" variant="outline">
             Search
           </Button>
@@ -474,17 +467,12 @@ const BusinessProductsPage = () => {
                   {product.description}
                 </p>
 
-                <div className="flex items-center gap-2 text-sm text-secondary-500 mb-4 flex-wrap">
-                  <span className="px-2 py-1 bg-blue-50 text-blue-700 font-semibold rounded text-xs">
-                    {product.businessCategory || 'Business Product'}
-                  </span>
-                  <span className="px-2 py-1 bg-secondary-100 rounded text-xs font-medium">
-                    {product.category}
-                  </span>
+                <div className="flex items-center gap-4 text-sm text-secondary-500 mb-4 flex-wrap">
+                  <span className="px-2 py-1 bg-secondary-100 rounded text-xs">{product.category}</span>
                   {product.subcategory && (
                     <span className="px-2 py-1 bg-secondary-100 rounded text-xs">{product.subcategory}</span>
                   )}
-                  <span className="text-xs ml-auto font-medium">Stock: {product.stock || 0}</span>
+                  <span className="text-xs">Stock: {product.stock || 0}</span>
                   {product.deliveryFee > 0 && (
                     <span className="text-xs">Delivery: {formatCurrency(product.deliveryFee)}</span>
                   )}
@@ -591,42 +579,34 @@ const BusinessProductsPage = () => {
               />
             </div>
 
-            <div className="col-span-2 sm:col-span-1">
-              <label className="block text-sm font-medium text-secondary-700 mb-1">Business Category *</label>
+            <div>
+              <label className="block text-sm font-medium text-secondary-700 mb-1">Category *</label>
               <select
-                value={formData.businessCategory}
-                onChange={(e) => setFormData((prev) => ({ ...prev, businessCategory: e.target.value }))}
-                className="w-full px-4 py-3 bg-secondary-50 border border-secondary-200 rounded-lg text-secondary-800 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                value={formData.category}
+                onChange={(e) => setFormData((prev) => ({ ...prev, category: e.target.value, subcategory: '' }))}
+                className="w-full px-4 py-3 bg-secondary-50 border border-secondary-200 rounded-lg text-secondary-800"
               >
-                <option value="">Select business category</option>
-                {BUSINESS_CATEGORIES.map((cat) => (
+                <option value="">Select category</option>
+                {Object.keys(categories).map((cat) => (
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
               </select>
-              {formErrors.businessCategory && <p className="text-red-500 text-sm mt-1">{formErrors.businessCategory}</p>}
-            </div>
-
-            <div className="col-span-2 sm:col-span-1">
-              <label className="block text-sm font-medium text-secondary-700 mb-1">Product Category *</label>
-              <Input
-                type="text"
-                value={formData.category}
-                onChange={(e) => setFormData((prev) => ({ ...prev, category: e.target.value }))}
-                placeholder="e.g. Food"
-                fullWidth
-              />
               {formErrors.category && <p className="text-red-500 text-sm mt-1">{formErrors.category}</p>}
             </div>
 
-            <div className="col-span-2 sm:col-span-1">
-              <label className="block text-sm font-medium text-secondary-700 mb-1">Product Subcategory</label>
-              <Input
-                type="text"
+            <div>
+              <label className="block text-sm font-medium text-secondary-700 mb-1">Subcategory</label>
+              <select
                 value={formData.subcategory}
                 onChange={(e) => setFormData((prev) => ({ ...prev, subcategory: e.target.value }))}
-                placeholder="e.g. Snacks"
-                fullWidth
-              />
+                className="w-full px-4 py-3 bg-secondary-50 border border-secondary-200 rounded-lg text-secondary-800"
+                disabled={!formData.category || !categories[formData.category]?.length}
+              >
+                <option value="">Select subcategory</option>
+                {formData.category && categories[formData.category]?.map((sub) => (
+                  <option key={sub} value={sub}>{sub}</option>
+                ))}
+              </select>
             </div>
 
             <div>
@@ -718,42 +698,34 @@ const BusinessProductsPage = () => {
               />
             </div>
 
-            <div className="col-span-2 sm:col-span-1">
-              <label className="block text-sm font-medium text-secondary-700 mb-1">Business Category *</label>
+            <div>
+              <label className="block text-sm font-medium text-secondary-700 mb-1">Category *</label>
               <select
-                value={formData.businessCategory}
-                onChange={(e) => setFormData((prev) => ({ ...prev, businessCategory: e.target.value }))}
-                className="w-full px-4 py-3 bg-secondary-50 border border-secondary-200 rounded-lg text-secondary-800 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                value={formData.category}
+                onChange={(e) => setFormData((prev) => ({ ...prev, category: e.target.value, subcategory: '' }))}
+                className="w-full px-4 py-3 bg-secondary-50 border border-secondary-200 rounded-lg text-secondary-800"
               >
-                <option value="">Select business category</option>
-                {BUSINESS_CATEGORIES.map((cat) => (
+                <option value="">Select category</option>
+                {Object.keys(categories).map((cat) => (
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
               </select>
-              {formErrors.businessCategory && <p className="text-red-500 text-sm mt-1">{formErrors.businessCategory}</p>}
-            </div>
-
-            <div className="col-span-2 sm:col-span-1">
-              <label className="block text-sm font-medium text-secondary-700 mb-1">Product Category *</label>
-              <Input
-                type="text"
-                value={formData.category}
-                onChange={(e) => setFormData((prev) => ({ ...prev, category: e.target.value }))}
-                placeholder="e.g. Food"
-                fullWidth
-              />
               {formErrors.category && <p className="text-red-500 text-sm mt-1">{formErrors.category}</p>}
             </div>
 
-            <div className="col-span-2 sm:col-span-1">
-              <label className="block text-sm font-medium text-secondary-700 mb-1">Product Subcategory</label>
-              <Input
-                type="text"
+            <div>
+              <label className="block text-sm font-medium text-secondary-700 mb-1">Subcategory</label>
+              <select
                 value={formData.subcategory}
                 onChange={(e) => setFormData((prev) => ({ ...prev, subcategory: e.target.value }))}
-                placeholder="e.g. Snacks"
-                fullWidth
-              />
+                className="w-full px-4 py-3 bg-secondary-50 border border-secondary-200 rounded-lg text-secondary-800"
+                disabled={!formData.category || !categories[formData.category]?.length}
+              >
+                <option value="">Select subcategory</option>
+                {formData.category && categories[formData.category]?.map((sub) => (
+                  <option key={sub} value={sub}>{sub}</option>
+                ))}
+              </select>
             </div>
 
             <div>

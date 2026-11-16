@@ -82,19 +82,12 @@ const productSchema = new mongoose.Schema(
       type: Number,
       min: 0,
     },
-    businessCategory: {
-      type: String,
-      required: [true, 'Please select a business category'],
-      trim: true,
-    },
     category: {
       type: String,
-      required: [true, 'Please provide a product category'],
-      trim: true,
+      required: [true, 'Please provide a category'],
     },
     subcategory: {
       type: String,
-      trim: true,
     },
     condition: {
       type: String,
