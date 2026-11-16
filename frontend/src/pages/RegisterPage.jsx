@@ -4,11 +4,11 @@ import { useAuth } from '../context/AuthContext';
 import PasswordInput from '../components/ui/PasswordInput';
 
 const RegisterPage = () => {
-  const { isAuthenticated, user, initialized } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
 
   // Redirect if already authenticated to dashboard or setup page
-  if (initialized && isAuthenticated && user) {
+  if (isAuthenticated && user) {
     const setupPages = {
       landlord: '/setup/landlord',
       business: '/setup/business',
