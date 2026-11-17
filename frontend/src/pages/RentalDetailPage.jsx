@@ -25,7 +25,7 @@ import { rentalAPI } from '../services/api';
 import { useToast } from '../components/Toast';
 
 const RentalDetailPage = () => {
-  const { rentalId } = useParams();
+  const { id: rentalId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { isInWishlist, toggleWishlist } = useWishlist();

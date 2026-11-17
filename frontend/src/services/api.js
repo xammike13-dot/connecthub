@@ -19,6 +19,7 @@ export const authAPI = {
 export const productAPI = {
   getAll: (params) => api.get('/products', { params }),
   getById: (id) => api.get(`/products/${id}`),
+  getRelated: (id, params) => api.get(`/products/${id}/related`, { params }),
   create: (data) => api.post('/products', data),
   update: (id, data) => api.put(`/products/${id}`, data),
   delete: (id) => api.delete(`/products/${id}`),
@@ -47,7 +48,6 @@ export const rentalAPI = {
   toggleFavorite: (rentalId) => api.post(`/rentals/${rentalId}/favorite`),
   getFavorites: () => api.get('/rentals/favorites/my-favorites'),
   trackView: (rentalId) => api.post(`/rentals/${rentalId}/view`),
-  getById: (rentalId) => api.get(`/rentals/${rentalId}`),
   // Note: booking a rental should create an order via `/orders` endpoint
 };
 
@@ -157,7 +157,7 @@ export const adminAPI = {
   getRides: (params) => api.get('/admin/rides', { params }),
   updateRide: (id, data) => api.put(`/admin/rides/${id}`, data),
   getReports: (params) => api.get('/admin/reports', { params }),
-  updateReportStatus: (id, data) => api.put(`/admin/reports/${id}`, data),
+  updateReportStatus: (id, data) => api.put(`/admin/reports/${id}/status`, data),
   broadcastNotification: (data) => api.post('/admin/broadcast', data),
   getPlatformHealth: () => api.get('/admin/health'),
   getWithdrawals: (params) => api.get('/admin/withdrawals', { params }),
@@ -222,7 +222,7 @@ export const assistantAPI = {
   getInvitation: (token) => api.get(`/assistants/invite/${token}`),
   registerAndAccept: (token, data) => api.post(`/assistants/invite/${token}/register`, data),
   acceptExisting: (token) => api.post(`/assistants/invite/${token}/accept`),
-  getDashboardStats: () => api.get('/assistants/dashboard/stats'),
+  getDashboardStats: () => api.get(`/assistants/dashboard/stats`),
   // Business owner managing assistants
   getAssistants: () => api.get('/assistants'),
   generateInvite: (data) => api.post('/assistants/invite', data),
