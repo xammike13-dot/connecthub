@@ -228,85 +228,107 @@ export const getProduct = asyncHandler(async (req, res) => {
 
 /**
  * Get related products by category, brand, and price range
+ * Uses a single ranked query with proper skip/limit pagination so
+ * infinite scrolling never returns duplicates across pages.
  */
 export const getRelatedProducts = asyncHandler(async (req, res) => {
   const { productId } = req.params;
   const { page = 1, limit = 12 } = req.query;
 
-  const product = await Product.findById(productId).select('category subcategory brand price businessCategory');
+  const product = await Product.findById(productId).select('category subcategory brand price');
 
   if (!product) {
     throw new ResponseError('Product not found', 404);
   }
 
-  const skip = (page - 1) * limit;
+  const pageNum = Math.max(1, parseInt(page));
+  const limitNum = Math.max(1, parseInt(limit));
+  const skip = (pageNum - 1) * limitNum;
 
-  // Priority 1: Same category and subcategory
-  let related = await Product.find({
-    _id: { $ne: productId },
+  // Build a single ranked query that excludes the current product.
+  // We use an aggregation with $addFields to compute a relevance score,
+  // then sort by score descending and apply skip/limit.
+  const matchStage = {
+    _id: { $ne: product._id },
     isActive: true,
-    category: product.category,
-    subcategory: product.subcategory,
-  })
+  };
+
+  const scored = [
+    // Priority 1: same category AND same subcategory (score 4)
+    { category: product.category, subcategory: product.subcategory, score: 4 },
+    // Priority 2: same category (score 3)
+    { category: product.category, score: 3 },
+    // Priority 3: similar price range +/- 50% (score 2)
+    { price: { $gte: product.price * 0.5, $lte: product.price * 1.5 }, score: 2 },
+  ];
+
+  // Use aggregation with $facet to get both results and total count
+  const [result] = await Product.aggregate([
+    { $match: matchStage },
+    // Compute relevance score from the scored conditions
+    {
+      $addFields: {
+        relevanceScore: {
+          $let: {
+            vars: {
+              sameCatAndSub: {
+                $and: [
+                  { $eq: ['$category', product.category] },
+                  { $eq: ['$subcategory', product.subcategory] },
+                ],
+              },
+              sameCat: { $eq: ['$category', product.category] },
+              similarPrice: {
+                $and: [
+                  { $gte: ['$price', product.price * 0.5] },
+                  { $lte: ['$price', product.price * 1.5] },
+                ],
+              },
+            },
+            in: {
+              $switch: {
+                branches: [
+                  { case: '$$sameCatAndSub', then: 4 },
+                  { case: '$$sameCat', then: 3 },
+                  { case: '$$similarPrice', then: 2 },
+                ],
+                default: 1,
+              },
+            },
+          },
+        },
+      },
+    },
+    { $sort: { relevanceScore: -1, createdAt: -1 } },
+    {
+      $facet: {
+        metadata: [{ $count: 'total' }],
+        data: [{ $skip: skip }, { $limit: limitNum }],
+      },
+    },
+  ]);
+
+  const relatedIds = (result?.data || []).map((p) => p._id);
+  const total = result?.metadata?.[0]?.total || 0;
+
+  // Populate business field after aggregation
+  const populated = await Product.find({ _id: { $in: relatedIds } })
     .populate('business', 'name businessProfile avatar')
-    .sort('-createdAt')
-    .skip(skip)
-    .limit(parseInt(limit));
+    .lean();
 
-  // Priority 2: Same category, different subcategory
-  if (related.length < limit) {
-    const existingIds = related.map(p => p._id.toString());
-    existingIds.push(productId);
-    const more = await Product.find({
-      _id: { $nin: existingIds },
-      isActive: true,
-      category: product.category,
-    })
-      .populate('business', 'name businessProfile avatar')
-      .sort('-createdAt')
-      .limit(parseInt(limit) - related.length);
-    related = [...related, ...more];
-  }
-
-  // Priority 3: Same businessCategory
-  if (related.length < limit && product.businessCategory) {
-    const existingIds = related.map(p => p._id.toString());
-    existingIds.push(productId);
-    const more = await Product.find({
-      _id: { $nin: existingIds },
-      isActive: true,
-      businessCategory: product.businessCategory,
-    })
-      .populate('business', 'name businessProfile avatar')
-      .sort('-createdAt')
-      .limit(parseInt(limit) - related.length);
-    related = [...related, ...more];
-  }
-
-  // Priority 4: Similar price range (+/- 50%)
-  if (related.length < limit) {
-    const existingIds = related.map(p => p._id.toString());
-    existingIds.push(productId);
-    const minPrice = product.price * 0.5;
-    const maxPrice = product.price * 1.5;
-    const more = await Product.find({
-      _id: { $nin: existingIds },
-      isActive: true,
-      price: { $gte: minPrice, $lte: maxPrice },
-    })
-      .populate('business', 'name businessProfile avatar')
-      .sort('-createdAt')
-      .limit(parseInt(limit) - related.length);
-    related = [...related, ...more];
-  }
+  // Re-sort populated results to match the aggregation order
+  const idOrderMap = new Map(relatedIds.map((id, idx) => [id.toString(), idx]));
+  populated.sort((a, b) => idOrderMap.get(a._id.toString()) - idOrderMap.get(b._id.toString()));
 
   res.status(200).json({
     success: true,
-    data: related,
+    data: populated,
     pagination: {
-      total: related.length,
-      currentPage: parseInt(page),
-      perPage: parseInt(limit),
+      total,
+      pages: Math.ceil(total / limitNum),
+      currentPage: pageNum,
+      perPage: limitNum,
+      hasMore: skip + populated.length < total,
     },
   });
 });
