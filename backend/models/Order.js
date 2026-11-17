@@ -38,6 +38,9 @@ const orderSchema = new mongoose.Schema(
       },
       variant: String,
       image: String,
+      selectedOptions: { type: mongoose.Schema.Types.Mixed, default: {} },
+      selectedAddOns: [{ name: String, price: Number }],
+      addOnsTotal: { type: Number, default: 0 },
     }],
     totalAmount: {
       type: Number,

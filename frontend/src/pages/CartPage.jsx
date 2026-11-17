@@ -37,13 +37,13 @@ const CartPage = () => {
   const paymentBreakdown = calculatePayment(cartTotal, deliveryFee);
   const grandTotal = paymentBreakdown.customerPays;
 
-  const handleRemove = (productId) => {
-    setRemovingItems((prev) => new Set(prev).add(productId));
+  const handleRemove = (cartKey) => {
+    setRemovingItems((prev) => new Set(prev).add(cartKey));
     setTimeout(() => {
-      removeFromCart(productId);
+      removeFromCart(cartKey);
       setRemovingItems((prev) => {
         const next = new Set(prev);
-        next.delete(productId);
+        next.delete(cartKey);
         return next;
       });
     }, 300);
@@ -101,12 +101,12 @@ const CartPage = () => {
             <AnimatePresence>
               {cartItems.map((item) => (
                 <motion.div
-                  key={item._id}
+                  key={item.cartKey || item._id}
                   layout
                   initial={{ opacity: 1, x: 0 }}
                   animate={{
-                    opacity: removingItems.has(item._id) ? 0 : 1,
-                    x: removingItems.has(item._id) ? -100 : 0,
+                    opacity: removingItems.has(item.cartKey || item._id) ? 0 : 1,
+                    x: removingItems.has(item.cartKey || item._id) ? -100 : 0,
                   }}
                   exit={{ opacity: 0, x: -100 }}
                   transition={{ duration: 0.3 }}
@@ -132,22 +132,32 @@ const CartPage = () => {
                     <p className="text-sm text-gray-500 mt-1">
                       {item.category}
                     </p>
+                    {item.selectedOptions && Object.keys(item.selectedOptions).length > 0 && (
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {Object.entries(item.selectedOptions).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+                      </p>
+                    )}
+                    {item.selectedAddOns && item.selectedAddOns.length > 0 && (
+                      <p className="text-xs text-[#027A2B] mt-0.5 font-medium">
+                        + {item.selectedAddOns.map(a => `${a.name} (+KSh ${a.price})`).join(', ')}
+                      </p>
+                    )}
                     <p className="text-lg font-bold text-gray-900 mt-2">
-                      KSh {item.price?.toLocaleString() || 0}
+                      KSh {(((item.price || 0) + (item.selectedAddOns || []).reduce((s, a) => s + (a.price || 0), 0))).toLocaleString()}
                     </p>
                   </div>
 
                   {/* Quantity Controls */}
                   <div className="flex flex-col items-end justify-between">
                     <button
-                      onClick={() => handleRemove(item._id)}
+                      onClick={() => handleRemove(item.cartKey || item._id)}
                       className="p-2 text-gray-400 hover:text-red-500 transition-colors"
                     >
                       <Trash2 size={18} />
                     </button>
                     <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
                       <button
-                        onClick={() => updateQuantity(item._id, item.quantity - 1)}
+                        onClick={() => updateQuantity(item.cartKey || item._id, item.quantity - 1)}
                         className="p-1 hover:bg-white rounded transition-colors"
                         disabled={item.quantity <= 1}
                       >
@@ -157,7 +167,7 @@ const CartPage = () => {
                         {item.quantity}
                       </span>
                       <button
-                        onClick={() => updateQuantity(item._id, item.quantity + 1)}
+                        onClick={() => updateQuantity(item.cartKey || item._id, item.quantity + 1)}
                         className="p-1 hover:bg-white rounded transition-colors"
                         disabled={item.quantity >= (item.stock || 10)}
                       >

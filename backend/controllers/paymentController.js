@@ -1604,15 +1604,23 @@ export const initiatePayment = asyncHandler(async (req, res) => {
         throw new ResponseError(`Insufficient stock for ${product.name}`, 400);
       }
 
-      const itemTotal = product.price * item.quantity;
+      let addOnsTotal = 0;
+      if (item.selectedAddOns && Array.isArray(item.selectedAddOns)) {
+        addOnsTotal = item.selectedAddOns.reduce((s, a) => s + (Number(a.price) || 0), 0);
+      }
+      const itemUnitPrice = product.price + addOnsTotal;
+      const itemTotal = itemUnitPrice * item.quantity;
       totalAmount += itemTotal;
 
       validatedItems.push({
         product: product._id,
         name: product.name,
         quantity: item.quantity,
-        price: product.price,
+        price: itemUnitPrice,
         variant: item.variant,
+        selectedOptions: item.selectedOptions || {},
+        selectedAddOns: item.selectedAddOns || [],
+        addOnsTotal,
         image: product.images?.[0],
       });
     }

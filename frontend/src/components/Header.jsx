@@ -182,6 +182,12 @@ export default function Header() {
           {/* Right Navigation & Auth */}
           <div className="flex items-center gap-3 flex-shrink-0">
             <Link
+              to="/categories"
+              className="text-xs font-semibold text-gray-600 hover:text-[#027A2B] px-2.5 py-1.5 rounded-lg hover:bg-green-50/60 transition-colors"
+            >
+              Categories
+            </Link>
+            <Link
               to="/marketplace"
               className="text-xs font-semibold text-gray-600 hover:text-[#027A2B] px-2.5 py-1.5 rounded-lg hover:bg-green-50/60 transition-colors"
             >
@@ -359,27 +365,35 @@ export default function Header() {
                   <ArrowRight size={13} className="text-gray-400" />
                 </Link>
                 <Link
+                  to="/categories"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="p-3 bg-orange-50/60 rounded-xl text-gray-800 hover:text-olaOrange-DEFAULT flex items-center justify-between border border-orange-200/60 col-span-2"
+                >
+                  <span className="text-olaOrange-DEFAULT font-extrabold">📂 All 21 Categories</span>
+                  <ArrowRight size={13} className="text-olaOrange-DEFAULT" />
+                </Link>
+                <Link
                   to="/marketplace?category=Food+%26+Drinks"
                   onClick={() => setMobileMenuOpen(false)}
                   className="p-3 bg-gray-50 rounded-xl text-gray-800 hover:text-[#027A2B] flex items-center justify-between border border-gray-100"
                 >
-                  <span>🍔 Kibandas</span>
+                  <span>🍔 Food & Drinks</span>
                   <ArrowRight size={13} className="text-gray-400" />
                 </Link>
                 <Link
-                  to="/marketplace?category=Fashion+%26+Mitumba"
+                  to="/marketplace?category=Mitumba+(Thrift+Clothes)"
                   onClick={() => setMobileMenuOpen(false)}
                   className="p-3 bg-gray-50 rounded-xl text-gray-800 hover:text-[#027A2B] flex items-center justify-between border border-gray-100"
                 >
-                  <span>👗 Mitumba</span>
+                  <span>👗 Mitumba Thrift</span>
                   <ArrowRight size={13} className="text-gray-400" />
                 </Link>
                 <Link
-                  to="/marketplace?category=Hostel+Setup"
+                  to="/marketplace?category=Gas+Refill"
                   onClick={() => setMobileMenuOpen(false)}
                   className="p-3 bg-gray-50 rounded-xl text-gray-800 hover:text-[#027A2B] flex items-center justify-between border border-gray-100"
                 >
-                  <span>🔥 Gas Refills</span>
+                  <span>🔥 Gas Refill</span>
                   <ArrowRight size={13} className="text-gray-400" />
                 </Link>
               </div>

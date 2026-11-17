@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { Plus, Check, Heart, Star } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
+import ProductDetailModal from './modals/ProductDetailModal';
 
 export default function ProductCard({
   product = {},
@@ -17,6 +18,7 @@ export default function ProductCard({
 }) {
   const [added, setAdded] = useState(false);
   const [isWished, setIsWished] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
 
   let cart = null;
   try {
@@ -66,6 +68,8 @@ export default function ProductCard({
     }
   }, [wishlist, _id]);
 
+  const hasOptions = (product.variations?.length > 0) || (product.addOns?.length > 0);
+
   const handleWishlist = async (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -78,6 +82,10 @@ export default function ProductCard({
   const handleAdd = (e) => {
     e.preventDefault();
     e.stopPropagation();
+    if (hasOptions) {
+      setModalOpen(true);
+      return;
+    }
     if (cart?.addToCart) {
       cart.addToCart(product, 1);
     }
@@ -92,7 +100,17 @@ export default function ProductCard({
     : `relative flex-shrink-0 min-w-[160px] w-[160px] md:min-w-[190px] md:w-[190px] bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 snap-start group flex flex-col ${className}`;
 
   return (
-    <Link to={`/product/${_id}`} className={containerClasses}>
+    <>
+      <Link
+        to={`/product/${_id}`}
+        onClick={(e) => {
+          if (hasOptions) {
+            e.preventDefault();
+            setModalOpen(true);
+          }
+        }}
+        className={containerClasses}
+      >
       {/* ── 1. Image Area (1:1 aspect ratio, badges & wishlist button) ── */}
       <div className="relative w-full aspect-square bg-gray-100 overflow-hidden flex items-center justify-center">
         {img ? (
@@ -220,5 +238,12 @@ export default function ProductCard({
         </div>
       </div>
     </Link>
-  );
+
+    <ProductDetailModal
+      product={product}
+      isOpen={modalOpen}
+      onClose={() => setModalOpen(false)}
+    />
+  </>
+);
 }

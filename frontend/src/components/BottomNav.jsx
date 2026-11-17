@@ -46,8 +46,8 @@ export default function BottomNav() {
       id: 'categories',
       label: 'Categories',
       icon: LayoutGrid,
-      route: '/marketplace',
-      isActive: location.pathname.startsWith('/marketplace'),
+      route: '/categories',
+      isActive: location.pathname === '/categories' || location.pathname.startsWith('/marketplace'),
     },
     {
       id: 'wishlist',

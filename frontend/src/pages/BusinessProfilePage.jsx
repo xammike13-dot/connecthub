@@ -5,6 +5,7 @@ import { useToast } from '../components/Toast';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import LoadingSpinner from '../components/LoadingSpinner';
+import OLA_CATEGORIES from '../config/categories.js';
 
 const BusinessProfilePage = () => {
   const { user, updateUser } = useAuth();
@@ -262,12 +263,11 @@ const BusinessProfilePage = () => {
                   className="w-full px-4 py-3 bg-secondary-50 border border-secondary-200 rounded-lg text-secondary-800 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 >
                   <option value="">Select category</option>
-                  <option value="Food Stuffs">Food Stuffs</option>
-                  <option value="Households">Households</option>
-                  <option value="Gas">Gas</option>
-                  <option value="Wines & Spirits">Wines & Spirits</option>
-                  <option value="House Shopping">House Shopping</option>
-                  <option value="Health Care">Health Care</option>
+                  {OLA_CATEGORIES.map((cat) => (
+                    <option key={cat.id} value={cat.label}>
+                      {cat.emoji} {cat.label}
+                    </option>
+                  ))}
                   <option value="Other">Other</option>
                 </select>
               </div>

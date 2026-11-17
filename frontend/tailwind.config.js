@@ -8,6 +8,7 @@ export default {
     extend: {
       colors: {
         // ===== OLAFASTA BRAND COLORS =====
+        'olaOrange-DEFAULT': '#FF5E00',
         olaOrange: {
           DEFAULT: '#FF5E00',  // Primary Energy / Speed
           light: '#FF7A2E',
@@ -193,6 +194,15 @@ export default {
         '3xl': ['1.875rem', { lineHeight: '2.25rem' }],
         '4xl': ['2.25rem', { lineHeight: '2.5rem' }],
         '5xl': ['3rem', { lineHeight: '1' }],
+      },
+      keyframes: {
+        'slide-up': {
+          '0%': { transform: 'translateY(100%)' },
+          '100%': { transform: 'translateY(0)' },
+        },
+      },
+      animation: {
+        'slide-up': 'slide-up 0.3s cubic-bezier(0.32, 0.72, 0, 1)',
       },
     },
   },

@@ -20,32 +20,29 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { productAPI } from '../services/api';
 import { useSocket } from '../context/SocketContext';
+import OLA_CATEGORIES from '../config/categories.js';
 
 const categories = [
   { id: 'all', name: 'All Categories' },
-  { id: 'Olafasta Foods', name: 'Olafasta Foods' },
-  { id: 'Olafasta Mitumba', name: 'Olafasta Mitumba' },
-  { id: 'Olafasta Tech', name: 'Olafasta Tech' },
-  { id: 'Olafasta Chemist', name: 'Olafasta Chemist' },
-  { id: 'Olafasta Fashion', name: 'Olafasta Fashion' },
-  { id: 'Olafasta Shoes', name: 'Olafasta Shoes' },
-  { id: 'Olafasta Materials', name: 'Olafasta Materials' },
-  { id: 'Olafasta Home', name: 'Olafasta Home' },
-  { id: 'Olafasta Stores', name: 'Olafasta Stores' },
-  { id: 'Olafasta Cakes', name: 'Olafasta Cakes' },
-  { id: 'Olafasta Wines & Spirits', name: 'Olafasta Wines & Spirits' },
-  { id: 'Olafasta Gas', name: 'Olafasta Gas' },
-  { id: 'Olafasta Kibanda', name: 'Olafasta Kibanda' },
+  ...OLA_CATEGORIES.map((cat) => ({
+    id: cat.label,
+    name: cat.label,
+    shortName: cat.shortLabel,
+    emoji: cat.emoji,
+  })),
 ];
 const businessCategories = categories;
 
-// Subcategories for each main category
-const subcategories = {
+// Subcategories for each main category (with backwards-compatible fallbacks)
+const subcategories = OLA_CATEGORIES.reduce((acc, cat) => {
+  acc[cat.label] = cat.subcategories;
+  return acc;
+}, {
   'Food': ['Snacks', 'Beverages', 'Fries', 'Rice', 'Unga', 'Cooking Oil', 'Salt', 'Sugar', 'Flour', 'Soap', 'Other Essentials'],
   'Household': ['New', 'Second Hand', 'Kitchenware', 'Cleaning', 'Furniture'],
   'Electronics': ['Phones', 'Accessories', 'Home Appliances', 'Computers'],
   'Fashion': ['Men', 'Women', 'Kids', 'Shoes', 'Bags'],
-};
+});
 
 const sortOptions = [
   { value: '-createdAt', label: 'Newest' },

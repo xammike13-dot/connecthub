@@ -327,6 +327,19 @@ const OrdersPage = () => {
                       />
                       <div className="flex-1">
                         <p className="font-bold text-gray-900">{item.name}</p>
+                        {item.variant && (
+                          <p className="text-xs text-gray-600 font-medium">{item.variant}</p>
+                        )}
+                        {item.selectedOptions && Object.keys(item.selectedOptions).length > 0 && !item.variant && (
+                          <p className="text-xs text-gray-600 font-medium">
+                            {Object.entries(item.selectedOptions).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+                          </p>
+                        )}
+                        {item.selectedAddOns && item.selectedAddOns.length > 0 && (
+                          <p className="text-xs text-green-700 font-medium">
+                            + {item.selectedAddOns.map(a => `${a.name} (+KSh ${a.price})`).join(', ')}
+                          </p>
+                        )}
                         <p className="text-xs text-gray-500 font-semibold">Qty: {item.quantity || 1}</p>
                       </div>
                       <p className="font-bold text-neutral-800">
@@ -716,6 +729,19 @@ const OrdersPage = () => {
                     />
                     <div className="flex-1">
                       <p className="font-medium text-gray-900">{item.name}</p>
+                      {item.variant && (
+                        <p className="text-xs text-gray-600">{item.variant}</p>
+                      )}
+                      {item.selectedOptions && Object.keys(item.selectedOptions).length > 0 && !item.variant && (
+                        <p className="text-xs text-gray-600">
+                          {Object.entries(item.selectedOptions).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+                        </p>
+                      )}
+                      {item.selectedAddOns && item.selectedAddOns.length > 0 && (
+                        <p className="text-xs text-green-700">
+                          + {item.selectedAddOns.map(a => `${a.name} (+KSh ${a.price})`).join(', ')}
+                        </p>
+                      )}
                       <p className="text-sm text-gray-500">Qty: {item.quantity || 1}</p>
                     </div>
                     <p className="font-medium">

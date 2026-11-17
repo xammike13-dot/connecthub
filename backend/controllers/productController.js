@@ -30,6 +30,8 @@ export const createProduct = asyncHandler(async (req, res) => {
     brand,
     tags,
     variants,
+    variations,
+    addOns,
     images,
   } = req.body;
 
@@ -55,6 +57,8 @@ export const createProduct = asyncHandler(async (req, res) => {
     brand,
     tags,
     variants,
+    variations: variations || [],
+    addOns: addOns || [],
     images,
   });
 

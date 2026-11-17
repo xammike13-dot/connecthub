@@ -56,6 +56,8 @@ import RiderSettings from './pages/RiderSettings';
 import RentalDetailPage from './pages/RentalDetailPage';
 import SupportPage from './pages/SupportPage';
 import AboutPage from './pages/AboutPage';
+import CategoriesPage from './pages/CategoriesPage';
+import CategoryPage from './pages/CategoryPage';
 import CustomerHelpPage from './pages/CustomerHelpPage';
 import BusinessHelpPage from './pages/BusinessHelpPage';
 import LandlordHelpPage from './pages/LandlordHelpPage';
@@ -92,6 +94,8 @@ function App() {
                   <Route path="support" element={<SupportPage />} />
                   <Route path="contact" element={<SupportPage />} />
                   <Route path="about" element={<AboutPage />} />
+                  <Route path="categories" element={<CategoriesPage />} />
+                  <Route path="c/:slug" element={<CategoryPage />} />
                 </Route>
 
                 {/* Auth Routes */}

@@ -22,6 +22,7 @@ import { productAPI, uploadAPI } from '../services/api';
 import ImageUpload from '../components/ImageUpload';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
+import OLA_CATEGORIES from '../config/categories.js';
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-KE', {
@@ -33,7 +34,10 @@ const formatCurrency = (amount) => {
 };
 
 // Category and subcategory structure as per requirements
-const categories = {
+const categories = OLA_CATEGORIES.reduce((acc, cat) => {
+  acc[cat.label] = cat.subcategories;
+  return acc;
+}, {
   'Food': ['Snacks', 'Beverages', 'Fries', 'Rice', 'Unga', 'Cooking Oil', 'Salt', 'Sugar', 'Flour', 'Soap', 'Other Essentials'],
   'Household': ['New', 'Second Hand', 'Kitchenware', 'Cleaning', 'Furniture'],
   'Electronics': ['Phones', 'Accessories', 'Home Appliances', 'Computers'],
@@ -41,9 +45,8 @@ const categories = {
   'Gas': [],
   'Wines & Spirits': [],
   'Second Hand': [],
-  'Test': [],
   'Health Care': ['Medicines', 'Medical Supplies', 'Pharmacy Products'],
-};
+});
 
 const BusinessProductsPage = () => {
   const navigate = useNavigate();
@@ -76,6 +79,8 @@ const BusinessProductsPage = () => {
     subcategory: '',
     stock: '',
     images: [],
+    variations: [],   // [{ name: '', options: '' }] – options as comma-string for input
+    addOns: [],       // [{ name: '', price: '' }]
   });
   const [formErrors, setFormErrors] = useState({});
   const [imagePreviews, setImagePreviews] = useState([]);
@@ -161,6 +166,12 @@ const BusinessProductsPage = () => {
         subcategory: formData.subcategory,
         stock: parseInt(formData.stock) || 0,
         images: formData.images,
+        variations: formData.variations
+          .filter(v => v.name.trim() && v.options.trim())
+          .map(v => ({ name: v.name.trim(), options: v.options.split(',').map(o => o.trim()).filter(Boolean) })),
+        addOns: formData.addOns
+          .filter(a => a.name.trim() && a.price !== '')
+          .map(a => ({ name: a.name.trim(), price: parseFloat(a.price) || 0 })),
       };
 
       const { data } = await productAPI.create(productData);
@@ -192,6 +203,8 @@ const BusinessProductsPage = () => {
       subcategory: product.subcategory || '',
       stock: (product.stock || 0).toString(),
       images: product.images || [],
+      variations: (product.variations || []).map(v => ({ name: v.name, options: v.options.join(', ') })),
+      addOns: (product.addOns || []).map(a => ({ name: a.name, price: a.price.toString() })),
     });
     setImagePreviews(product.images || []);
     setShowEditModal(true);
@@ -214,6 +227,12 @@ const BusinessProductsPage = () => {
         subcategory: formData.subcategory,
         stock: parseInt(formData.stock) || 0,
         images: formData.images,
+        variations: formData.variations
+          .filter(v => v.name.trim() && v.options.trim())
+          .map(v => ({ name: v.name.trim(), options: v.options.split(',').map(o => o.trim()).filter(Boolean) })),
+        addOns: formData.addOns
+          .filter(a => a.name.trim() && a.price !== '')
+          .map(a => ({ name: a.name.trim(), price: parseFloat(a.price) || 0 })),
       };
 
       const { data } = await productAPI.update(selectedProduct._id, productData);
@@ -302,6 +321,8 @@ const BusinessProductsPage = () => {
       subcategory: '',
       stock: '',
       images: [],
+      variations: [],
+      addOns: [],
     });
     setFormErrors({});
     setImagePreviews([]);
@@ -621,6 +642,116 @@ const BusinessProductsPage = () => {
               {formErrors.stock && <p className="text-red-500 text-sm mt-1">{formErrors.stock}</p>}
             </div>
 
+            {/* ── Variations (Sizes, Colors, etc.) ──────────────────── */}
+            <div className="col-span-2 border-t border-secondary-100 pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <label className="block text-sm font-bold text-secondary-700">Product Variations</label>
+                  <p className="text-xs text-secondary-400 mt-0.5">e.g. Size → 40, 41, 42 · Color → Red, Blue</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, variations: [...prev.variations, { name: '', options: '' }] }))}
+                  className="flex items-center gap-1.5 text-xs font-bold text-primary-600 bg-primary-50 hover:bg-primary-100 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  <Plus size={13} /> Add Variation
+                </button>
+              </div>
+              <div className="space-y-2">
+                {formData.variations.map((v, idx) => (
+                  <div key={idx} className="flex gap-2 items-center">
+                    <Input
+                      type="text"
+                      placeholder="Name (e.g. Size)"
+                      value={v.name}
+                      onChange={e => setFormData(prev => {
+                        const updated = [...prev.variations];
+                        updated[idx] = { ...updated[idx], name: e.target.value };
+                        return { ...prev, variations: updated };
+                      })}
+                      className="w-1/3"
+                    />
+                    <Input
+                      type="text"
+                      placeholder="Options (comma-separated: 40, 41, 42)"
+                      value={v.options}
+                      onChange={e => setFormData(prev => {
+                        const updated = [...prev.variations];
+                        updated[idx] = { ...updated[idx], options: e.target.value };
+                        return { ...prev, variations: updated };
+                      })}
+                      className="flex-1"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, variations: prev.variations.filter((_, i) => i !== idx) }))}
+                      className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+                {formData.variations.length === 0 && (
+                  <p className="text-xs text-secondary-400 italic py-1">No variations added yet. Click "Add Variation" to get started.</p>
+                )}
+              </div>
+            </div>
+
+            {/* ── Add-ons (Food extras, etc.) ───────────────────────── */}
+            <div className="col-span-2 border-t border-secondary-100 pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <label className="block text-sm font-bold text-secondary-700">Add-ons / Extras</label>
+                  <p className="text-xs text-secondary-400 mt-0.5">e.g. Extra Avocado → KSh 30 · Extra Smokie → KSh 50</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, addOns: [...prev.addOns, { name: '', price: '' }] }))}
+                  className="flex items-center gap-1.5 text-xs font-bold text-green-700 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  <Plus size={13} /> Add Extra
+                </button>
+              </div>
+              <div className="space-y-2">
+                {formData.addOns.map((a, idx) => (
+                  <div key={idx} className="flex gap-2 items-center">
+                    <Input
+                      type="text"
+                      placeholder="Extra name (e.g. Extra Avocado)"
+                      value={a.name}
+                      onChange={e => setFormData(prev => {
+                        const updated = [...prev.addOns];
+                        updated[idx] = { ...updated[idx], name: e.target.value };
+                        return { ...prev, addOns: updated };
+                      })}
+                      className="flex-1"
+                    />
+                    <Input
+                      type="number"
+                      placeholder="Price (KSh)"
+                      value={a.price}
+                      onChange={e => setFormData(prev => {
+                        const updated = [...prev.addOns];
+                        updated[idx] = { ...updated[idx], price: e.target.value };
+                        return { ...prev, addOns: updated };
+                      })}
+                      className="w-32"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, addOns: prev.addOns.filter((_, i) => i !== idx) }))}
+                      className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+                {formData.addOns.length === 0 && (
+                  <p className="text-xs text-secondary-400 italic py-1">No add-ons yet. Great for food vendors (e.g. Extra Avocado, Smokie).</p>
+                )}
+              </div>
+            </div>
+
             <div className="col-span-2">
               <label className="block text-sm font-medium text-secondary-700 mb-1">Product Image</label>
               <p className="text-sm text-secondary-500 mb-2">Click the box below to select a single product image.</p>
@@ -738,6 +869,116 @@ const BusinessProductsPage = () => {
                 fullWidth
               />
               {formErrors.stock && <p className="text-red-500 text-sm mt-1">{formErrors.stock}</p>}
+            </div>
+
+            {/* ── Variations (Sizes, Colors, etc.) ──────────────────── */}
+            <div className="col-span-2 border-t border-secondary-100 pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <label className="block text-sm font-bold text-secondary-700">Product Variations</label>
+                  <p className="text-xs text-secondary-400 mt-0.5">e.g. Size → 40, 41, 42 · Color → Red, Blue</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, variations: [...prev.variations, { name: '', options: '' }] }))}
+                  className="flex items-center gap-1.5 text-xs font-bold text-primary-600 bg-primary-50 hover:bg-primary-100 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  <Plus size={13} /> Add Variation
+                </button>
+              </div>
+              <div className="space-y-2">
+                {formData.variations.map((v, idx) => (
+                  <div key={idx} className="flex gap-2 items-center">
+                    <Input
+                      type="text"
+                      placeholder="Name (e.g. Size)"
+                      value={v.name}
+                      onChange={e => setFormData(prev => {
+                        const updated = [...prev.variations];
+                        updated[idx] = { ...updated[idx], name: e.target.value };
+                        return { ...prev, variations: updated };
+                      })}
+                      className="w-1/3"
+                    />
+                    <Input
+                      type="text"
+                      placeholder="Options (comma-separated: 40, 41, 42)"
+                      value={v.options}
+                      onChange={e => setFormData(prev => {
+                        const updated = [...prev.variations];
+                        updated[idx] = { ...updated[idx], options: e.target.value };
+                        return { ...prev, variations: updated };
+                      })}
+                      className="flex-1"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, variations: prev.variations.filter((_, i) => i !== idx) }))}
+                      className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+                {formData.variations.length === 0 && (
+                  <p className="text-xs text-secondary-400 italic py-1">No variations added yet. Click "Add Variation" to get started.</p>
+                )}
+              </div>
+            </div>
+
+            {/* ── Add-ons (Food extras, etc.) ───────────────────────── */}
+            <div className="col-span-2 border-t border-secondary-100 pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <label className="block text-sm font-bold text-secondary-700">Add-ons / Extras</label>
+                  <p className="text-xs text-secondary-400 mt-0.5">e.g. Extra Avocado → KSh 30 · Extra Smokie → KSh 50</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, addOns: [...prev.addOns, { name: '', price: '' }] }))}
+                  className="flex items-center gap-1.5 text-xs font-bold text-green-700 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  <Plus size={13} /> Add Extra
+                </button>
+              </div>
+              <div className="space-y-2">
+                {formData.addOns.map((a, idx) => (
+                  <div key={idx} className="flex gap-2 items-center">
+                    <Input
+                      type="text"
+                      placeholder="Extra name (e.g. Extra Avocado)"
+                      value={a.name}
+                      onChange={e => setFormData(prev => {
+                        const updated = [...prev.addOns];
+                        updated[idx] = { ...updated[idx], name: e.target.value };
+                        return { ...prev, addOns: updated };
+                      })}
+                      className="flex-1"
+                    />
+                    <Input
+                      type="number"
+                      placeholder="Price (KSh)"
+                      value={a.price}
+                      onChange={e => setFormData(prev => {
+                        const updated = [...prev.addOns];
+                        updated[idx] = { ...updated[idx], price: e.target.value };
+                        return { ...prev, addOns: updated };
+                      })}
+                      className="w-32"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, addOns: prev.addOns.filter((_, i) => i !== idx) }))}
+                      className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+                {formData.addOns.length === 0 && (
+                  <p className="text-xs text-secondary-400 italic py-1">No add-ons yet. Great for food vendors (e.g. Extra Avocado, Smokie).</p>
+                )}
+              </div>
             </div>
 
             <div className="col-span-2">

@@ -1,23 +1,28 @@
 import mongoose from 'mongoose';
 
-// ===== OLAFASTA OFFICIAL CATEGORY TAXONOMY (16 categories) =====
+// ===== OLAFASTA OFFICIAL CATEGORY TAXONOMY (21 categories) =====
 export const OLA_BUSINESS_CATEGORIES = [
-  'Olafasta Foods',
-  'Olafasta Mitumba',
-  'Olafasta Rentals',
-  'Olafasta Tech',
-  'Olafasta Chemist',
-  'Olafasta Boda',
-  'Olafasta Hostels',
-  'Olafasta Fashion',
-  'Olafasta Shoes',
-  'Olafasta Materials',
-  'Olafasta Home',
-  'Olafasta Stores',
-  'Olafasta Cakes',
-  'Olafasta Wines & Spirits',
-  'Olafasta Gas',
-  'Olafasta Kibanda',
+  'Bodaboda Rides',
+  'Gas Refill',
+  'Food & Drinks',
+  'Kibanda Meals',
+  'Chemist & Wellness',
+  'Mini-Mart',
+  'Soko (Fresh Produce)',
+  'Mitumba (Thrift Clothes)',
+  'Fashion & Boutiques',
+  'Shoes & Kicks',
+  'Tech & Gadgets',
+  'Rentals & Bedsitters',
+  'Hostels',
+  'Home & Bedding',
+  'Mali Mali (Plastics)',
+  'Wines & Spirits',
+  'Cakes & Pastries',
+  'Grooming & Salons',
+  'Print & Stationery',
+  'Gaming & Subs',
+  'Second-Hand Market',
 ];
 
 // Subcategories are free-form — businesses enter their own.
@@ -51,6 +56,16 @@ export const OLA_SUBCATEGORIES = [
   'Gas',
   'Others',
 ];
+
+const variationSchema = new mongoose.Schema({
+  name: { type: String, required: true, trim: true },   // e.g. "Size", "Color"
+  options: [{ type: String, trim: true }],              // e.g. ["40","41","42"]
+}, { _id: false });
+
+const addOnSchema = new mongoose.Schema({
+  name: { type: String, required: true, trim: true },   // e.g. "Extra Avocado"
+  price: { type: Number, required: true, min: 0 },      // e.g. 30
+}, { _id: false });
 
 const productSchema = new mongoose.Schema(
   {
@@ -133,6 +148,8 @@ const productSchema = new mongoose.Schema(
       price: Number,
       stock: Number,
     }],
+    variations: [variationSchema],
+    addOns: [addOnSchema],
     rating: {
       type: Number,
       default: 0,

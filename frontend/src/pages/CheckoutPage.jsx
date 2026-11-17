@@ -159,12 +159,19 @@ const CheckoutPage = () => {
             customerPays: paymentBreakdown.customerPays,
             providerReceives: paymentBreakdown.providerReceives,
             platformReceives: paymentBreakdown.platformReceives,
-            items: cartItems.map((item) => ({
-              name: item.name,
-              price: item.price,
-              quantity: item.quantity,
-              product: item._id,
-            })),
+            items: cartItems.map((item) => {
+              const addOnsTotal = (item.selectedAddOns || []).reduce((s, a) => s + (a.price || 0), 0);
+              return {
+                name: item.name,
+                price: item.price + addOnsTotal,
+                quantity: item.quantity,
+                product: item._id,
+                variant: item.selectedOptions ? Object.entries(item.selectedOptions).map(([k, v]) => `${k}: ${v}`).join(', ') : '',
+                selectedOptions: item.selectedOptions || {},
+                selectedAddOns: item.selectedAddOns || [],
+                addOnsTotal,
+              };
+            }),
           });
           return;
         }
@@ -467,9 +474,22 @@ const CheckoutPage = () => {
 
             <div className="space-y-3 mb-6">
               {(orderDetails?.items || []).map((item, index) => (
-                <div key={index} className="flex justify-between">
-                  <span>{item.name}</span>
-                  <span className="font-medium">{formatCurrency(item.price)}</span>
+                <div key={index} className="flex justify-between items-start">
+                  <div>
+                    <span className="text-gray-900 font-medium">{item.name}</span>
+                    {item.quantity > 1 && (
+                      <span className="text-xs text-gray-500 ml-1">× {item.quantity}</span>
+                    )}
+                    {item.variant && (
+                      <p className="text-xs text-gray-500">{item.variant}</p>
+                    )}
+                    {item.selectedAddOns && item.selectedAddOns.length > 0 && (
+                      <p className="text-xs text-[#027A2B]">
+                        + {item.selectedAddOns.map(a => a.name).join(', ')}
+                      </p>
+                    )}
+                  </div>
+                  <span className="font-medium text-gray-900">{formatCurrency(item.price * (item.quantity || 1))}</span>
                 </div>
               ))}
             </div>
