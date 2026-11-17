@@ -1,16 +1,16 @@
 // ProductDetailsPage.jsx — Premium /product/:productId page for Olafasta
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ChevronRight, Star, Heart, Minus, Plus, ShoppingCart,
   Truck, Shield, RotateCcw, Share2, Store, Package,
-  CheckCircle2, AlertTriangle, ChevronLeft,
+  CheckCircle2, AlertTriangle, ChevronLeft, Loader2,
 } from 'lucide-react';
 import { productAPI } from '../services/api';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useToast } from '../components/Toast';
-import ProductRow from '../components/ProductRow';
+import ProductCard from '../components/ProductCard';
 import { getCategoryBySlug } from '../config/categories';
 
 // ─── Skeleton Loader ──────────────────────────────────────────────────────────
@@ -54,6 +54,165 @@ function PDPSkeleton() {
   );
 }
 
+// ─── Related Products Grid with Infinite Scroll ───────────────────────────────
+function RelatedProducts({ product }) {
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const loadedIdsRef = useRef(new Set());
+  const loadingRef = useRef(false);
+  const sentinelRef = useRef(null);
+
+  // Reset state when product changes (user navigated to a different product)
+  useEffect(() => {
+    if (!product?._id) return;
+    setProducts([]);
+    setHasMore(true);
+    setError(null);
+    setPage(1);
+    loadedIdsRef.current = new Set();
+  }, [product?._id]);
+
+  // Fetch a page of related products
+  const fetchPage = useCallback(
+    async (pageNum) => {
+      if (!product?._id || loadingRef.current || !hasMore) return;
+      loadingRef.current = true;
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await productAPI.getRelated(product._id, {
+          page: pageNum,
+          limit: 12,
+        });
+        const items = res.data?.data || [];
+        const pagination = res.data?.pagination;
+
+        // Filter out any duplicates that might slip through
+        const newItems = items.filter((p) => {
+          if (loadedIdsRef.current.has(p._id)) return false;
+          loadedIdsRef.current.add(p._id);
+          return true;
+        });
+
+        if (newItems.length === 0 && items.length > 0) {
+          // All were duplicates — treat as no more
+          setHasMore(false);
+        } else {
+          setProducts((prev) => [...prev, ...newItems]);
+        }
+
+        // Use the hasMore flag from backend, or stop if we got fewer than requested
+        if (pagination?.hasMore !== undefined) {
+          setHasMore(pagination.hasMore);
+        } else if (items.length < 12) {
+          setHasMore(false);
+        }
+      } catch (err) {
+        setError('Failed to load more products. Tap to retry.');
+      } finally {
+        setLoading(false);
+        loadingRef.current = false;
+      }
+    },
+    [product?._id, hasMore]
+  );
+
+  // Load first page when product changes
+  useEffect(() => {
+    if (product?._id && products.length === 0 && hasMore && !loading) {
+      fetchPage(1);
+    }
+  }, [product?._id, products.length, hasMore, loading, fetchPage]);
+
+  // Infinite scroll via IntersectionObserver
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !loading && hasMore && !error && products.length > 0) {
+          const nextPage = page + 1;
+          setPage(nextPage);
+          fetchPage(nextPage);
+        }
+      },
+      { rootMargin: '300px' }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [loading, hasMore, error, products.length, page, fetchPage]);
+
+  const handleRetry = () => {
+    setError(null);
+    fetchPage(page);
+  };
+
+  if (products.length === 0 && loading) {
+    return (
+      <div className="mt-10 border-t border-gray-100 pt-8">
+        <h2 className="text-lg font-black text-gray-900 mb-4">Related Products</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="bg-gray-100 rounded-xl animate-pulse aspect-square" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (products.length === 0 && !loading) return null;
+
+  return (
+    <div className="mt-10 border-t border-gray-100 pt-8">
+      <h2 className="text-lg font-black text-gray-900 mb-4">Related Products</h2>
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+        {products.map((p) => (
+          <ProductCard key={p._id} product={p} isGrid />
+        ))}
+      </div>
+
+      {/* Sentinel + loading indicator */}
+      {hasMore && (
+        <div ref={sentinelRef} className="flex items-center justify-center py-8">
+          {loading ? (
+            <div className="flex items-center gap-2 text-gray-500 text-sm">
+              <Loader2 size={18} className="animate-spin" />
+              Loading more products...
+            </div>
+          ) : (
+            <div className="h-8" />
+          )}
+        </div>
+      )}
+
+      {/* Error with retry */}
+      {error && (
+        <div className="flex flex-col items-center py-6">
+          <p className="text-sm text-gray-500 mb-2">{error}</p>
+          <button
+            onClick={handleRetry}
+            className="bg-[#FF5E00] text-white font-bold px-5 py-2 rounded-full text-sm hover:bg-orange-600 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* End of list message */}
+      {!hasMore && !error && products.length > 0 && (
+        <div className="text-center py-6 text-sm text-gray-400">
+          You've seen all related products
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function ProductDetailsPage() {
   const { productId } = useParams();
@@ -69,7 +228,6 @@ export default function ProductDetailsPage() {
   const [quantity, setQuantity] = useState(1);
   const [addedToCart, setAddedToCart] = useState(false);
   const [isWished, setIsWished] = useState(false);
-  const [similarProducts, setSimilarProducts] = useState([]);
 
   // ── Contexts ───────────────────────────────────────────────────────────────
   let cart = null;
@@ -105,17 +263,6 @@ export default function ProductDetailsPage() {
       setIsWished(wishlist.isInWishlist(product._id, 'product'));
     }
   }, [wishlist, product]);
-
-  // ── Fetch similar products (same category) ─────────────────────────────────
-  useEffect(() => {
-    if (!product?.category) return;
-    productAPI.getAll({ category: product.category, limit: 10 })
-      .then((res) => {
-        const all = res.data?.products || res.data?.data || res.data || [];
-        setSimilarProducts(all.filter((p) => p._id !== product._id).slice(0, 8));
-      })
-      .catch(() => {});
-  }, [product]);
 
   // ── Derived values ─────────────────────────────────────────────────────────
   const addOnsTotal = selectedAddOns.reduce((sum, a) => sum + (a.price || 0), 0);
@@ -215,7 +362,8 @@ export default function ProductDetailsPage() {
   } = product;
 
   const displayStock = stock ?? productQty;
-  const vendorName = vendor?.businessName || business?.name || 'Campus Verified';
+  const vendorName = vendor?.businessName || business?.name || business?.businessProfile?.businessName || 'Campus Verified';
+  const businessLogo = business?.avatar || vendor?.avatar || null;
   const imgs = images.length ? images : [];
   const mainImg = imgs[currentImageIdx] || null;
   const isLowStock = displayStock !== undefined && displayStock !== null && displayStock > 0 && displayStock < 5;
@@ -289,6 +437,13 @@ export default function ProductDetailsPage() {
                     <ChevronRight size={18} className="text-gray-700" />
                   </button>
                 </>
+              )}
+
+              {/* Image counter */}
+              {imgs.length > 1 && (
+                <div className="absolute top-3 right-3 bg-black/50 text-white text-xs font-bold px-2.5 py-1 rounded-full backdrop-blur-sm">
+                  {currentImageIdx + 1} / {imgs.length}
+                </div>
               )}
 
               {/* Dot indicators */}
@@ -398,10 +553,21 @@ export default function ProductDetailsPage() {
                 <span className="text-sm font-black text-gray-800">{rating}</span>
                 <span className="text-xs text-gray-400">({reviewCount} reviews)</span>
               </div>
-              <div className="flex items-center gap-1.5 text-sm text-gray-600">
-                <Store size={14} className="text-gray-400" />
+              <Link
+                to={business?._id ? `/c/${categorySlug}` : '#'}
+                className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                {businessLogo ? (
+                  <img
+                    src={businessLogo}
+                    alt={vendorName}
+                    className="w-6 h-6 rounded-full object-cover border border-gray-200"
+                  />
+                ) : (
+                  <Store size={14} className="text-gray-400" />
+                )}
                 <span>Sold by <span className="font-bold text-gray-800">{vendorName}</span></span>
-              </div>
+              </Link>
             </div>
 
             {/* Pricing */}
@@ -430,7 +596,11 @@ export default function ProductDetailsPage() {
               <span className="inline-flex items-center gap-1.5 text-sm font-bold text-orange-700 bg-orange-50 border border-orange-100 px-3 py-1.5 rounded-full w-fit animate-pulse">
                 🔥 Only {displayStock} left in stock!
               </span>
-            ) : null}
+            ) : (
+              <span className="inline-flex items-center gap-1.5 text-sm font-bold text-green-700 bg-green-50 border border-green-100 px-3 py-1.5 rounded-full w-fit">
+                <CheckCircle2 size={14} /> In Stock
+              </span>
+            )}
 
             {/* ── Variation Chips ───────────────────────────────────── */}
             {variations.length > 0 && (
@@ -567,16 +737,38 @@ export default function ProductDetailsPage() {
           </section>
         )}
 
-        {/* ── Similar Products ─────────────────────────────────────────────── */}
-        {similarProducts.length > 0 && (
-          <div className="mt-10 border-t border-gray-100 pt-8">
-            <ProductRow
-              title={`More in ${category || 'This Category'}`}
-              products={similarProducts}
-              viewAllLink={`/c/${categorySlug}`}
-            />
-          </div>
-        )}
+        {/* ── Product Details Section ──────────────────────────────────────── */}
+        <section className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
+          {category && (
+            <div className="bg-gray-50 rounded-xl p-3">
+              <p className="text-xs text-gray-400 mb-1">Category</p>
+              <p className="text-sm font-bold text-gray-800">{category}</p>
+            </div>
+          )}
+          {product.condition && (
+            <div className="bg-gray-50 rounded-xl p-3">
+              <p className="text-xs text-gray-400 mb-1">Condition</p>
+              <p className="text-sm font-bold text-gray-800">{product.condition}</p>
+            </div>
+          )}
+          {product.brand && (
+            <div className="bg-gray-50 rounded-xl p-3">
+              <p className="text-xs text-gray-400 mb-1">Brand</p>
+              <p className="text-sm font-bold text-gray-800">{product.brand}</p>
+            </div>
+          )}
+          {displayStock !== undefined && displayStock !== null && (
+            <div className="bg-gray-50 rounded-xl p-3">
+              <p className="text-xs text-gray-400 mb-1">Availability</p>
+              <p className="text-sm font-bold text-gray-800">
+                {isOutOfStock ? 'Out of Stock' : `${displayStock} available`}
+              </p>
+            </div>
+          )}
+        </section>
+
+        {/* ── Related Products with Infinite Scroll ─────────────────────────── */}
+        <RelatedProducts product={product} />
       </div>
 
       {/* ════════════════ STICKY MOBILE CTA ════════════════ */}
