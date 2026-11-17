@@ -47,7 +47,7 @@ const formatDate = (dateString) => {
 const CustomerDashboard = () => {
   const { user, refreshProfile } = useAuth();
   const { unreadCount } = useSocket();
-  const { cartItemCount } = useCart();
+  const { cartItemCount, addToCart } = useCart();
   const navigate = useNavigate();
   const { success: toastSuccess, error: toastError } = useToast();
 
@@ -61,10 +61,64 @@ const CustomerDashboard = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [actionProcessing, setActionProcessing] = useState({});
 
+  // Saved Campus Locations State (synced to localStorage)
+  const [savedLocations, setSavedLocations] = useState(() => {
+    try {
+      const stored = localStorage.getItem('saved_campus_locations');
+      return stored ? JSON.parse(stored) : [
+        { id: 'loc-1', name: 'Hostel H, Room 24', landmark: 'Hostel H' },
+        { id: 'loc-2', name: 'Stage Area (Gate B)', landmark: 'Stage' },
+      ];
+    } catch {
+      return [{ id: 'loc-1', name: 'Hostel H, Room 24', landmark: 'Hostel H' }];
+    }
+  });
+  const [newLocationName, setNewLocationName] = useState('');
+
+  const handleAddLocation = (e) => {
+    e.preventDefault();
+    if (!newLocationName.trim()) return;
+    const updated = [
+      ...savedLocations,
+      { id: `loc-${Date.now()}`, name: newLocationName.trim(), landmark: 'Campus Landmark' },
+    ];
+    setSavedLocations(updated);
+    localStorage.setItem('saved_campus_locations', JSON.stringify(updated));
+    setNewLocationName('');
+    toastSuccess?.('Delivery location saved!');
+  };
+
+  const handleRemoveLocation = (id) => {
+    const updated = savedLocations.filter((l) => l.id !== id);
+    setSavedLocations(updated);
+    localStorage.setItem('saved_campus_locations', JSON.stringify(updated));
+  };
+
+  const handleReorder = (order) => {
+    if (!order.items || order.items.length === 0) return;
+    order.items.forEach((item) => {
+      if (addToCart) {
+        addToCart(
+          {
+            _id: item.product?._id || item.product,
+            name: item.name,
+            price: (item.price || 0) - (item.addOnsTotal || 0),
+            images: item.image ? [item.image] : [],
+          },
+          item.quantity || 1,
+          item.selectedOptions || {},
+          item.selectedAddOns || []
+        );
+      }
+    });
+    toastSuccess?.('Items re-added to cart!');
+    navigate('/cart');
+  };
+
   // Navigation Tabs State
   const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'marketplace', 'services'
 
-  const fetchDashboardData = async () => {
+    const fetchDashboardData = async () => {
     try {
       setLoading(true);
       setError(null);
@@ -110,6 +164,16 @@ const CustomerDashboard = () => {
   useEffect(() => {
     if (!socket) return;
 
+    const handleStatusUpdated = (data) => {
+      console.log('[CustomerDashboard] Real-time order:status_updated received:', data);
+      const rawStatus = data?.status || 'updated';
+      const formattedStatus = rawStatus.replace(/_/g, ' ');
+      toastSuccess?.(`Your order is now: ${formattedStatus}!`);
+      fetchDashboardData();
+    };
+
+    socket.on('order:status_updated', handleStatusUpdated);
+
     const handleUpdate = () => {
       console.log('[CustomerDashboard] Real-time event received, refetching customer data...');
       fetchDashboardData();
@@ -133,6 +197,7 @@ const CustomerDashboard = () => {
     socket.on('move_in_confirmed', handleUpdate);
 
     return () => {
+      socket.off('order:status_updated', handleStatusUpdated);
       socket.off('order_created', handleUpdate);
       socket.off('order_accepted', handleUpdate);
       socket.off('order_cancelled', handleUpdate);
@@ -245,7 +310,7 @@ const CustomerDashboard = () => {
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-8">
       {/* Welcome Section */}
-      <div className="card bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-2xl shadow-md">
+      <div className="card bg-gradient-to-r from-olaOrange-DEFAULT to-olaOrange-hover text-white p-6 rounded-2xl shadow-md">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center border border-white/10 flex-shrink-0">
@@ -253,7 +318,7 @@ const CustomerDashboard = () => {
             </div>
             <div>
               <h2 className="text-2xl font-bold">Welcome back, {user?.name || 'Customer'}!</h2>
-              <p className="text-blue-100 mt-1 text-sm">
+              <p className="text-olaOrange-light mt-1 text-sm">
                 {user?.email} • {user?.phone}
               </p>
             </div>
@@ -369,10 +434,10 @@ const CustomerDashboard = () => {
 
             {/* Active Orders */}
             {activeOrders.map(order => (
-              <div key={order._id} className="bg-white border-2 border-blue-200 rounded-xl p-4 shadow-sm flex flex-col justify-between">
+              <div key={order._id} className="bg-white border-2 border-olaOrange-DEFAULT/30 rounded-xl p-4 shadow-sm flex flex-col justify-between">
                 <div>
                   <div className="flex justify-between items-start mb-2">
-                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-black uppercase rounded-md border border-blue-200">
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-olaOrange-light text-olaOrange-DEFAULT font-bold text-[10px] font-black uppercase rounded-md border border-olaOrange-DEFAULT/30">
                       <ShoppingBag className="w-3 h-3" />
                       Active Order
                     </span>
@@ -384,13 +449,13 @@ const CustomerDashboard = () => {
                     {order.items?.[0]?.name} {order.items?.length > 1 ? `+ ${order.items.length - 1} more` : ''}
                   </p>
                   <p className="text-xs text-neutral-500 mt-1">
-                    Status: <span className="font-extrabold capitalize text-blue-600">{order.status}</span>
+                    Status: <span className="font-extrabold capitalize text-olaOrange-DEFAULT">{order.status}</span>
                   </p>
                 </div>
                 <div className="mt-4 pt-3 border-t border-neutral-100 flex gap-2 flex-wrap">
                   <button
                     onClick={() => navigate(`/customer/order/${order._id}`)}
-                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-sm"
+                    className="px-3 py-1.5 bg-olaOrange-DEFAULT hover:bg-olaOrange-hover text-white font-bold text-xs rounded-lg shadow-sm"
                   >
                     Track Order
                   </button>
@@ -418,12 +483,12 @@ const CustomerDashboard = () => {
           onClick={() => setActiveTab('overview')}
           className={`text-left p-5 rounded-xl border transition-all shadow-sm ${
             activeTab === 'overview'
-              ? 'border-blue-500 bg-blue-50/50 ring-2 ring-blue-500/20'
+              ? 'border-olaOrange-DEFAULT bg-olaOrange-light/50 ring-2 ring-olaOrange-DEFAULT/20'
               : 'border-neutral-200 bg-white hover:border-neutral-300'
           }`}
         >
           <div className="flex items-start gap-4">
-            <div className={`p-3 rounded-lg ${activeTab === 'overview' ? 'bg-blue-500 text-white' : 'bg-blue-50 text-blue-500'}`}>
+            <div className={`p-3 rounded-lg ${activeTab === 'overview' ? 'bg-olaOrange-DEFAULT text-white' : 'bg-olaOrange-light text-olaOrange-DEFAULT'}`}>
               <Layout className="w-6 h-6" />
             </div>
             <div>
@@ -438,12 +503,12 @@ const CustomerDashboard = () => {
           onClick={() => setActiveTab('marketplace')}
           className={`text-left p-5 rounded-xl border transition-all shadow-sm ${
             activeTab === 'marketplace'
-              ? 'border-blue-500 bg-blue-50/50 ring-2 ring-blue-500/20'
+              ? 'border-olaOrange-DEFAULT bg-olaOrange-light/50 ring-2 ring-olaOrange-DEFAULT/20'
               : 'border-neutral-200 bg-white hover:border-neutral-300'
           }`}
         >
           <div className="flex items-start gap-4">
-            <div className={`p-3 rounded-lg ${activeTab === 'marketplace' ? 'bg-blue-500 text-white' : 'bg-blue-50 text-blue-500'}`}>
+            <div className={`p-3 rounded-lg ${activeTab === 'marketplace' ? 'bg-olaOrange-DEFAULT text-white' : 'bg-olaOrange-light text-olaOrange-DEFAULT'}`}>
               <ShoppingBag className="w-6 h-6" />
             </div>
             <div>
@@ -458,12 +523,12 @@ const CustomerDashboard = () => {
           onClick={() => setActiveTab('services')}
           className={`text-left p-5 rounded-xl border transition-all shadow-sm ${
             activeTab === 'services'
-              ? 'border-blue-500 bg-blue-50/50 ring-2 ring-blue-500/20'
+              ? 'border-olaOrange-DEFAULT bg-olaOrange-light/50 ring-2 ring-olaOrange-DEFAULT/20'
               : 'border-neutral-200 bg-white hover:border-neutral-300'
           }`}
         >
           <div className="flex items-start gap-4">
-            <div className={`p-3 rounded-lg ${activeTab === 'services' ? 'bg-blue-500 text-white' : 'bg-blue-50 text-blue-500'}`}>
+            <div className={`p-3 rounded-lg ${activeTab === 'services' ? 'bg-olaOrange-DEFAULT text-white' : 'bg-olaOrange-light text-olaOrange-DEFAULT'}`}>
               <Bike className="w-6 h-6" />
             </div>
             <div>
@@ -488,8 +553,8 @@ const CustomerDashboard = () => {
                   {dashboardData?.orders || 0}
                 </p>
               </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                <Package className="w-6 h-6 text-blue-600" />
+              <div className="w-12 h-12 bg-olaOrange-light rounded-xl flex items-center justify-center">
+                <Package className="w-6 h-6 text-olaOrange-DEFAULT" />
               </div>
             </div>
 
@@ -550,11 +615,62 @@ const CustomerDashboard = () => {
             </div>
           </div>
 
+          {/* FEATURE: ACTIVE ORDER VISUAL PROGRESS STEPPER */}
+          {activeOrders.length > 0 && (() => {
+            const latest = activeOrders[0];
+            const s = latest.status?.toLowerCase();
+            const currentStep = 
+              (s === 'delivered' || s === 'completed') ? 3 :
+              (s === 'out_for_delivery' || s === 'ready_for_pickup') ? 2 :
+              (s === 'preparing' || s === 'processing') ? 1 : 0;
+
+            const steps = [
+              { label: 'Order Placed', desc: 'Paid & Routed' },
+              { label: 'Preparing', desc: 'Vendor Assembling' },
+              { label: 'Out for Delivery', desc: 'Rider In Transit' },
+              { label: 'Delivered', desc: 'Received at Campus' },
+            ];
+
+            return (
+              <div className="card bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <span className="text-xs font-bold text-olaOrange-DEFAULT uppercase tracking-wider">Live Order Tracking</span>
+                    <h3 className="text-base font-extrabold text-neutral-900">
+                      Order #{latest._id?.slice(-6).toUpperCase()} · {latest.items?.[0]?.name}
+                    </h3>
+                  </div>
+                  <span className="text-sm font-black text-[#FF5E00]">
+                    KSh {latest.finalAmount || latest.totalAmount}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-4 gap-2 pt-2">
+                  {steps.map((step, idx) => (
+                    <div key={idx} className="space-y-1.5 text-center">
+                      <div className={`h-2 rounded-full transition-all ${
+                        idx <= currentStep ? 'bg-[#FF5E00]' : 'bg-gray-200'
+                      }`} />
+                      <p className={`text-xs font-bold ${
+                        idx <= currentStep ? 'text-neutral-900' : 'text-neutral-400'
+                      }`}>
+                        {step.label}
+                      </p>
+                      <span className="text-[10px] text-neutral-400 hidden sm:block">
+                        {step.desc}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Recent Orders */}
           <div className="card bg-white p-6 rounded-xl border border-neutral-200 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-neutral-800">Recent Orders</h2>
-              <Link to="/customer/orders" className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1">
+              <Link to="/customer/orders" className="text-olaOrange-DEFAULT hover:text-olaOrange-hover text-sm font-medium flex items-center gap-1">
                 View all <ChevronRight className="w-4 h-4" />
               </Link>
             </div>
@@ -590,12 +706,21 @@ const CustomerDashboard = () => {
                           </span>
                         </td>
                         <td className="py-3 px-4">
-                          <Link
-                            to={`/customer/order/${order._id}`}
-                            className="text-blue-600 hover:text-blue-700 font-medium"
-                          >
-                            View
-                          </Link>
+                          <div className="flex items-center gap-2">
+                            <Link
+                              to={`/customer/order/${order._id}`}
+                              className="text-olaOrange-DEFAULT hover:text-olaOrange-hover font-bold text-xs"
+                            >
+                              View
+                            </Link>
+                            <button
+                              onClick={() => handleReorder(order)}
+                              className="px-2 py-1 bg-orange-50 hover:bg-orange-100 text-[#FF5E00] font-bold text-xs rounded-md transition-colors cursor-pointer"
+                              title="Reorder items"
+                            >
+                              Reorder
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -606,18 +731,64 @@ const CustomerDashboard = () => {
               <div className="text-center py-8 text-neutral-500">
                 <Package className="w-12 h-12 mx-auto mb-3 text-neutral-300" />
                 <p>No orders yet</p>
-                <Link to="/marketplace" className="text-blue-600 hover:text-blue-700 mt-2 inline-block font-medium">
+                <Link to="/marketplace" className="text-olaOrange-DEFAULT hover:text-olaOrange-hover mt-2 inline-block font-medium">
                   Start Shopping
                 </Link>
               </div>
             )}
           </div>
 
+          {/* Saved Preferred Delivery Drop-offs */}
+          <div className="card bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-extrabold text-neutral-900 flex items-center gap-2">
+                  <MapPin className="w-5 h-5 text-[#FF5E00]" />
+                  <span>Saved Campus Delivery Locations</span>
+                </h2>
+                <p className="text-xs text-neutral-400">Quick-select your preferred hostel room or meeting spot for fast dropoffs.</p>
+              </div>
+
+              <form onSubmit={handleAddLocation} className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="e.g. Hostel M, Room 12"
+                  value={newLocationName}
+                  onChange={(e) => setNewLocationName(e.target.value)}
+                  className="px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:ring-1 focus:ring-[#FF5E00] focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  className="px-3 py-1.5 bg-neutral-900 hover:bg-[#FF5E00] text-white font-bold text-xs rounded-xl transition-colors cursor-pointer"
+                >
+                  Save
+                </button>
+              </form>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {savedLocations.map((loc) => (
+                <div key={loc.id} className="p-3 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2 truncate">
+                    <MapPin size={14} className="text-[#FF5E00] flex-shrink-0" />
+                    <span className="font-bold text-neutral-800 truncate">{loc.name}</span>
+                  </div>
+                  <button
+                    onClick={() => handleRemoveLocation(loc.id)}
+                    className="text-gray-400 hover:text-red-500 p-1 font-bold"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {/* Profile Summary */}
           <div className="card bg-white p-6 rounded-xl border border-neutral-200 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-neutral-800">Profile Summary</h2>
-              <Link to="/customer/settings" className="text-blue-600 hover:text-blue-700 text-sm font-medium">
+              <Link to="/customer/settings" className="text-olaOrange-DEFAULT hover:text-olaOrange-hover text-sm font-medium">
                 Edit Profile
               </Link>
             </div>
@@ -659,10 +830,10 @@ const CustomerDashboard = () => {
       {activeTab === 'marketplace' && (
         <div className="space-y-6">
           {/* Marketplace Stats & Highlight */}
-          <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="bg-olaOrange-light/40 border border-olaOrange-DEFAULT/20 rounded-xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h3 className="text-lg font-bold text-blue-900">Your Marketplace Hub</h3>
-              <p className="text-sm text-blue-700 mt-1">You have {dashboardData?.orders || 0} total marketplace orders in your activity history.</p>
+              <h3 className="text-lg font-bold text-neutral-900">Your Marketplace Hub</h3>
+              <p className="text-sm text-olaOrange-hover mt-1">You have {dashboardData?.orders || 0} total marketplace orders in your activity history.</p>
             </div>
             <Link to="/marketplace" className="btn-primary px-6 py-2.5 rounded-lg shadow-sm font-semibold flex items-center justify-center gap-2">
               <ShoppingBag className="w-5 h-5" />
@@ -674,34 +845,34 @@ const CustomerDashboard = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Link
               to="/marketplace"
-              className="flex items-center gap-4 p-5 bg-white border border-neutral-200 rounded-xl hover:border-blue-500 hover:shadow-md transition-all group"
+              className="flex items-center gap-4 p-5 bg-white border border-neutral-200 rounded-xl hover:border-olaOrange-DEFAULT hover:shadow-md transition-all group"
             >
-              <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0 text-blue-600">
+              <div className="w-12 h-12 rounded-xl bg-olaOrange-light flex items-center justify-center flex-shrink-0 text-olaOrange-DEFAULT">
                 <ShoppingBag className="w-6 h-6" />
               </div>
               <div className="flex-1">
-                <h3 className="font-bold text-neutral-850 group-hover:text-blue-600 transition-colors">
+                <h3 className="font-bold text-neutral-850 group-hover:text-olaOrange-DEFAULT transition-colors">
                   Shop Products
                 </h3>
                 <p className="text-sm text-neutral-500">Explore and purchase products from trusted local shops</p>
               </div>
-              <ChevronRight className="w-5 h-5 text-neutral-400 group-hover:text-blue-500 transition-colors" />
+              <ChevronRight className="w-5 h-5 text-neutral-400 group-hover:text-olaOrange-DEFAULT transition-colors" />
             </Link>
 
             <Link
               to="/customer/orders"
-              className="flex items-center gap-4 p-5 bg-white border border-neutral-200 rounded-xl hover:border-blue-500 hover:shadow-md transition-all group"
+              className="flex items-center gap-4 p-5 bg-white border border-neutral-200 rounded-xl hover:border-olaOrange-DEFAULT hover:shadow-md transition-all group"
             >
               <div className="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0 text-purple-600">
                 <Package className="w-6 h-6" />
               </div>
               <div className="flex-1">
-                <h3 className="font-bold text-neutral-850 group-hover:text-blue-600 transition-colors">
+                <h3 className="font-bold text-neutral-850 group-hover:text-olaOrange-DEFAULT transition-colors">
                   View Orders
                 </h3>
                 <p className="text-sm text-neutral-500">Track shipping, checkout status, and purchase history</p>
               </div>
-              <ChevronRight className="w-5 h-5 text-neutral-400 group-hover:text-blue-500 transition-colors" />
+              <ChevronRight className="w-5 h-5 text-neutral-400 group-hover:text-olaOrange-DEFAULT transition-colors" />
             </Link>
           </div>
 
@@ -740,7 +911,7 @@ const CustomerDashboard = () => {
                         <td className="py-3 px-4">
                           <Link
                             to={`/customer/order/${order._id}`}
-                            className="text-blue-600 hover:text-blue-700 font-medium"
+                            className="text-olaOrange-DEFAULT hover:text-olaOrange-hover font-medium"
                           >
                             Track Order
                           </Link>
@@ -801,13 +972,13 @@ const CustomerDashboard = () => {
             {/* Action 1: Book Rentals */}
             <Link
               to="/rentals"
-              className="flex flex-col gap-3 p-5 bg-white border border-neutral-200 rounded-xl hover:border-blue-500 hover:shadow-md transition-all group"
+              className="flex flex-col gap-3 p-5 bg-white border border-neutral-200 rounded-xl hover:border-olaOrange-DEFAULT hover:shadow-md transition-all group"
             >
               <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center text-green-600">
                 <Home className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="font-bold text-neutral-850 group-hover:text-blue-600 transition-colors">Book Rentals</h4>
+                <h4 className="font-bold text-neutral-850 group-hover:text-olaOrange-DEFAULT transition-colors">Book Rentals</h4>
                 <p className="text-xs text-neutral-500 mt-1">Search, rent and manage apartment spaces</p>
               </div>
             </Link>
@@ -815,13 +986,13 @@ const CustomerDashboard = () => {
             {/* Action 2: Bodaboda */}
             <Link
               to="/transport"
-              className="flex flex-col gap-3 p-5 bg-white border border-neutral-200 rounded-xl hover:border-blue-500 hover:shadow-md transition-all group"
+              className="flex flex-col gap-3 p-5 bg-white border border-neutral-200 rounded-xl hover:border-olaOrange-DEFAULT hover:shadow-md transition-all group"
             >
               <div className="w-10 h-10 rounded-lg bg-yellow-100 flex items-center justify-center text-yellow-600">
                 <Bike className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="font-bold text-neutral-850 group-hover:text-blue-600 transition-colors">Bodaboda Transport</h4>
+                <h4 className="font-bold text-neutral-850 group-hover:text-olaOrange-DEFAULT transition-colors">Bodaboda Transport</h4>
                 <p className="text-xs text-neutral-500 mt-1">Request quick local rider pickup services</p>
               </div>
             </Link>
@@ -829,13 +1000,13 @@ const CustomerDashboard = () => {
             {/* Action 3: Healthcare */}
             <Link
               to="/healthcare"
-              className="flex flex-col gap-3 p-5 bg-white border border-neutral-200 rounded-xl hover:border-blue-500 hover:shadow-md transition-all group"
+              className="flex flex-col gap-3 p-5 bg-white border border-neutral-200 rounded-xl hover:border-olaOrange-DEFAULT hover:shadow-md transition-all group"
             >
               <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center text-red-600">
                 <Heart className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="font-bold text-neutral-850 group-hover:text-blue-600 transition-colors">Healthcare Shop</h4>
+                <h4 className="font-bold text-neutral-850 group-hover:text-olaOrange-DEFAULT transition-colors">Healthcare Shop</h4>
                 <p className="text-xs text-neutral-500 mt-1">Purchase medical supplies and medications</p>
               </div>
             </Link>

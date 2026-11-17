@@ -75,6 +75,15 @@ const Sidebar = ({ isOpen, onClose }) => {
           { path: '/rider/settings', label: 'Settings', icon: 'settings' },
           { path: '/rider/help', label: 'Help Center', icon: 'help' },
         ];
+      case 'admin':
+        return [
+          { path: '/admin', label: 'Overview', icon: 'chart' },
+          { path: '/admin/vendors', label: 'Approve Vendors', icon: 'users' },
+          { path: '/admin/financials', label: 'Financials & M-Pesa', icon: 'money' },
+          { path: '/admin/users', label: 'User Directory', icon: 'users' },
+          { path: '/admin/settings', label: 'Platform Settings', icon: 'settings' },
+          { path: '/admin/help', label: 'Help Center', icon: 'help' },
+        ];
       default:
         return [];
     }
@@ -180,7 +189,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         {/* Logo */}
         <div className="p-6 border-b border-neutral-200 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-blue">
+            <div className="w-8 h-8 bg-olaOrange-DEFAULT rounded-lg flex items-center justify-center shadow-md">
               <span className="text-white font-bold text-lg">C</span>
             </div>
             <span className="text-xl font-bold text-neutral-900">Olafasta</span>
@@ -200,7 +209,7 @@ const Sidebar = ({ isOpen, onClose }) => {
       {/* User Info */}
       <div className="p-4 border-b border-neutral-200">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-100 rounded-full overflow-hidden flex items-center justify-center border border-blue-200">
+          <div className="w-10 h-10 bg-olaOrange-light rounded-full overflow-hidden flex items-center justify-center border border-olaOrange-DEFAULT/20">
             {user?.riderProfile?.profilePhoto || user?.avatar ? (
               <img 
                 src={user?.riderProfile?.profilePhoto || user?.avatar} 
@@ -208,7 +217,7 @@ const Sidebar = ({ isOpen, onClose }) => {
                 className="w-full h-full object-cover"
               />
             ) : (
-              <span className="text-blue-600 font-semibold">
+              <span className="text-olaOrange-DEFAULT font-bold">
                 {user?.name?.charAt(0).toUpperCase() || 'U'}
               </span>
             )}
@@ -230,7 +239,7 @@ const Sidebar = ({ isOpen, onClose }) => {
               if (onClose) onClose();
             }}
             className={({ isActive }) =>
-              `sidebar-link ${isActive ? 'active' : ''}`
+              `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive ? 'bg-olaOrange-light text-olaOrange-DEFAULT font-bold shadow-sm' : 'text-neutral-600 hover:bg-gray-100 hover:text-olaOrange-DEFAULT'}`
             }
           >
             {getIcon(item.icon)}

@@ -199,7 +199,11 @@ const userSchema = new mongoose.Schema(
     },
     // Business specific fields
     businessProfile: {
-      businessName: String,
+      businessName: { type: String, trim: true },
+      campusLocation: { type: String, enum: ['Kesses', 'Stage', 'Chebarus', 'Mabs', 'Annex', 'Gate A', 'Gate B', 'Campus Center', ''], default: 'Stage' },
+      mpesaB2CPhone: { type: String, trim: true, default: '' },
+      isApproved: { type: Boolean, default: false, index: true },
+      operatingHours: { open: { type: String, default: '07:00' }, close: { type: String, default: '22:00' }, isOpenNow: { type: Boolean, default: true } },
       businessDescription: String,
       businessAddress: String,
       businessCategory: {

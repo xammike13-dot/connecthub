@@ -101,6 +101,12 @@ const productSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Please provide a category'],
     },
+    categorySlug: {
+      type: String,
+      index: true,
+      lowercase: true,
+      trim: true,
+    },
     subcategory: {
       type: String,
     },
@@ -129,6 +135,11 @@ const productSchema = new mongoose.Schema(
     stock: {
       type: Number,
       required: true,
+      default: 0,
+      min: 0,
+    },
+    stockCount: {
+      type: Number,
       default: 0,
       min: 0,
     },
@@ -196,6 +207,21 @@ const productSchema = new mongoose.Schema(
 );
 
 // Create index for text search and geospatial queries
+// Auto-derive categorySlug and sync stockCount on save
+productSchema.pre('save', function (next) {
+  if (this.category && !this.categorySlug) {
+    this.categorySlug = this.category.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  }
+  if (this.stockCount !== undefined && this.stock === undefined) {
+    this.stock = this.stockCount;
+  } else if (this.stock !== undefined && (!this.stockCount || this.stockCount === 0)) {
+    this.stockCount = this.stock;
+  }
+  next();
+});
+
+productSchema.index({ categorySlug: 1, isActive: 1, createdAt: -1 });
+
 productSchema.index({ name: 'text', description: 'text' });
 productSchema.index({ location: '2dsphere' });
 

@@ -1,6 +1,7 @@
 import express from 'express';
 import {
   initiateMpesaPayment,
+  initiateOrderSTKPush,
   initiateMpesaPaymentWithRider,
   verifyMpesaPayment,
   checkPaymentStatus,
@@ -27,6 +28,8 @@ router.post('/ride-fare-estimate', calculateRideFareEstimate);
 
 // M-Pesa specific routes for Bodaboda
 router.post('/mpesa/stk-push', initiateMpesaPayment);
+router.post('/mpesa/stkpush', initiateOrderSTKPush);
+router.post('/mpesa/stk-push-order', initiateOrderSTKPush);
 router.post('/mpesa/stk-push-with-rider', initiateMpesaPaymentWithRider);
 router.get('/mpesa/verify/:transactionRef', verifyMpesaPayment);
 router.get('/status/:transactionRef', checkPaymentStatus);

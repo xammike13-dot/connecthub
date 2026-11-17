@@ -6,7 +6,7 @@ import { notificationAPI } from '../services/api';
 const SocketContext = createContext(null);
 
 export const SocketProvider = ({ children }) => {
-  const { token, user } = useAuth();
+  const { token, user, isAuthenticated } = useAuth();
   const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState([]);
@@ -47,7 +47,7 @@ export const SocketProvider = ({ children }) => {
   }, [token, user]);
 
   useEffect(() => {
-    if (token && user) {
+    if (isAuthenticated && token && user) {
       const apiBaseUrl = (import.meta.env.VITE_API_URL || window.location.origin).replace(/\/$/, '');
       const socketUrl = import.meta.env.VITE_SOCKET_URL || apiBaseUrl.replace(/\/api$/, '');
 
@@ -69,6 +69,13 @@ export const SocketProvider = ({ children }) => {
           const userRoom = `user_${user._id}`;
           newSocket.emit('join_room', userRoom);
           console.log('[SocketContext] Joined user room:', userRoom);
+        }
+
+        // Join vendor-specific room for real-time order alerts
+        if ((user?.role === 'business' || user?.role === 'assistant') && user?._id) {
+          const vendorRoom = `vendor_${user._id}`;
+          newSocket.emit('join_room', vendorRoom);
+          console.log('[SocketContext] Joined vendor room:', vendorRoom);
         }
 
         // Join rider-specific room for ride requests
@@ -254,7 +261,7 @@ export const SocketProvider = ({ children }) => {
       setSocket(null);
       setIsConnected(false);
     }
-  }, [token, user, fetchNotifications, fetchUnreadCount]);
+  }, [token, user, isAuthenticated, fetchNotifications, fetchUnreadCount]);
 
   // Join a room
   const joinRoom = useCallback((room) => {

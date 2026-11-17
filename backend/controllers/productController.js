@@ -86,28 +86,85 @@ export const createProduct = asyncHandler(async (req, res) => {
  * Get all products with filters
  */
 export const getProducts = asyncHandler(async (req, res) => {
-  const { category, business, search, page = 1, limit = 20, sort = '-createdAt', excludeHealthcare = false } = req.query;
+  const {
+    category,
+    slug,
+    categorySlug,
+    business,
+    search,
+    minPrice,
+    maxPrice,
+    condition,
+    subcategory,
+    inStockOnly,
+    stock,
+    page = 1,
+    limit = 20,
+    sort = '-createdAt',
+    excludeHealthcare = false,
+  } = req.query;
 
-  let query = {};
+  let query = { isActive: { $ne: false } };
 
   if (business) query.business = business;
 
-  if (category) {
-    const categoryLower = category.toLowerCase();
+  // Category or slug query
+  const targetCategory = category || slug || categorySlug;
+  if (targetCategory) {
+    const categoryLower = targetCategory.toLowerCase().trim();
     if (categoryLower === 'healthcare' || categoryLower === 'health care') {
       query.category = /health ?care/i;
-    } else if (categoryLower === 'food' || categoryLower === 'food-stuffs' || categoryLower === 'food stuffs') {
-      query.category = { $in: ['Food', 'Food Stuffs', 'food-stuffs', 'food'] };
-    } else if (categoryLower === 'household' || categoryLower === 'households' || categoryLower === 'house-shopping' || categoryLower === 'house shopping') {
-      query.category = { $in: ['Household', 'Households', 'households', 'House Shopping', 'house-shopping', 'household'] };
+    } else if (categoryLower === 'food' || categoryLower === 'food-stuffs' || categoryLower === 'food stuffs' || categoryLower === 'food-drinks') {
+      query.$or = [
+        { category: { $in: ['Food & Drinks', 'Food', 'Food Stuffs', 'food-stuffs', 'food'] } },
+        { categorySlug: { $in: ['food-drinks', 'food'] } },
+      ];
+    } else if (categoryLower === 'household' || categoryLower === 'households' || categoryLower === 'house-shopping' || categoryLower === 'home-bedding') {
+      query.$or = [
+        { category: { $in: ['Home & Bedding', 'Household', 'Households', 'House Shopping'] } },
+        { categorySlug: { $in: ['home-bedding', 'household', 'households'] } },
+      ];
     } else {
-      query.category = new RegExp(`^${category}$`, 'i');
+      const slugPattern = categoryLower.replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      query.$or = [
+        { category: new RegExp('^' + targetCategory + '$', 'i') },
+        { categorySlug: new RegExp('^' + slugPattern + '$', 'i') },
+      ];
     }
   } else if (excludeHealthcare === 'true' || excludeHealthcare === true) {
-    // Exclude healthcare products from marketplace by default (case-insensitive, with or without space)
     query.category = { $not: /health ?care/i };
   }
 
+  // Price range filtering
+  if (minPrice !== undefined || maxPrice !== undefined) {
+    query.price = {};
+    if (minPrice !== undefined && minPrice !== '') query.price.$gte = Number(minPrice);
+    if (maxPrice !== undefined && maxPrice !== '') query.price.$lte = Number(maxPrice);
+  }
+
+  // In-stock filtering
+  if (inStockOnly === 'true' || inStockOnly === true || stock === 'true') {
+    query.$and = (query.$and || []).concat([
+      {
+        $or: [
+          { stock: { $gt: 0 } },
+          { stockCount: { $gt: 0 } },
+        ],
+      },
+    ]);
+  }
+
+  // Subcategory filtering
+  if (subcategory && subcategory !== 'all') {
+    query.subcategory = new RegExp('^' + subcategory + '$', 'i');
+  }
+
+  // Condition filtering
+  if (condition && condition !== 'all') {
+    query.condition = new RegExp('^' + condition + '$', 'i');
+  }
+
+  // Search
   if (search) {
     query.$or = [
       { name: { $regex: search, $options: 'i' } },
@@ -116,11 +173,23 @@ export const getProducts = asyncHandler(async (req, res) => {
     ];
   }
 
+  // Enhanced sorting
+  let sortOption = sort;
+  if (sort === 'discount' || sort === '-discount' || sort === '-discountPct') {
+    sortOption = { discountPct: -1, createdAt: -1 };
+  } else if (sort === 'price' || sort === 'price_asc') {
+    sortOption = { price: 1 };
+  } else if (sort === '-price' || sort === 'price_desc') {
+    sortOption = { price: -1 };
+  } else if (sort === '-rating' || sort === 'rating') {
+    sortOption = { rating: -1, numReviews: -1 };
+  }
+
   const skip = (page - 1) * limit;
 
   const products = await Product.find(query)
     .populate('business', 'name businessProfile avatar')
-    .sort(sort)
+    .sort(sortOption)
     .skip(skip)
     .limit(parseInt(limit));
 

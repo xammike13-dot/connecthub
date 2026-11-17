@@ -1,814 +1,420 @@
-import { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { useBusinessDashboard } from '../hooks/useDashboardData';
-import LoadingSpinner from '../components/LoadingSpinner';
-import { useAuth } from '../context/AuthContext';
-import GuidedWalkthrough from '../components/GuidedWalkthrough';
-import api, { orderAPI, assistantAPI } from '../services/api';
-import { useToast } from '../components/Toast';
-import { motion } from 'framer-motion';
-import { useSocket } from '../context/SocketContext';
-import {
-  Package,
-  CheckCircle,
+// frontend/src/pages/BusinessDashboard.jsx
+// Vendor Operational Cockpit: Live Order Kanban Board & Inventory Manager
+
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { 
+  ShoppingBag, 
+  Package, 
+  Clock, 
+  CheckCircle2, 
+  ArrowRight, 
+  Phone, 
+  MapPin, 
+  RefreshCw, 
+  DollarSign, 
   AlertCircle,
-  ShoppingCart,
-  Clock,
-  XCircle,
-  DollarSign,
-  TrendingUp,
-  Plus,
-  ClipboardList,
-  Wallet,
-  Bell,
-  ArrowRight,
-  RefreshCw,
-  Star,
-  Check,
-  X,
-  UserPlus,
-  Copy,
-  Mail,
-  MessageSquare,
+  Truck,
+  Flame,
+  ChevronRight,
+  Sparkles
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../context/SocketContext';
+import api from '../utils/api';
+import InventoryManager from '../components/dashboard/InventoryManager';
+import { useToast } from '../components/Toast';
 
-const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('en-KE', {
-    style: 'currency',
-    currency: 'KES',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-};
-
-const StatCard = ({ title, value, subtitle, icon, color = 'primary' }) => {
-  const colorClasses = {
-    primary: 'from-blue-500 to-blue-600 text-blue-600 bg-blue-50 border-blue-100',
-    success: 'from-emerald-500 to-emerald-600 text-emerald-600 bg-emerald-50 border-emerald-100',
-    warning: 'from-amber-500 to-amber-600 text-amber-600 bg-amber-50 border-amber-100',
-    danger: 'from-rose-500 to-rose-600 text-rose-600 bg-rose-50 border-rose-100',
-    info: 'from-indigo-500 to-indigo-600 text-indigo-600 bg-indigo-50 border-indigo-100',
-  };
-
-  const iconBgClasses = {
-    primary: 'bg-blue-100',
-    success: 'bg-emerald-100',
-    warning: 'bg-amber-100',
-    danger: 'bg-rose-100',
-    info: 'bg-indigo-100',
-  };
-
-  return (
-    <div className={`card p-5 bg-white border rounded-2xl shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex items-center justify-between overflow-hidden relative group`}>
-      <div className="space-y-1.5 z-10">
-        <p className="text-xs font-bold text-secondary-400 uppercase tracking-wider">{title}</p>
-        <p className="text-3xl font-extrabold text-secondary-800 tracking-tight">
-          {typeof value === 'number' ? value.toLocaleString() : value}
-        </p>
-        {subtitle && <p className="text-xs text-secondary-500 font-medium">{subtitle}</p>}
-      </div>
-      <div className={`w-12.5 h-12.5 rounded-xl ${iconBgClasses[color]} ${colorClasses[color].split(' ')[0]} flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform duration-200 z-10`}>
-        {icon}
-      </div>
-    </div>
-  );
-};
-
-const BusinessDashboard = () => {
-  const { stats, orders, loading, error, refetch } = useBusinessDashboard();
+export default function BusinessDashboard() {
   const { user } = useAuth();
-  const { success: toastSuccess, error: toastError } = useToast();
-  const [refreshing, setRefreshing] = useState(false);
-  const [showWalkthrough, setShowWalkthrough] = useState(false);
-  const [actionProcessing, setActionProcessing] = useState({});
-
-  // Assistant Invitation Modal State
-  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
-  const [assistantName, setAssistantName] = useState('');
-  const [assistantPhone, setAssistantPhone] = useState('');
-  const [generatedInviteLink, setGeneratedInviteLink] = useState('');
-  const [generatingInvite, setGeneratingInvite] = useState(false);
-
-  const handleGenerateInvitation = async (e) => {
-    e.preventDefault();
-    setGeneratingInvite(true);
-    try {
-      const { data } = await assistantAPI.generateInvite({
-        assistantName,
-        assistantPhone,
-      });
-      setGeneratedInviteLink(data.data.inviteLink);
-      toastSuccess('Invitation link generated successfully!');
-    } catch (err) {
-      toastError(err.response?.data?.message || 'Failed to generate invitation link');
-    } finally {
-      setGeneratingInvite(false);
-    }
-  };
-
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(generatedInviteLink);
-    toastSuccess('Invitation link copied to clipboard!');
-  };
-  const location = useLocation();
+  const queryClient = useQueryClient();
+  const { show: showToast } = useToast() || {};
   const { socket } = useSocket();
 
-  // Check if walkthrough should be shown
-  useEffect(() => {
-    if (location.state?.showWalkthrough && !user?.onboardingCompleted) {
-      setShowWalkthrough(true);
-    }
-  }, [location.state, user]);
+  // Audio chime synthesized via Web Audio API
+  const playOrderChime = useCallback(() => {
+    try {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return;
+      const audioCtx = new AudioContextClass();
+      const osc = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
 
-  // Listen for socket events to auto-refresh the dashboard
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
+      osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.15); // A5
+
+      gainNode.gain.setValueAtTime(0.4, audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.45);
+
+      osc.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.5);
+    } catch (e) {
+      console.warn('Audio chime warning:', e);
+    }
+  }, []);
+
+  // Real-Time Socket.IO: Invalidate vendor orders & play notification chime on new order
   useEffect(() => {
     if (!socket) return;
 
-    const handleUpdate = () => {
-      console.log('[BusinessDashboard] Real-time event received, refetching dashboard stats...');
-      refetch();
+    const handleNewOrder = (newOrder) => {
+      console.log('[Socket] Vendor received new order:', newOrder);
+      playOrderChime();
+      showToast?.(`New Order Received! #${newOrder?._id?.slice(-6)?.toUpperCase() || ''}`, 'success');
+      queryClient.invalidateQueries({ queryKey: ['orders', 'vendor'] });
+      queryClient.invalidateQueries({ queryKey: ['business-orders'] });
     };
 
-    socket.on('order_created', handleUpdate);
-    socket.on('order_completed', handleUpdate);
-    socket.on('order_cancelled', handleUpdate);
-    socket.on('order_delivered', handleUpdate);
-    socket.on('payment_confirmed', handleUpdate);
-    socket.on('payment_released', handleUpdate);
-    socket.on('new_order', handleUpdate);
-    socket.on('new_notification', handleUpdate);
+    socket.on('order:created', handleNewOrder);
 
     return () => {
-      socket.off('order_created', handleUpdate);
-      socket.off('order_completed', handleUpdate);
-      socket.off('order_cancelled', handleUpdate);
-      socket.off('order_delivered', handleUpdate);
-      socket.off('payment_confirmed', handleUpdate);
-      socket.off('payment_released', handleUpdate);
-      socket.off('new_order', handleUpdate);
-      socket.off('new_notification', handleUpdate);
+      socket.off('order:created', handleNewOrder);
     };
-  }, [socket, refetch]);
+  }, [socket, playOrderChime, showToast, queryClient]);
+  const [activeTab, setActiveTab] = useState('kanban'); // 'kanban' | 'inventory'
 
-  const walkthroughSteps = [
-    {
-      targetId: 'add-product-btn',
-      title: 'Add Your First Product',
-      content: 'Click here to list your first product on the marketplace.',
+  // 1. Fetch Vendor Orders via TanStack Query
+  const { data: rawOrders = [], isLoading: loadingOrders, refetch } = useQuery({
+    queryKey: ['business-orders', user?._id],
+    queryFn: async () => {
+      const res = await api.get('/orders', {
+        params: { businessId: user?._id, limit: 50 },
+      });
+      return Array.isArray(res.data) ? res.data : res.data?.data || res.data?.orders || [];
     },
-    {
-      targetId: 'upload-image-btn',
-      title: 'Upload Product Image',
-      content: 'Add high-quality images to attract more customers.',
-    },
-    {
-      targetId: 'set-price-btn',
-      title: 'Set Product Price',
-      content: 'Configure competitive pricing for your product.',
-    },
-    {
-      targetId: 'publish-btn',
-      title: 'Publish Product',
-      content: 'Make your product visible to potential buyers.',
-    },
-  ];
-
-  const handleWalkthroughComplete = async () => {
-    setShowWalkthrough(false);
-    try {
-      await api.post('/setup/onboarding-complete');
-    } catch (error) {
-      console.error('Failed to mark onboarding complete:', error);
-    }
-  };
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await refetch();
-    setRefreshing(false);
-  };
-
-  const handleAcceptOrder = async (orderId) => {
-    setActionProcessing(prev => ({ ...prev, [orderId]: true }));
-    try {
-      await orderAPI.accept(orderId, '30 mins');
-      toastSuccess('Order accepted successfully!');
-      refetch();
-    } catch (err) {
-      toastError(err.response?.data?.message || 'Failed to accept order');
-    } finally {
-      setActionProcessing(prev => ({ ...prev, [orderId]: false }));
-    }
-  };
-
-  const handleRejectOrder = async (orderId) => {
-    setActionProcessing(prev => ({ ...prev, [orderId]: true }));
-    try {
-      await orderAPI.businessCancel(orderId, 'Out of stock');
-      toastSuccess('Order rejected/cancelled successfully');
-      refetch();
-    } catch (err) {
-      toastError(err.response?.data?.message || 'Failed to reject order');
-    } finally {
-      setActionProcessing(prev => ({ ...prev, [orderId]: false }));
-    }
-  };
-
-  const handleMarkDelivered = async (orderId) => {
-    setActionProcessing(prev => ({ ...prev, [orderId]: true }));
-    try {
-      await orderAPI.markDelivered(orderId);
-      toastSuccess('Order marked as delivered successfully!');
-      refetch();
-    } catch (err) {
-      toastError(err.response?.data?.message || 'Failed to mark delivered');
-    } finally {
-      setActionProcessing(prev => ({ ...prev, [orderId]: false }));
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="card bg-red-50 border border-red-200 p-6 rounded-2xl">
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div>
-            <h3 className="text-lg font-bold text-red-800">Error Loading Dashboard</h3>
-            <p className="text-red-600 text-sm mt-1">{error}</p>
-          </div>
-          <button
-            onClick={handleRefresh}
-            className="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors font-semibold shadow-sm"
-          >
-            Retry Loading
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  const getStatusBadgeClass = (status) => {
-    switch (status) {
-      case 'delivered':
-      case 'completed':
-        return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-      case 'processing':
-      case 'paid':
-        return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 'cancelled':
-      case 'refunded':
-        return 'bg-rose-100 text-rose-700 border-rose-200';
-      default:
-        return 'bg-amber-100 text-amber-700 border-amber-200';
-    }
-  };
-
-  const formatStatus = (status) => {
-    return status.split('_').map(word => 
-      word.charAt(0).toUpperCase() + word.slice(1)
-    ).join(' ');
-  };
-
-  // Filter Active orders for Feature 1 (pending, paid, processing, delivered)
-  const activeOrders = (orders || []).filter(o => ['pending', 'paid', 'processing', 'delivered'].includes(o.status));
-
-  // Sort: pending (high priority) > paid > processing > delivered
-  const sortedActiveOrders = [...activeOrders].sort((a, b) => {
-    const priority = { 'pending': 1, 'paid': 2, 'processing': 3, 'delivered': 4 };
-    return (priority[a.status] || 9) - (priority[b.status] || 9);
+    refetchInterval: 15000, // Background poll every 15s for live vendor updates
+    enabled: Boolean(user?._id),
   });
 
+  // 2. Mutation: Advance Order Status
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ orderId, nextStatus }) => {
+      const res = await api.patch(`/orders/${orderId}/status`, { status: nextStatus });
+      return res.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['business-orders'] });
+      showToast?.(`Order moved to ${variables.nextStatus.replace('_', ' ')}!`, 'success');
+    },
+    onError: (err) => {
+      showToast?.(err.response?.data?.message || 'Failed to update order status', 'error');
+    },
+  });
+
+  // 3. Partition Orders into Kanban Columns
+  const kanban = useMemo(() => {
+    const incoming = [];
+    const preparing = [];
+    const ready = [];
+    const completed = [];
+
+    rawOrders.forEach((order) => {
+      const s = order.status?.toLowerCase();
+      if (s === 'pending_payment' || s === 'paid' || s === 'pending') {
+        incoming.push(order);
+      } else if (s === 'preparing' || s === 'processing') {
+        preparing.push(order);
+      } else if (s === 'ready_for_pickup') {
+        ready.push(order);
+      } else if (s === 'delivered' || s === 'completed' || s === 'out_for_delivery') {
+        completed.push(order);
+      }
+    });
+
+    return { incoming, preparing, ready, completed };
+  }, [rawOrders]);
+
+  // High-Level Metrics
+  const metrics = useMemo(() => {
+    const totalRevenue = rawOrders
+      .filter((o) => o.status !== 'cancelled')
+      .reduce((sum, o) => sum + (o.finalAmount || o.totalAmount || 0), 0);
+    const activeCount = kanban.incoming.length + kanban.preparing.length + kanban.ready.length;
+    return {
+      revenue: totalRevenue,
+      active: activeCount,
+      total: rawOrders.length,
+    };
+  }, [rawOrders, kanban]);
+
   return (
-    <div className="space-y-6">
-      {/* Sub-header inside main body */}
-      <div className="flex items-center justify-between flex-wrap gap-4 bg-white p-5 border border-secondary-100 rounded-2xl shadow-sm">
+    <div className="space-y-6 pb-12 font-sans">
+
+      {/* ── Dashboard Header ─────────────────────────────────────────────── */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 md:p-6 rounded-3xl border border-gray-100 shadow-xs">
         <div>
-          <h2 className="text-xl md:text-2xl font-extrabold text-secondary-800 tracking-tight">
-            Welcome back, {user?.name?.split(' ')[0] || 'Business Owner'}!
-          </h2>
-          <p className="text-sm text-secondary-500 mt-1 font-medium">
-            Here's what's happening with your business operations today.
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold mb-2 bg-orange-100/70 text-[#FF5E00]">
+            <StoreIcon size={14} />
+            <span>VENDOR COMMAND COCKPIT</span>
+          </div>
+          <h1 className="text-xl md:text-2xl font-black text-gray-900 tracking-tight">
+            {user?.businessProfile?.businessName || user?.name || 'Campus Vendor'}
+          </h1>
+          <p className="text-gray-500 text-xs md:text-sm mt-0.5">
+            Campus Hub: <span className="font-bold text-gray-700">{user?.businessProfile?.campusLocation || 'Stage'}</span> · Orders & Inventory Dispatch
           </p>
         </div>
 
-        <div className="flex gap-2.5">
+        {/* View Switcher Tabs */}
+        <div className="flex items-center gap-2 p-1.5 bg-gray-100 rounded-2xl self-start md:self-auto">
           <button
-            onClick={() => {
-              setAssistantName('');
-              setAssistantPhone('');
-              setGeneratedInviteLink('');
-              setIsInviteModalOpen(true);
-            }}
-            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl flex items-center gap-2 transition-all duration-150 font-semibold shadow-sm text-sm"
+            onClick={() => setActiveTab('kanban')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'kanban'
+                ? 'bg-white text-gray-900 shadow-xs'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
           >
-            <UserPlus className="w-4 h-4" />
-            Add Assistant
+            <ShoppingBag size={14} className={activeTab === 'kanban' ? 'text-[#FF5E00]' : ''} />
+            <span>Live Orders</span>
+            {metrics.active > 0 && (
+              <span className="w-5 h-5 rounded-full bg-[#FF5E00] text-white text-[10px] font-black flex items-center justify-center">
+                {metrics.active}
+              </span>
+            )}
           </button>
 
           <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="px-4 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 disabled:opacity-50 flex items-center gap-2 transition-all duration-150 font-semibold shadow-sm text-sm"
+            onClick={() => setActiveTab('inventory')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'inventory'
+                ? 'bg-white text-gray-900 shadow-xs'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
           >
-            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-            {refreshing ? 'Refreshing...' : 'Refresh Stats'}
+            <Package size={14} className={activeTab === 'inventory' ? 'text-[#FF5E00]' : ''} />
+            <span>Inventory Catalog</span>
           </button>
         </div>
       </div>
 
-      {/* FEATURE 1: ACTIVE TASKS AT THE TOP OF EVERY DASHBOARD (Business Dashboard) */}
-      {sortedActiveOrders.length > 0 && (
-        <div className="bg-orange-50/40 p-5 rounded-2xl border border-orange-100 space-y-4">
-          <div className="flex items-center gap-2">
-            <Clock className="w-5 h-5 text-orange-600 animate-pulse" />
-            <h2 className="text-lg font-extrabold text-neutral-900 uppercase tracking-wide">
-              Active Orders Requiring Action ({sortedActiveOrders.length})
-            </h2>
+      {/* ── High-Level Metric Tiles ───────────────────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-xs">
+          <div className="flex items-center justify-between text-xs text-gray-400 font-bold mb-2">
+            <span>STORE REVENUE</span>
+            <DollarSign size={16} className="text-olaGreen-DEFAULT" />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {sortedActiveOrders.map(order => {
-              const isProcessing = actionProcessing[order._id];
-              return (
-                <div key={order._id} className="bg-white border-2 border-blue-150 rounded-xl p-4 shadow-sm flex flex-col justify-between">
-                  <div>
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-black uppercase rounded-md border border-blue-100">
-                        Order #{order._id?.slice(-6).toUpperCase()}
-                      </span>
-                      <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-black uppercase border ${getStatusBadgeClass(order.status)}`}>
-                        {formatStatus(order.status)}
-                      </span>
-                    </div>
+          <p className="text-2xl font-black text-gray-900">
+            KSh {metrics.revenue.toLocaleString()}
+          </p>
+          <span className="text-[11px] text-gray-400 mt-1 block">Net sales from confirmed campus orders</span>
+        </div>
 
-                    <p className="text-sm font-extrabold text-secondary-800">
-                      Customer: {order.customer?.name || 'Customer'}
-                    </p>
-                    <p className="text-xs text-secondary-500 mt-1">
-                      {order.items?.length || 0} Items • {formatCurrency(order.finalAmount || order.totalAmount || 0)}
-                    </p>
+        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-xs">
+          <div className="flex items-center justify-between text-xs text-gray-400 font-bold mb-2">
+            <span>ACTIVE PIPELINE</span>
+            <Flame size={16} className="text-[#FF5E00]" />
+          </div>
+          <p className="text-2xl font-black text-[#FF5E00]">
+            {metrics.active} Orders
+          </p>
+          <span className="text-[11px] text-gray-400 mt-1 block">Incoming, preparing & awaiting pickup</span>
+        </div>
 
-                    {/* Specific Sub-status/workflow displays */}
-                    {order.status === 'pending' && (
-                      <p className="text-xs text-amber-600 font-bold bg-amber-50 p-1.5 rounded-lg border border-amber-100 mt-2">
-                        Waiting for business confirmation
-                      </p>
-                    )}
-                    {order.status === 'paid' && (
-                      <p className="text-xs text-blue-600 font-bold bg-blue-50 p-1.5 rounded-lg border border-blue-100 mt-2">
-                        Payment Paid • Prepared/Packed
-                      </p>
-                    )}
-                    {order.status === 'processing' && (
-                      <p className="text-xs text-purple-600 font-bold bg-purple-50 p-1.5 rounded-lg border border-purple-100 mt-2">
-                        Packed & Ready for delivery
-                      </p>
-                    )}
-                    {order.status === 'delivered' && (
-                      <p className="text-xs text-emerald-600 font-bold bg-emerald-50 p-1.5 rounded-lg border border-emerald-100 mt-2">
-                        Awaiting Customer Release (Escrow held)
-                      </p>
-                    )}
-                  </div>
+        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-xs">
+          <div className="flex items-center justify-between text-xs text-gray-400 font-bold mb-2">
+            <span>TOTAL FULFILLED</span>
+            <CheckCircle2 size={16} className="text-olaOrange-DEFAULT" />
+          </div>
+          <p className="text-2xl font-black text-gray-900">
+            {metrics.total} Orders
+          </p>
+          <span className="text-[11px] text-gray-400 mt-1 block">Lifetime campus orders routed to your store</span>
+        </div>
+      </div>
 
-                  <div className="mt-4 pt-3 border-t border-neutral-100 flex gap-2">
-                    {order.status === 'pending' && (
-                      <>
-                        <button
-                          onClick={() => handleAcceptOrder(order._id)}
-                          disabled={isProcessing}
-                          className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white font-extrabold text-xs rounded-lg shadow-sm flex items-center gap-1"
-                        >
-                          <Check size={12} />
-                          Accept
-                        </button>
-                        <button
-                          onClick={() => handleRejectOrder(order._id)}
-                          disabled={isProcessing}
-                          className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 font-extrabold text-xs rounded-lg flex items-center gap-1"
-                        >
-                          <X size={12} />
-                          Decline
-                        </button>
-                      </>
-                    )}
+      {/* ── VIEW 1: LIVE ORDERS KANBAN BOARD ──────────────────────────────── */}
+      {activeTab === 'kanban' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-black text-gray-900 flex items-center gap-2">
+                <span>Real-Time Order Kanban</span>
+                <span className="w-2 h-2 rounded-full bg-olaGreen-DEFAULT animate-pulse" />
+              </h2>
+              <p className="text-xs text-gray-400">Click advance button on cards to transition orders through preparation.</p>
+            </div>
+            <button
+              onClick={() => refetch()}
+              className="p-2 text-gray-400 hover:text-gray-700 bg-white border border-gray-200 rounded-xl"
+              title="Refresh Orders"
+            >
+              <RefreshCw size={14} className={loadingOrders ? 'animate-spin' : ''} />
+            </button>
+          </div>
 
-                    {(order.status === 'paid' || order.status === 'processing') && (
-                      <button
-                        onClick={() => handleMarkDelivered(order._id)}
-                        disabled={isProcessing}
-                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-lg shadow-sm flex items-center gap-1"
-                      >
-                        <CheckCircle size={12} />
-                        Mark Delivered
-                      </button>
-                    )}
+          {/* Kanban Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
+            
+            {/* Column 1: Incoming Orders */}
+            <KanbanColumn
+              title="Incoming"
+              count={kanban.incoming.length}
+              color="border-olaOrange-DEFAULT/40 bg-olaOrange-light/50 text-olaOrange-DEFAULT"
+              orders={kanban.incoming}
+              nextActionLabel="Start Preparing"
+              nextStatus="preparing"
+              onAdvance={(id, status) => updateStatusMutation.mutate({ orderId: id, nextStatus: status })}
+              isPending={updateStatusMutation.isPending}
+            />
 
-                    <Link
-                      to="/business/orders"
-                      className="px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold text-xs rounded-lg self-center ml-auto"
-                    >
-                      Detail
-                    </Link>
-                  </div>
-                </div>
-              );
-            })}
+            {/* Column 2: Preparing */}
+            <KanbanColumn
+              title="Preparing"
+              count={kanban.preparing.length}
+              color="border-olaOrange-DEFAULT/40 bg-olaOrange-light/50 text-olaOrange-DEFAULT"
+              orders={kanban.preparing}
+              nextActionLabel="Mark Ready"
+              nextStatus="ready_for_pickup"
+              onAdvance={(id, status) => updateStatusMutation.mutate({ orderId: id, nextStatus: status })}
+              isPending={updateStatusMutation.isPending}
+            />
+
+            {/* Column 3: Ready for Pickup */}
+            <KanbanColumn
+              title="Ready for Pickup"
+              count={kanban.ready.length}
+              color="border-olaGreen-DEFAULT/40 bg-olaGreen-light/50 text-olaGreen-DEFAULT"
+              orders={kanban.ready}
+              nextActionLabel="Mark Delivered"
+              nextStatus="delivered"
+              onAdvance={(id, status) => updateStatusMutation.mutate({ orderId: id, nextStatus: status })}
+              isPending={updateStatusMutation.isPending}
+            />
+
+            {/* Column 4: Completed */}
+            <KanbanColumn
+              title="Completed"
+              count={kanban.completed.length}
+              color="border-gray-300 bg-gray-50 text-gray-700"
+              orders={kanban.completed}
+              isCompletedCol={true}
+            />
           </div>
         </div>
       )}
 
-      {/* Product Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
-        <StatCard
-          title="Total Products"
-          value={stats?.totalProducts || 0}
-          subtitle="All inventory listings"
-          color="primary"
-          icon={<Package className="w-6 h-6" />}
-        />
-
-        <StatCard
-          title="Active Products"
-          value={stats?.activeProducts || 0}
-          subtitle="Published and available"
-          color="success"
-          icon={<CheckCircle className="w-6 h-6" />}
-        />
-
-        <StatCard
-          title="Out of Stock"
-          value={stats?.outOfStockProducts || 0}
-          subtitle="Restocking required"
-          color="danger"
-          icon={<AlertCircle className="w-6 h-6" />}
-        />
-
-        <StatCard
-          title="Total Orders"
-          value={stats?.totalOrders || 0}
-          subtitle="All-time client orders"
-          color="info"
-          icon={<ShoppingCart className="w-6 h-6" />}
-        />
-
-        <StatCard
-          title="Business Rating"
-          value={stats?.rating !== undefined ? `${stats.rating.toFixed(1)} / 5.0` : '0.0 / 5.0'}
-          subtitle="Customer feedback score"
-          color="warning"
-          icon={<Star className="w-6 h-6 fill-amber-400 text-amber-500" />}
-        />
-      </div>
-
-      {/* Order Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-        <StatCard
-          title="Pending Orders"
-          value={stats?.pendingOrders || 0}
-          subtitle="Awaiting preparation"
-          color="warning"
-          icon={<Clock className="w-6 h-6" />}
-        />
-
-        <StatCard
-          title="Completed Orders"
-          value={stats?.completedOrders || 0}
-          subtitle="Delivered successfully"
-          color="success"
-          icon={<CheckCircle className="w-6 h-6" />}
-        />
-
-        <StatCard
-          title="Cancelled Orders"
-          value={stats?.cancelledOrders || 0}
-          subtitle="Refunds and cancellations"
-          color="danger"
-          icon={<XCircle className="w-6 h-6" />}
-        />
-      </div>
-
-      {/* Financial Overview Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
-        <div className="card p-5 bg-white border border-secondary-100 rounded-2xl shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-          <div>
-            <p className="text-xs font-bold text-secondary-400 uppercase tracking-wider">Available Balance</p>
-            <p className="text-2xl font-extrabold text-emerald-600 mt-1">{formatCurrency(stats?.availableBalance || 0)}</p>
-            <p className="text-xs text-secondary-500 font-medium mt-1">Ready for withdraw</p>
-          </div>
-          <button
-            onClick={() => window.location.href = '/business/wallet'}
-            className="w-full mt-4 py-2 bg-emerald-600 text-white font-bold text-sm rounded-xl hover:bg-emerald-700 transition-colors shadow-sm"
-          >
-            Withdraw Funds
-          </button>
-        </div>
-
-        <div className="card p-5 bg-white border border-secondary-100 rounded-2xl shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-          <div>
-            <p className="text-xs font-bold text-secondary-400 uppercase tracking-wider">Pending Balance</p>
-            <p className="text-2xl font-extrabold text-amber-500 mt-1">{formatCurrency(stats?.pendingBalance || 0)}</p>
-            <p className="text-xs text-secondary-500 font-medium mt-1">In escrow / transit</p>
-          </div>
-          <div className="mt-4 text-xs text-secondary-400 font-semibold leading-normal">
-            Released instantly upon order confirmation.
-          </div>
-        </div>
-
-        <div className="card p-5 bg-white border border-secondary-100 rounded-2xl shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-          <div>
-            <p className="text-xs font-bold text-secondary-400 uppercase tracking-wider">Total Revenue</p>
-            <p className="text-2xl font-extrabold text-blue-600 mt-1">{formatCurrency(stats?.totalRevenue || 0)}</p>
-            <p className="text-xs text-secondary-500 font-medium mt-1">From completed sales</p>
-          </div>
-          <div className="mt-4 flex items-center gap-1 text-xs text-green-500 font-bold">
-            <TrendingUp size={14} /> +8.5% growth
-          </div>
-        </div>
-
-        <div className="card p-5 bg-white border border-secondary-100 rounded-2xl shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-          <div>
-            <p className="text-xs font-bold text-secondary-400 uppercase tracking-wider">Total Earnings</p>
-            <p className="text-2xl font-extrabold text-indigo-600 mt-1">{formatCurrency(stats?.totalEarnings || 0)}</p>
-            <p className="text-xs text-secondary-500 font-medium mt-1">All-time gross value</p>
-          </div>
-          <div className="mt-4 text-xs text-secondary-400 font-semibold leading-normal">
-            Cumulative business payout logs.
-          </div>
-        </div>
-
-        <div className="card p-5 bg-white border border-secondary-100 rounded-2xl shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-          <div>
-            <p className="text-xs font-bold text-secondary-400 uppercase tracking-wider">Withdrawn Amount</p>
-            <p className="text-2xl font-extrabold text-rose-600 mt-1">{formatCurrency(stats?.totalWithdrawn || 0)}</p>
-            <p className="text-xs text-secondary-500 font-medium mt-1">Transferred to M-Pesa</p>
-          </div>
-          <div className="mt-4 text-xs text-secondary-400 font-semibold leading-normal">
-            Successfully settled payouts.
-          </div>
-        </div>
-      </div>
-
-      {/* Quick Actions Grid */}
-      <div className="card p-6 bg-white border border-secondary-100 rounded-2xl shadow-sm">
-        <h2 className="text-lg font-bold text-secondary-800 tracking-tight mb-4">Operational Quick Actions</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Link
-            to="/business/products"
-            className="p-4 rounded-xl border border-secondary-100 hover:border-blue-500 hover:bg-blue-50/50 transition-all duration-150 flex items-center gap-3.5 group"
-          >
-            <div className="w-11 h-11 rounded-xl bg-blue-50 group-hover:bg-blue-100 flex items-center justify-center text-blue-600 transition-colors shadow-sm">
-              <Plus size={20} className="stroke-[2.5]" />
-            </div>
-            <div>
-              <h3 className="font-bold text-sm text-secondary-800">Add Product</h3>
-              <p className="text-xs text-secondary-400 font-semibold mt-0.5">List new item</p>
-            </div>
-          </Link>
-
-          <Link
-            to="/business/orders"
-            className="p-4 rounded-xl border border-secondary-100 hover:border-emerald-500 hover:bg-emerald-50/50 transition-all duration-150 flex items-center gap-3.5 group"
-          >
-            <div className="w-11 h-11 rounded-xl bg-emerald-50 group-hover:bg-emerald-100 flex items-center justify-center text-emerald-600 transition-colors shadow-sm">
-              <ClipboardList size={20} />
-            </div>
-            <div>
-              <h3 className="font-bold text-sm text-secondary-800">Manage Orders</h3>
-              <p className="text-xs text-secondary-400 font-semibold mt-0.5">View and process</p>
-            </div>
-          </Link>
-
-          <Link
-            to="/business/wallet"
-            className="p-4 rounded-xl border border-secondary-100 hover:border-indigo-500 hover:bg-indigo-50/50 transition-all duration-150 flex items-center gap-3.5 group"
-          >
-            <div className="w-11 h-11 rounded-xl bg-indigo-50 group-hover:bg-indigo-100 flex items-center justify-center text-indigo-600 transition-colors shadow-sm">
-              <Wallet size={20} />
-            </div>
-            <div>
-              <h3 className="font-bold text-sm text-secondary-800">Wallet Control</h3>
-              <p className="text-xs text-secondary-400 font-semibold mt-0.5">Manage earnings</p>
-            </div>
-          </Link>
-
-          <Link
-            to="/business/settings"
-            className="p-4 rounded-xl border border-secondary-100 hover:border-amber-500 hover:bg-amber-50/50 transition-all duration-150 flex items-center gap-3.5 group"
-          >
-            <div className="w-11 h-11 rounded-xl bg-amber-50 group-hover:bg-amber-100 flex items-center justify-center text-amber-600 transition-colors shadow-sm">
-              <Bell size={20} />
-            </div>
-            <div>
-              <h3 className="font-bold text-sm text-secondary-800">Profile Settings</h3>
-              <p className="text-xs text-secondary-400 font-semibold mt-0.5">Configure account</p>
-            </div>
-          </Link>
-        </div>
-      </div>
-
-      {/* Recent Orders Table */}
-      <div className="card p-6 bg-white border border-secondary-100 rounded-2xl shadow-sm">
-        <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
-          <h2 className="text-lg font-bold text-secondary-800 tracking-tight">Recent Business Orders</h2>
-          <Link to="/business/orders" className="text-primary-600 hover:text-primary-700 text-xs font-bold flex items-center gap-1 transition-colors">
-            View All Orders
-            <ArrowRight size={14} />
-          </Link>
-        </div>
-
-        {orders && orders.length > 0 ? (
-          <div className="overflow-x-auto rounded-xl border border-secondary-100">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-secondary-50/80 border-b border-secondary-100">
-                  <th className="py-3 px-4 text-xs font-bold text-secondary-500 uppercase tracking-wider">Customer</th>
-                  <th className="py-3 px-4 text-xs font-bold text-secondary-500 uppercase tracking-wider">Items count</th>
-                  <th className="py-3 px-4 text-xs font-bold text-secondary-500 uppercase tracking-wider text-right">Amount</th>
-                  <th className="py-3 px-4 text-xs font-bold text-secondary-500 uppercase tracking-wider text-center">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-secondary-50">
-                {orders.slice(0, 5).map((order) => (
-                  <tr key={order._id} className="hover:bg-secondary-50/30 transition-colors">
-                    <td className="py-3.5 px-4 font-semibold text-sm text-secondary-800">
-                      {order.customer?.name || 'Customer'}
-                    </td>
-                    <td className="py-3.5 px-4 text-sm text-secondary-600">
-                      {order.items?.length || 0} items
-                    </td>
-                    <td className="py-3.5 px-4 text-sm font-bold text-secondary-800 text-right">
-                      {formatCurrency(order.finalAmount || order.totalAmount || 0)}
-                    </td>
-                    <td className="py-3.5 px-4 text-center">
-                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold border ${getStatusBadgeClass(order.status)}`}>
-                        {formatStatus(order.status)}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="text-center py-10 text-secondary-400">
-            <ShoppingCart className="w-12 h-12 mx-auto mb-3 text-secondary-200" />
-            <p className="text-sm font-medium">No order files found</p>
-          </div>
-        )}
-      </div>
-
-      {/* Guided Walkthrough */}
-      {showWalkthrough && (
-        <GuidedWalkthrough
-          steps={walkthroughSteps}
-          onComplete={handleWalkthroughComplete}
-          onSkip={handleWalkthroughComplete}
-        />
-      )}
-
-      {/* Assistant Invitation Modal */}
-      {isInviteModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-neutral-900 bg-opacity-60 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-xl border border-neutral-100 max-w-md w-full overflow-hidden">
-            <div className="p-6 border-b border-neutral-100 flex justify-between items-center">
-              <h3 className="text-lg font-black text-neutral-950 flex items-center gap-2">
-                <UserPlus className="w-5 h-5 text-blue-600" />
-                Invite Business Assistant
-              </h3>
-              <button
-                onClick={() => setIsInviteModalOpen(false)}
-                className="p-1 rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-950 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              {!generatedInviteLink ? (
-                <form onSubmit={handleGenerateInvitation} className="space-y-4">
-                  <p className="text-sm text-neutral-500 font-medium">
-                    Invite assistants to manage your business operations, products, and orders without revealing financial data.
-                  </p>
-                  <div>
-                    <label className="block text-xs font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
-                      Assistant Name (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={assistantName}
-                      onChange={(e) => setAssistantName(e.target.value)}
-                      placeholder="e.g. John Doe"
-                      className="w-full px-4 py-3 rounded-xl border border-neutral-200 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-neutral-700 uppercase tracking-wider mb-1.5">
-                      Assistant Phone Number (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={assistantPhone}
-                      onChange={(e) => setAssistantPhone(e.target.value)}
-                      placeholder="e.g. 07XXXXXXXX"
-                      className="w-full px-4 py-3 rounded-xl border border-neutral-200 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={generatingInvite}
-                    className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2"
-                  >
-                    {generatingInvite ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        Generating Link...
-                      </>
-                    ) : (
-                      'Generate Invitation'
-                    )}
-                  </button>
-                </form>
-              ) : (
-                <div className="space-y-4">
-                  <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl">
-                    <p className="text-xs text-blue-700 font-black uppercase tracking-wider mb-2">
-                      Secure Invitation Link Generated
-                    </p>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        readOnly
-                        value={generatedInviteLink}
-                        className="flex-1 bg-white border border-blue-200 px-3 py-2 rounded-lg text-xs font-medium text-neutral-700 outline-none"
-                      />
-                      <button
-                        onClick={handleCopyLink}
-                        className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors shadow-sm"
-                        title="Copy Link"
-                      >
-                        <Copy className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider">
-                      Share Invitation Via
-                    </p>
-                    <div className="grid grid-cols-3 gap-2">
-                      {/* WhatsApp */}
-                      <a
-                        href={`https://wa.me/?text=You%20are%20invited%20to%20join%20my%20business%20as%20an%20assistant.%20Register%20and%20join%20here%3A%20${encodeURIComponent(generatedInviteLink)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-neutral-100 hover:bg-green-50 hover:border-green-100 transition-all group"
-                      >
-                        <MessageSquare className="w-5 h-5 text-neutral-500 group-hover:text-green-600 transition-colors" />
-                        <span className="text-[11px] font-bold text-neutral-600 group-hover:text-green-700">WhatsApp</span>
-                      </a>
-
-                      {/* SMS */}
-                      <a
-                        href={`sms:?body=You%20are%20invited%20to%20join%20my%20business%20as%20an%20assistant.%20Register%20and%20join%20here%3A%20${encodeURIComponent(generatedInviteLink)}`}
-                        className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-neutral-100 hover:bg-blue-50 hover:border-blue-100 transition-all group"
-                      >
-                        <MessageSquare className="w-5 h-5 text-neutral-500 group-hover:text-blue-600 transition-colors" />
-                        <span className="text-[11px] font-bold text-neutral-600 group-hover:text-blue-700">SMS</span>
-                      </a>
-
-                      {/* Email */}
-                      <a
-                        href={`mailto:?subject=Join%20as%20Business%20Assistant&body=You%20are%20invited%20to%20join%20my%20business%20as%20an%20assistant.%20Register%20and%20accept%20here%3A%20${encodeURIComponent(generatedInviteLink)}`}
-                        className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-neutral-100 hover:bg-red-50 hover:border-red-100 transition-all group"
-                      >
-                        <Mail className="w-5 h-5 text-neutral-500 group-hover:text-red-600 transition-colors" />
-                        <span className="text-[11px] font-bold text-neutral-600 group-hover:text-red-700">Email</span>
-                      </a>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => setIsInviteModalOpen(false)}
-                    className="w-full py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded-xl font-bold text-sm transition-colors"
-                  >
-                    Done
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+      {/* ── VIEW 2: INVENTORY MANAGER ─────────────────────────────────────── */}
+      {activeTab === 'inventory' && (
+        <InventoryManager user={user} />
       )}
     </div>
   );
-};
+}
 
-export default BusinessDashboard;
+/**
+ * Modular Kanban Column Component
+ */
+function KanbanColumn({
+  title,
+  count,
+  color,
+  orders = [],
+  nextActionLabel,
+  nextStatus,
+  onAdvance,
+  isPending,
+  isCompletedCol = false,
+}) {
+  return (
+    <div className="bg-gray-100/80 rounded-2xl p-3 sm:p-4 space-y-3 min-h-[500px] flex flex-col">
+      {/* Column Header */}
+      <div className="flex items-center justify-between pb-2 border-b border-gray-200">
+        <span className="text-xs font-black text-gray-800 uppercase tracking-wider">{title}</span>
+        <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${color}`}>
+          {count}
+        </span>
+      </div>
+
+      {/* Order Cards List */}
+      <div className="space-y-3 flex-1 overflow-y-auto">
+        {orders.length === 0 ? (
+          <div className="h-32 flex items-center justify-center text-center text-xs text-gray-400 italic">
+            No orders
+          </div>
+        ) : (
+          orders.map((order) => (
+            <div
+              key={order._id}
+              className="bg-white rounded-xl p-3.5 border border-gray-200 shadow-2xs hover:shadow-xs transition-shadow space-y-2.5"
+            >
+              {/* Card Header */}
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-mono font-bold text-gray-400">#{order._id?.slice(-5)}</span>
+                <span className="text-[11px] font-black text-[#FF5E00]">
+                  KSh {order.finalAmount || order.totalAmount}
+                </span>
+              </div>
+
+              {/* Items Summary with Variations & Add-ons */}
+              <div className="space-y-1">
+                {order.items?.map((item, idx) => (
+                  <div key={idx} className="text-xs text-gray-700">
+                    <span className="font-bold">{item.quantity}x</span> {item.name}
+                    {item.selectedOptions && Object.keys(item.selectedOptions).length > 0 && (
+                      <span className="text-[10px] text-olaOrange-DEFAULT block pl-3">
+                        {Object.entries(item.selectedOptions).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+                      </span>
+                    )}
+                    {item.selectedAddOns?.length > 0 && (
+                      <span className="text-[10px] text-olaGreen-DEFAULT block pl-3">
+                        +{item.selectedAddOns.map((a) => a.name).join(', ')}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Delivery Meta */}
+              <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
+                <div className="flex items-center gap-1 truncate max-w-[140px]">
+                  <MapPin size={12} className="text-gray-400 flex-shrink-0" />
+                  <span className="truncate">{order.campusLandmark || order.deliveryAddress?.landmark || 'Stage Campus'}</span>
+                </div>
+                {order.deliveryAddress?.phone && (
+                  <a
+                    href={`tel:${order.deliveryAddress.phone}`}
+                    className="flex items-center gap-0.5 text-gray-600 hover:text-olaGreen-DEFAULT font-bold"
+                  >
+                    <Phone size={11} /> Call
+                  </a>
+                )}
+              </div>
+
+              {/* Advance Status Button */}
+              {!isCompletedCol && nextStatus && (
+                <button
+                  onClick={() => onAdvance(order._id, nextStatus)}
+                  disabled={isPending}
+                  className="w-full mt-2 py-2 px-3 bg-gray-900 hover:bg-[#FF5E00] text-white font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
+                >
+                  <span>{nextActionLabel}</span>
+                  <ChevronRight size={13} />
+                </button>
+              )}
+
+              {isCompletedCol && (
+                <div className="text-[10px] text-olaGreen-DEFAULT font-bold flex items-center gap-1 pt-1 justify-center">
+                  <CheckCircle2 size={12} /> Fulfilled
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StoreIcon(props) {
+  return (
+    <svg {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+    </svg>
+  );
+}

@@ -27,7 +27,8 @@ router.put('/:orderId/archive', authorize('customer'), archiveOrder);
 router.put('/:orderId/confirm-delivery', authorize('customer'), confirmDelivery);
 
 // Business routes
-router.put('/:orderId/status', authorize('business', 'assistant'), updateOrderStatus);
+router.put('/:orderId/status', authorize('business', 'assistant', 'admin'), updateOrderStatus);
+router.patch('/:orderId/status', authorize('business', 'assistant', 'admin'), updateOrderStatus);
 router.put('/:orderId/accept', authorize('business', 'assistant'), acceptOrder);
 router.put('/:orderId/cancel', authorize('business', 'assistant'), businessCancelOrder);
 router.put('/:orderId/delivered', authorize('business', 'assistant'), markOrderDelivered);

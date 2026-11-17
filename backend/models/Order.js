@@ -11,6 +11,18 @@ const orderSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
     },
+    businessId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    subtotal: {
+      type: Number,
+      default: 0,
+    },
+    vendorPayout: {
+      type: Number,
+      default: 0,
+    },
     transaction: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Transaction',
@@ -38,6 +50,8 @@ const orderSchema = new mongoose.Schema(
       },
       variant: String,
       image: String,
+      business: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      selectedVariations: { type: mongoose.Schema.Types.Mixed, default: {} },
       selectedOptions: { type: mongoose.Schema.Types.Mixed, default: {} },
       selectedAddOns: [{ name: String, price: Number }],
       addOnsTotal: { type: Number, default: 0 },
@@ -65,8 +79,9 @@ const orderSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['pending', 'paid', 'processing', 'delivered', 'completed', 'cancelled', 'refunded'],
-      default: 'pending',
+      enum: ['pending_payment', 'paid', 'preparing', 'ready_for_pickup', 'out_for_delivery', 'delivered', 'cancelled', 'pending', 'processing', 'completed', 'refunded'],
+      default: 'pending_payment',
+      index: true,
     },
     paymentMethod: {
       type: String,
@@ -79,7 +94,13 @@ const orderSchema = new mongoose.Schema(
       default: 'pending',
     },
     paymentId: String,
-    mpesaReceiptNumber: String,
+    mpesaReceiptNumber: { type: String, index: true },
+    checkoutRequestId: { type: String, index: true },
+    campusLandmark: { type: String, default: '' },
+    deliveryCoordinates: {
+      lat: Number,
+      lng: Number,
+    },
     deliveryAddress: {
       phone: String,
       address: String,

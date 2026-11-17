@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import { initSocket } from './utils/socket.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -224,41 +225,10 @@ const corsOptions = {
   optionsSuccessStatus: 200,
 };
 
-const io = new Server(httpServer, {
-  cors: corsOptions,
-});
+const io = initSocket(httpServer, corsOptions);
 
 // Make io accessible everywhere
 app.set('io', io);
-
-// Socket.IO Events
-io.on('connection', (socket) => {
-  socket.on('join_room', (room) => {
-    socket.join(room);
-  });
-
-  socket.on('send_message', (data) => {
-    socket.to(data.room).emit('receive_message', data);
-  });
-
-  socket.on('update_location', (data) => {
-    socket.broadcast
-      .to(`customer_${data.customerId}`)
-      .emit('rider_location', data);
-  });
-
-  socket.on('ride_status_update', (data) => {
-    io.to(`customer_${data.customerId}`).emit('ride_update', data);
-  });
-
-  socket.on('ride_awaiting_confirmation', (data) => {
-    io.to(`user_${data.customerId}`).emit('ride_awaiting_confirmation', data);
-  });
-
-  socket.on('disconnect', () => {
-    // Socket disconnected
-  });
-});
 
 // Security Middleware
 app.set('trust proxy', 1);

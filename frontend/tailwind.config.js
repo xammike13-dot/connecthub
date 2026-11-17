@@ -8,20 +8,28 @@ export default {
     extend: {
       colors: {
         // ===== OLAFASTA BRAND COLORS =====
-        'olaOrange-DEFAULT': '#FF5E00',
         olaOrange: {
-          DEFAULT: '#FF5E00',  // Primary Energy / Speed
-          light: '#FF7A2E',
+          DEFAULT: '#FF5E00',
+          hover: '#E65500',
+          light: '#FFF0E5',
           dark: '#CC4B00',
           50: '#FFF3EC',
           100: '#FFE4CC',
         },
+        'olaOrange-DEFAULT': '#FF5E00',
+        'olaOrange-hover': '#E65500',
+        'olaOrange-light': '#FFF0E5',
         olaGreen: {
-          deep: '#027A2B',    // Trust / Professionalism
-          neon: '#6BE319',    // Accent / Live Status
+          DEFAULT: '#008A27',
+          deep: '#006B1E',
+          light: '#E6F4EA',
+          neon: '#6BE319',
           'deep-hover': '#025D20',
           50: '#E8F5EC',
         },
+        'olaGreen-DEFAULT': '#008A27',
+        'olaGreen-deep': '#006B1E',
+        'olaGreen-light': '#E6F4EA',
         // Dark theme backgrounds
         olaDark: {
           900: '#0F172A',     // Primary dark bg (slate-900)

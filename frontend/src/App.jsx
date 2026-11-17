@@ -58,6 +58,7 @@ import SupportPage from './pages/SupportPage';
 import AboutPage from './pages/AboutPage';
 import CategoriesPage from './pages/CategoriesPage';
 import CategoryPage from './pages/CategoryPage';
+import ProductDetailsPage from './pages/ProductDetailsPage';
 import CustomerHelpPage from './pages/CustomerHelpPage';
 import BusinessHelpPage from './pages/BusinessHelpPage';
 import LandlordHelpPage from './pages/LandlordHelpPage';
@@ -70,6 +71,7 @@ import CaretakerBookingsPage from './pages/CaretakerBookingsPage';
 import AssistantInvitePage from './pages/AssistantInvitePage';
 import BusinessAssistantsPage from './pages/BusinessAssistantsPage';
 import AssistantDashboard from './pages/AssistantDashboard';
+import AdminDashboard from './pages/AdminDashboard';
 
 
 function App() {
@@ -96,6 +98,8 @@ function App() {
                   <Route path="about" element={<AboutPage />} />
                   <Route path="categories" element={<CategoriesPage />} />
                   <Route path="c/:slug" element={<CategoryPage />} />
+                  <Route path="product/:productId" element={<ProductDetailsPage />} />
+                  <Route path="p/:productId" element={<ProductDetailsPage />} />
                 </Route>
 
                 {/* Auth Routes */}
@@ -213,6 +217,16 @@ function App() {
                   <Route path="chat" element={<ChatPage />} />
                   <Route path="chat/:conversationId" element={<ChatPage />} />
                   <Route path="help" element={<RiderHelpPage />} />
+                </Route>
+
+                {/* Admin Routes */}
+                <Route path="/admin" element={<DashboardLayout allowedRoles={['admin']} />}>
+                  <Route index element={<AdminDashboard />} />
+                  <Route path="dashboard" element={<AdminDashboard />} />
+                  <Route path="vendors" element={<AdminDashboard />} />
+                  <Route path="financials" element={<AdminDashboard />} />
+                  <Route path="users" element={<AdminDashboard />} />
+                  <Route path="settings" element={<AdminDashboard />} />
                 </Route>
 
                 {/* Fallback */}

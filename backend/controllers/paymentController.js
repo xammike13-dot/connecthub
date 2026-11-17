@@ -1,3 +1,4 @@
+import { getIO } from '../utils/socket.js';
 import { v4 as uuidv4 } from 'uuid';
 import mpesaService from '../services/mpesaService.js';
 import { calculatePayment, calculateShoppingPayment, calculateRentalPayment } from '../utils/paymentCalculator.js';
@@ -679,6 +680,99 @@ export const initiateMpesaPaymentWithRider = asyncHandler(async (req, res) => {
 /**
  * STEP 2: Initiate M-Pesa STK Push for ride payment
  */
+/**
+ * Normalizes phone numbers strictly to Kenyan format: 2547XXXXXXXX or 2541XXXXXXXX
+ */
+export const normalizeKenyanPhone = (phoneNumber) => {
+  if (!phoneNumber) return null;
+  let cleaned = String(phoneNumber).replace(/\D/g, '');
+  if (cleaned.startsWith('0')) {
+    cleaned = '254' + cleaned.substring(1);
+  } else if (cleaned.startsWith('254')) {
+    // already starts with 254
+  } else if (cleaned.length === 9 && (cleaned.startsWith('7') || cleaned.startsWith('1'))) {
+    cleaned = '254' + cleaned;
+  }
+  // Validate Kenyan format: 2547XXXXXXXX or 2541XXXXXXXX (12 digits total)
+  if (!/^254(7\d{8}|1\d{8})$/.test(cleaned)) {
+    return null;
+  }
+  return cleaned;
+};
+
+/**
+ * Initiate M-Pesa STK Push for an Order (POST /api/payments/mpesa/stkpush)
+ */
+export const initiateOrderSTKPush = asyncHandler(async (req, res) => {
+  const customerId = req.user._id;
+  const { orderId, phoneNumber } = req.body;
+
+  if (!orderId) {
+    throw new ResponseError('Order ID is required to initiate payment', 400);
+  }
+
+  const order = await Order.findById(orderId);
+  if (!order) {
+    throw new ResponseError('Order not found', 404);
+  }
+
+  if (order.customer.toString() !== customerId.toString() && req.user.role !== 'admin') {
+    throw new ResponseError('Not authorized to pay for this order', 403);
+  }
+
+  if (order.paymentStatus === 'paid' || order.status === 'paid') {
+    throw new ResponseError('This order has already been paid for', 400);
+  }
+
+  const rawPhone = phoneNumber || order.deliveryAddress?.phone || req.user.phone;
+  const formattedPhone = normalizeKenyanPhone(rawPhone);
+  if (!formattedPhone) {
+    throw new ResponseError('Invalid Kenyan M-Pesa phone number. Please enter a valid number (e.g. 07XXXXXXXX or 01XXXXXXXX)', 400);
+  }
+
+  const amount = Math.max(1, Math.round(order.finalAmount || order.totalAmount || 1));
+
+  console.log('[STK PUSH ORDER INITIATION]', {
+    orderId: order._id,
+    customerId,
+    formattedPhone,
+    amount,
+  });
+
+  const mpesaResponse = await mpesaService.initiateSTKPush({
+    phoneNumber: formattedPhone,
+    amount,
+    transactionRef: `ORD-${order._id.toString().slice(-8).toUpperCase()}`,
+    accountReference: `ORD${order._id.toString().slice(-6).toUpperCase()}`,
+    transactionDesc: 'Olafasta Order',
+  });
+
+  const checkoutRequestId = mpesaResponse.CheckoutRequestID || mpesaResponse.checkoutRequestID;
+  if (!checkoutRequestId) {
+    throw new ResponseError(mpesaResponse.CustomerMessage || 'Failed to trigger M-Pesa prompt. Please try again.', 400);
+  }
+
+  // Save checkoutRequestId to pending order
+  order.checkoutRequestId = checkoutRequestId;
+  order.paymentStatus = 'pending';
+  order.status = 'pending_payment';
+  if (order.deliveryAddress) {
+    order.deliveryAddress.phone = formattedPhone;
+  }
+  await order.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'M-Pesa STK Push initiated. Please enter your PIN on your phone.',
+    data: {
+      checkoutRequestId,
+      orderId: order._id,
+      amount,
+      customerMessage: mpesaResponse.CustomerMessage || 'Please check your phone to complete payment.',
+    },
+  });
+});
+
 export const initiateMpesaPayment = asyncHandler(async (req, res) => {
   const customerId = req.user._id;
   const {

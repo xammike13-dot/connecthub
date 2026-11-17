@@ -103,12 +103,6 @@ export default function ProductCard({
     <>
       <Link
         to={`/product/${_id}`}
-        onClick={(e) => {
-          if (hasOptions) {
-            e.preventDefault();
-            setModalOpen(true);
-          }
-        }}
         className={containerClasses}
       >
       {/* ── 1. Image Area (1:1 aspect ratio, badges & wishlist button) ── */}

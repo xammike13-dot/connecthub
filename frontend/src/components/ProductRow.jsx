@@ -3,6 +3,7 @@ import { useRef, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRight, ChevronLeft, Clock, ArrowRight } from 'lucide-react';
 import ProductCard from './ProductCard';
+import ProductCardSkeleton from './skeletons/ProductCardSkeleton';
 
 export default function ProductRow({
   title,
@@ -12,6 +13,7 @@ export default function ProductRow({
   badge = null,
   subtitle = null,
   className = '',
+  isLoading = false,
 }) {
   const scrollRef = useRef(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -57,7 +59,7 @@ export default function ProductRow({
     }
   };
 
-  if (!products?.length) return null;
+  if (!isLoading && !products?.length) return null;
 
   const pad = (n) => String(n).padStart(2, '0');
 
@@ -140,29 +142,37 @@ export default function ProductRow({
           onScroll={handleScroll}
           className="flex overflow-x-auto snap-x snap-mandatory gap-3.5 sm:gap-4 no-scrollbar pb-4 px-4 scrollbar-hide scroll-smooth items-stretch"
         >
-          {/* Mapped preview products */}
-          {products.map((product) => (
-            <ProductCard key={product._id} product={product} isGrid={false} />
-          ))}
+          {isLoading ? (
+            Array.from({ length: 5 }).map((_, i) => (
+              <ProductCardSkeleton key={`skeleton-${i}`} />
+            ))
+          ) : (
+            <>
+              {/* Mapped preview products */}
+              {products.map((product) => (
+                <ProductCard key={product._id} product={product} isGrid={false} />
+              ))}
 
-          {/* ── Dedicated "See All" Terminal Card ──────────────── */}
-          <Link
-            to={targetLink}
-            aria-label={`See all ${categoryName}`}
-            className="flex-shrink-0 min-w-[160px] w-[160px] md:min-w-[190px] md:w-[190px] rounded-xl snap-start bg-orange-50/70 hover:bg-orange-100/60 border-2 border-dashed border-orange-200/90 hover:border-olaOrange-DEFAULT transition-all duration-200 group/card flex flex-col items-center justify-center p-5 text-center shadow-xs hover:shadow-md cursor-pointer self-stretch"
-          >
-            <div className="w-12 h-12 rounded-full bg-white shadow-sm border border-orange-100 flex items-center justify-center text-olaOrange-DEFAULT group-hover/card:bg-olaOrange-DEFAULT group-hover/card:text-white group-hover/card:scale-110 transition-all duration-200 mb-3">
-              <ArrowRight size={20} className="stroke-[2.5] group-hover/card:translate-x-0.5 transition-transform" />
-            </div>
+              {/* ── Dedicated "See All" Terminal Card ──────────────── */}
+              <Link
+                to={targetLink}
+                aria-label={`See all ${categoryName}`}
+                className="flex-shrink-0 min-w-[160px] w-[160px] md:min-w-[190px] md:w-[190px] rounded-xl snap-start bg-orange-50/70 hover:bg-orange-100/60 border-2 border-dashed border-orange-200/90 hover:border-olaOrange-DEFAULT transition-all duration-200 group/card flex flex-col items-center justify-center p-5 text-center shadow-xs hover:shadow-md cursor-pointer self-stretch"
+              >
+                <div className="w-12 h-12 rounded-full bg-white shadow-sm border border-orange-100 flex items-center justify-center text-olaOrange-DEFAULT group-hover/card:bg-olaOrange-DEFAULT group-hover/card:text-white group-hover/card:scale-110 transition-all duration-200 mb-3">
+                  <ArrowRight size={20} className="stroke-[2.5] group-hover/card:translate-x-0.5 transition-transform" />
+                </div>
 
-            <p className="text-xs sm:text-sm font-bold text-olaOrange-DEFAULT leading-snug group-hover/card:underline">
-              See All {categoryName}
-            </p>
+                <p className="text-xs sm:text-sm font-bold text-olaOrange-DEFAULT leading-snug group-hover/card:underline">
+                  See All {categoryName}
+                </p>
 
-            <span className="text-[11px] text-gray-500 font-medium mt-1.5 flex items-center gap-0.5 group-hover/card:text-olaOrange-dark transition-colors">
-              Explore More <ChevronRight size={12} />
-            </span>
-          </Link>
+                <span className="text-[11px] text-gray-500 font-medium mt-1.5 flex items-center gap-0.5 group-hover/card:text-olaOrange-dark transition-colors">
+                  Explore More <ChevronRight size={12} />
+                </span>
+              </Link>
+            </>
+          )}
         </div>
 
         {/* ── 4. RIGHT ARROW (>): Always visible so users know to scroll ─ */}

@@ -235,3 +235,34 @@ export const deleteUser = asyncHandler(async (req, res) => {
     message: 'User deleted successfully',
   });
 });
+
+/**
+ * Approve vendor application (admin only)
+ */
+export const approveVendor = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const user = await User.findById(id);
+
+  if (!user) {
+    throw new ResponseError('User not found', 404);
+  }
+
+  if (user.role !== 'business') {
+    throw new ResponseError('User is not registered as a business/vendor', 400);
+  }
+
+  if (!user.businessProfile) {
+    user.businessProfile = {};
+  }
+
+  user.businessProfile.isApproved = true;
+  user.isVerified = true;
+  user.accountActive = true;
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: `Vendor "${user.businessProfile.businessName || user.name}" has been approved successfully.`,
+    data: user,
+  });
+});

@@ -6,6 +6,7 @@ import { calculateShoppingPayment } from '../utils/paymentCalculator.js';
 import { releaseEscrow } from '../utils/walletService.js';
 import { createOrderNotification, createNotification } from './notificationController.js';
 import { getActiveBusinessId } from './assistantController.js';
+import { getIO } from '../utils/socket.js';
 
 /**
  * Create a new order
@@ -40,13 +41,22 @@ export const createOrder = asyncHandler(async (req, res) => {
       throw new ResponseError(`Product ${item.product} not found`, 404);
     }
 
-    if (product.stock < item.quantity) {
-      throw new ResponseError(`Insufficient stock for ${product.name}`, 400);
+    const availableStock = product.stockCount !== undefined ? product.stockCount : product.stock;
+    if (availableStock < item.quantity) {
+      throw new ResponseError(`Insufficient stock for "${product.name}". Available: ${availableStock}`, 400);
     }
 
     let addOnsTotal = 0;
+    const verifiedAddOns = [];
     if (item.selectedAddOns && Array.isArray(item.selectedAddOns)) {
-      addOnsTotal = item.selectedAddOns.reduce((s, a) => s + (Number(a.price) || 0), 0);
+      for (const clientAddOn of item.selectedAddOns) {
+        const officialAddOn = product.addOns?.find(
+          (a) => a.name.toLowerCase().trim() === clientAddOn.name.toLowerCase().trim()
+        );
+        const verifiedPrice = officialAddOn ? officialAddOn.price : (Number(clientAddOn.price) || 0);
+        addOnsTotal += verifiedPrice;
+        verifiedAddOns.push({ name: clientAddOn.name, price: verifiedPrice });
+      }
     }
     const itemUnitPrice = product.price + addOnsTotal;
     const itemTotal = itemUnitPrice * item.quantity;
@@ -59,7 +69,8 @@ export const createOrder = asyncHandler(async (req, res) => {
       price: itemUnitPrice,
       variant: item.variant,
       selectedOptions: item.selectedOptions || {},
-      selectedAddOns: item.selectedAddOns || [],
+      selectedAddOns: verifiedAddOns,
+      selectedVariations: item.selectedVariations || item.selectedOptions || {},
       addOnsTotal,
       image: product.images?.[0],
     });
@@ -90,7 +101,9 @@ export const createOrder = asyncHandler(async (req, res) => {
     finalAmount,
     platformFee: paymentBreakdown.platformFee,
     orderType,
-    status: 'pending',
+    status: 'pending_payment',
+    subtotal: totalAmount,
+    vendorPayout: Math.round(totalAmount * 0.975),
     paymentStatus: 'pending',
     paymentMethod: 'mpesa',
     deliveryAddress: {
@@ -105,6 +118,22 @@ export const createOrder = asyncHandler(async (req, res) => {
 
   // Only notify customer - business notification happens after payment confirmation
   await createOrderNotification(customerId, order, 'pending', 'customer', req);
+
+  // Real-Time Socket.IO: Emit order:created to vendor room
+  try {
+    const populatedOrder = await Order.findById(order._id)
+      .populate('customer', 'name email phone avatar')
+      .populate('items.product', 'name price images coverImage');
+
+    const businessTargetId = order.businessId || order.business;
+    const io = getIO() || req.app?.get('io');
+    if (io && businessTargetId) {
+      io.to('vendor_' + businessTargetId).emit('order:created', populatedOrder || order);
+      console.log(`[Socket] Emitted 'order:created' to vendor_${businessTargetId} for Order #${order._id}`);
+    }
+  } catch (socketErr) {
+    console.error('[Socket] Failed to emit order:created:', socketErr.message);
+  }
 
   res.status(201).json({
     success: true,
@@ -264,7 +293,7 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
   const { status } = req.body;
   const userId = req.user._id;
 
-  const validBusinessStatuses = ['paid', 'processing', 'delivered', 'cancelled', 'pending'];
+  const validBusinessStatuses = ['pending_payment', 'paid', 'preparing', 'ready_for_pickup', 'out_for_delivery', 'delivered', 'cancelled', 'processing', 'completed', 'pending'];
   if (!validBusinessStatuses.includes(status)) {
     throw new ResponseError(
       'Invalid status for business. Use dedicated endpoints for accept, cancel, and mark delivered.',
@@ -278,8 +307,12 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
     throw new ResponseError('Order not found', 404);
   }
 
-  const activeBusinessId = getActiveBusinessId(req.user);
-  if (!activeBusinessId || order.business?.toString() !== activeBusinessId.toString()) {
+  const activeBusinessId = getActiveBusinessId(req.user) || req.user._id;
+  const isBusinessOwner = order.business?.toString() === activeBusinessId?.toString() ||
+    order.businessId?.toString() === activeBusinessId?.toString() ||
+    order.items?.some(i => i.business?.toString() === activeBusinessId?.toString()) ||
+    req.user.role === 'admin';
+  if (!isBusinessOwner) {
     throw new ResponseError('Not authorized to update this order', 403);
   }
 
@@ -294,6 +327,23 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
   await order.save();
 
   await createOrderNotification(order.customer._id, order, status, 'customer', req);
+
+  // Real-Time Socket.IO: Emit order:status_updated to customer room
+  try {
+    const customerTargetId = order.customer?._id || order.customer;
+    const io = getIO() || req.app?.get('io');
+    if (io && customerTargetId) {
+      io.to('user_' + customerTargetId).emit('order:status_updated', {
+        orderId: order._id,
+        status,
+        message: `Your order is now: ${status.replace(/_/g, ' ')}`,
+        updatedAt: new Date().toISOString(),
+      });
+      console.log(`[Socket] Emitted 'order:status_updated' to user_${customerTargetId} for Order #${order._id}`);
+    }
+  } catch (socketErr) {
+    console.error('[Socket] Failed to emit order:status_updated:', socketErr.message);
+  }
 
   res.status(200).json({
     success: true,
