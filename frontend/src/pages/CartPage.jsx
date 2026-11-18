@@ -226,10 +226,6 @@ const CartPage = () => {
                     )}
                   </span>
                 </div>
-                <div className="flex justify-between text-gray-600">
-                  <span>Platform Fee (Customer Share 5%)</span>
-                  <span>{formatCurrency(paymentBreakdown.customerShare)}</span>
-                </div>
                 <div className="border-t border-gray-200 pt-3">
                   <div className="flex justify-between text-lg font-bold text-gray-900">
                     <span>Total To Pay</span>

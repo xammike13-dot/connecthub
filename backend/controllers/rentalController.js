@@ -484,13 +484,13 @@ export const bookRental = asyncHandler(async (req, res) => {
   const paymentBreakdown = calculateRentalPayment(rental.monthlyPrice, months);
 
   // Store the payment breakdown in the booking
-  const totalPrice = paymentBreakdown.customerPays; // Customer pays base + their share
+  const totalPrice = paymentBreakdown.customerPays;
 
   // Create booking without dates - dates set on payment confirmation
   const booking = {
     customer: customerId,
     basePrice,
-    totalPrice: paymentBreakdown.customerPays, // What customer pays
+    totalPrice: paymentBreakdown.customerPays,
     platformFee: paymentBreakdown.platformFee,
     customerShare: paymentBreakdown.customerShare,
     providerShare: paymentBreakdown.providerShare,

@@ -18,7 +18,7 @@ test('ConnectHub Rider Discovery Flow Test Suite', async (t) => {
   let mongoServer;
 
   try {
-    mongoServer = await MongoMemoryServer.create();
+    mongoServer = await MongoMemoryServer.create({ instance: { launchTimeout: 30000 } });
     const mongoUri = mongoServer.getUri();
     process.env.MONGODB_URI = mongoUri;
 
@@ -176,6 +176,24 @@ test('ConnectHub Rider Discovery Flow Test Suite', async (t) => {
       assert.ok(res.data.data.some(r => r.name === 'John Kesses'));
       // James Stage has 2km service radius, so he should be excluded (distance ~2.8km > 2km)
       assert.equal(res.data.data.some(r => r.name === 'James Stage'), false);
+    });
+
+    await t.test('Fixed pickup search returns only riders serving that area', async () => {
+      const req = {
+        query: { pickup: 'Kesses' },
+        user: { _id: 'customer_id', role: 'customer' },
+        app: { get: () => null },
+      };
+      const res = {
+        status: function (code) { this.statusCode = code; return this; },
+        json: function (data) { this.data = data; return this; },
+      };
+
+      await getNearbyRiders(req, res, (err) => { if (err) throw err; });
+
+      assert.equal(res.statusCode, 200);
+      assert.ok(res.data.data.some((rider) => rider.name === 'John Kesses'));
+      assert.equal(res.data.data.some((rider) => rider.name === 'James Stage'), false);
     });
 
     await t.test('Test working hours filtering works correctly', async () => {

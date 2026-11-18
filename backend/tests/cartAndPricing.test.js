@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { calculateShoppingPayment } from '../utils/paymentCalculator.js';
+import { calculateRidePayment, calculateShoppingPayment } from '../utils/paymentCalculator.js';
 
 test('Cart and Order Pricing Logic Verification', async (t) => {
   await t.test('1. calculateShoppingPayment correctly handles base price + extras', () => {
@@ -15,8 +15,19 @@ test('Cart and Order Pricing Logic Verification', async (t) => {
 
     assert.equal(breakdown.basePrice, 5600);
     assert.equal(breakdown.deliveryFee, 100);
-    assert.ok(breakdown.customerPays > 5600, 'Customer pays includes basePrice + delivery + customer platform fee');
-    assert.ok(breakdown.providerReceives > 0, 'Provider receives payout after commission');
+    assert.equal(breakdown.customerPays, 5700, 'Customer pays product total plus delivery only');
+    assert.equal(breakdown.providerReceives, 5700, 'Provider receives the full product and delivery amount');
+    assert.equal(breakdown.platformFee, 0);
+  });
+
+  await t.test('Customer totals exclude platform fees for shopping and rides', () => {
+    const shopping = calculateShoppingPayment(2000, 100);
+    const ride = calculateRidePayment(150);
+
+    assert.equal(shopping.customerPays, 2100);
+    assert.equal(shopping.platformFee, 0);
+    assert.equal(ride.customerPays, 150);
+    assert.equal(ride.platformFee, 0);
   });
 
   await t.test('2. Cart keys correctly distinguish different variations of same product', () => {

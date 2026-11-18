@@ -75,11 +75,11 @@ const faqCategories = [
     items: [
       {
         question: 'When do I receive payments for orders?',
-        answer: 'Once a customer receives their order and marks it as delivered, funds are instantly transferred into your online Wallet minus any commission fees.'
+        answer: 'Once an order is delivered and confirmed, its escrowed payout is released into your online Wallet.'
       },
       {
         question: 'How do I view my earnings and withdraw funds?',
-        answer: 'Go to the "Earnings" or "Wallet" tab. You can view your completed sales, commission share, and execute instant withdrawals directly to your registered M-Pesa phone number.'
+        answer: 'Go to the "Earnings" or "Wallet" tab to view completed sales and withdraw available funds to your registered M-Pesa phone number.'
       },
       {
         question: 'What dashboard statistics are available?',

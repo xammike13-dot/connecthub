@@ -1,15 +1,21 @@
 // cards/ProductCard.jsx — wired to ProductDetailModal for variation-aware products
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Plus, Check, Tag } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Check, Tag, ShoppingCart, Zap } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
+import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../Toast';
 import ProductDetailModal from '../modals/ProductDetailModal';
 
 const ProductCard = ({ product, isGrid = true, className = '' }) => {
   const { addToCart } = useCart();
+  const { user } = useAuth();
+  const { success: showSuccess } = useToast();
+  const navigate = useNavigate();
   const [added, setAdded] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [buyLock, setBuyLock] = useState(false);
+  const [modalMode, setModalMode] = useState('cart');
+  const [addLock, setAddLock] = useState(false);
 
   if (!product) return null;
 
@@ -41,22 +47,64 @@ const ProductCard = ({ product, isGrid = true, className = '' }) => {
   const handleAddClick = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (isOutOfStock || buyLock) return;
+    if (isOutOfStock || addLock) return;
 
     if (hasOptions) {
+      setModalMode('cart');
       setModalOpen(true);
     } else {
       addToCart({ _id, name, price, images, coverImage, category: displayCategory, stock });
+      showSuccess(`${name} added to cart.`);
       setAdded(true);
-      setBuyLock(true);
+      setAddLock(true);
       setTimeout(() => {
         setAdded(false);
-        setBuyLock(false);
+        setAddLock(false);
       }, 1500);
     }
   };
 
   const productId = _id || product.id;
+
+  const goToDirectCheckout = (item) => {
+    const checkoutState = { directPurchase: true, directItems: [item] };
+    if (!user) {
+      navigate('/login', {
+        state: { from: { pathname: '/checkout', state: checkoutState } },
+      });
+      return;
+    }
+    navigate('/checkout', { state: checkoutState });
+  };
+
+  const handleBuy = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isOutOfStock) return;
+    if (hasOptions) {
+      setModalMode('buy');
+      setModalOpen(true);
+      return;
+    }
+    goToDirectCheckout({
+      product: productId,
+      name,
+      price,
+      quantity: 1,
+      selectedOptions: {},
+      selectedAddOns: [],
+    });
+  };
+
+  const handleModalAddedToCart = () => {
+    showSuccess(`${name} added to cart.`);
+    setAdded(true);
+    setAddLock(true);
+    setTimeout(() => {
+      setAdded(false);
+      setAddLock(false);
+    }, 1500);
+  };
 
   return (
     <>
@@ -115,8 +163,8 @@ const ProductCard = ({ product, isGrid = true, className = '' }) => {
             </p>
           </div>
 
-          <div className="flex items-center justify-between mt-auto pt-1.5 border-t border-gray-50">
-            <div className="flex flex-col min-w-0 pr-1">
+          <div className="flex flex-col mt-auto pt-1.5 border-t border-gray-50 gap-1.5">
+            <div className="flex flex-col min-w-0">
               <span className="text-[#FF5E00] font-extrabold text-sm md:text-base leading-tight truncate">
                 KSh {price?.toLocaleString()}
               </span>
@@ -127,20 +175,30 @@ const ProductCard = ({ product, isGrid = true, className = '' }) => {
               )}
             </div>
 
-            <button
-              onClick={handleAddClick}
-              disabled={isOutOfStock || buyLock}
-              aria-label={hasOptions ? 'Buy and select options' : 'Buy now'}
-              className="px-2.5 h-8 rounded-full flex-shrink-0 flex items-center justify-center gap-1 text-[11px] font-bold text-white transition-all duration-200 shadow-sm hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ background: added ? '#027A2B' : '#FF5E00' }}
-            >
-              {added ? (
-                <Check size={16} className="text-white stroke-[2.5]" />
-              ) : (
-                <Plus size={16} className="text-white stroke-[2.5]" />
-              )}
-              <span>Buy</span>
-            </button>
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                onClick={handleAddClick}
+                disabled={isOutOfStock || addLock}
+                aria-label={hasOptions ? 'Add to cart (select options)' : 'Add to cart'}
+                className="flex-1 h-8 rounded-full flex items-center justify-center gap-1 text-[11px] font-bold border border-[#FF5E00] text-[#FF5E00] bg-white transition-all duration-200 hover:bg-orange-50 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {added
+                  ? <Check size={13} className="hidden sm:block stroke-[2.5]" />
+                  : <ShoppingCart size={13} className="hidden sm:block" />}
+                <span className="truncate text-[10px] sm:text-[11px]">{added ? 'Added' : 'Add to Cart'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleBuy}
+                disabled={isOutOfStock}
+                aria-label={hasOptions ? 'Buy now (select options)' : 'Buy now'}
+                className="flex-1 h-8 rounded-full flex items-center justify-center gap-1 text-[11px] font-bold text-white bg-[#FF5E00] border border-[#FF5E00] transition-all duration-200 hover:bg-orange-600 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Zap size={13} />
+                <span>Buy</span>
+              </button>
+            </div>
           </div>
         </div>
       </Link>
@@ -150,6 +208,9 @@ const ProductCard = ({ product, isGrid = true, className = '' }) => {
         product={product}
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
+        actionMode={modalMode}
+        onAddedToCart={handleModalAddedToCart}
+        onBuyNow={goToDirectCheckout}
       />
     </>
   );

@@ -144,10 +144,9 @@ export const createOrder = asyncHandler(async (req, res) => {
     });
   }
 
-  // Calculate payment breakdown with platform fee
+  // Calculate the customer total from product amount and delivery fee only.
   const paymentBreakdown = calculateShoppingPayment(totalAmount, deliveryFee);
 
-  // Final amount customer pays includes their share of platform fee
   const finalAmount = paymentBreakdown.customerPays - discount;
 
   // Determine the business for this order (if not supplied, infer from first product)

@@ -55,8 +55,8 @@ const faqCategories = [
     icon: Wallet,
     items: [
       {
-        question: 'How do rider payouts and commission work?',
-        answer: 'Payments completed by customers via M-Pesa or Wallet are split dynamically based on system commission rates. Your share is deposited instantly into your online Wallet.'
+        question: 'How do rider payouts work?',
+        answer: 'Customer ride payments are held in escrow until the ride is completed and confirmed. The ride fare is then released to your online Wallet.'
       },
       {
         question: 'How can I withdraw my earnings?',

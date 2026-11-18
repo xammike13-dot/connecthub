@@ -3,7 +3,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { X, Plus, Minus, ShoppingCart, Check, ChevronLeft, ChevronRight, Star, Truck } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 
-export default function ProductDetailModal({ product, isOpen, onClose }) {
+export default function ProductDetailModal({
+  product,
+  isOpen,
+  onClose,
+  actionMode = 'cart',
+  onAddedToCart,
+  onBuyNow,
+}) {
   const { addToCart } = useCart();
 
   const [selectedOptions, setSelectedOptions] = useState({});
@@ -43,12 +50,24 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
     _id, name, price, originalPrice, description,
     images = [], coverImage = 0,
     variations = [], addOns = [],
-    stock = 0, isActive = true,
+    stock, stockCount, isActive = true, variants = [],
     rating = 0, numReviews = 0,
     deliveryFee = 0, category,
   } = product;
 
-  const isOutOfStock = stock === 0 || !isActive;
+  const matchedVariant = variants.find((variant) => {
+    const options = variant.options instanceof Map
+      ? Object.fromEntries(variant.options)
+      : variant.options || {};
+    return Object.entries(selectedOptions).length > 0 &&
+      Object.entries(selectedOptions).every(([key, value]) => options[key] === value);
+  }) || null;
+  const variantStock = matchedVariant?.stock;
+  const productStock = stock ?? stockCount ?? 0;
+  const availableStock = variantStock !== undefined && variantStock !== null
+    ? Number(variantStock)
+    : Number(productStock);
+  const isOutOfStock = !isActive || availableStock <= 0;
   const hasDiscount = originalPrice && originalPrice > price;
   const discountPct = hasDiscount ? Math.round(((originalPrice - price) / originalPrice) * 100) : 0;
 
@@ -57,11 +76,31 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
   const allVariationsSelected = requiredVariations.every(v => selectedOptions[v.name]);
 
   const addOnsTotal = selectedAddOns.reduce((s, a) => s + a.price, 0);
-  const unitPrice = price + addOnsTotal;
+  const variantBasePrice = matchedVariant?.price > 0
+    ? Number(matchedVariant.price)
+    : matchedVariant?.priceAdjustment
+      ? Number(price) + Number(matchedVariant.priceAdjustment)
+      : Number(price);
+  const unitPrice = variantBasePrice + addOnsTotal;
   const totalPrice = unitPrice * quantity;
 
   const handleVariationSelect = (varName, option) => {
-    setSelectedOptions(prev => ({ ...prev, [varName]: option }));
+    const updatedOptions = { ...selectedOptions, [varName]: option };
+    const selectedVariant = variants.find((variant) => {
+      const options = variant.options instanceof Map
+        ? Object.fromEntries(variant.options)
+        : variant.options || {};
+      return Object.entries(updatedOptions).length > 0 &&
+        Object.entries(updatedOptions).every(([key, value]) => options[key] === value);
+    });
+    const variantStock = selectedVariant?.stock;
+    const quantityLimit = variantStock !== undefined && variantStock !== null
+      ? Number(variantStock)
+      : Number(productStock);
+    setSelectedOptions(updatedOptions);
+    if (quantityLimit > 0) {
+      setQuantity((currentQuantity) => Math.min(currentQuantity, quantityLimit));
+    }
   };
 
   const handleAddOnToggle = (addOn) => {
@@ -71,19 +110,39 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
     });
   };
 
+  const getPurchaseItem = () => ({
+    product: _id || product.id,
+    name,
+    price: unitPrice,
+    quantity,
+    variant: matchedVariant?.name || matchedVariant?.value ||
+      Object.entries(selectedOptions).map(([key, value]) => `${key}: ${value}`).join(' · '),
+    variantId: matchedVariant?._id || matchedVariant?.id,
+    selectedOptions,
+    selectedAddOns,
+  });
+
   const handleAddToCart = () => {
     if (isOutOfStock || !allVariationsSelected) return;
     addToCart(
-      { _id, name, price, images, coverImage, category, stock },
+      { ...product, _id, name, price, images, coverImage, category, stock: productStock },
       quantity,
       selectedOptions,
       selectedAddOns,
+      matchedVariant,
     );
+    onAddedToCart?.(getPurchaseItem());
     setAddedFeedback(true);
     setTimeout(() => {
       setAddedFeedback(false);
       onClose();
     }, 1200);
+  };
+
+  const handleBuyNow = () => {
+    if (isOutOfStock || !allVariationsSelected) return;
+    onBuyNow?.(getPurchaseItem());
+    onClose();
   };
 
   const images_ = images.length > 0 ? images : [null];
@@ -294,7 +353,7 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
                   <button
                     onClick={() => setQuantity(q => Math.min(stock || 99, q + 1))}
                     className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-40"
-                    disabled={quantity >= (stock || 99)}
+                    disabled={quantity >= (availableStock || 99)}
                   >
                     <Plus size={14} />
                   </button>
@@ -321,7 +380,7 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
           {/* Sticky bottom CTA */}
           <div className="flex-shrink-0 p-4 md:px-6 pb-safe border-t border-gray-100 bg-white">
             <button
-              onClick={handleAddToCart}
+              onClick={actionMode === 'buy' ? handleBuyNow : handleAddToCart}
               disabled={isOutOfStock || !allVariationsSelected}
               className={`w-full h-14 rounded-2xl font-bold text-base flex items-center justify-center gap-2 transition-all duration-200 shadow-md
                 ${addedFeedback
@@ -331,7 +390,9 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
                     : 'bg-[#FF5E00] text-white hover:bg-orange-600 active:scale-95 hover:shadow-lg'
                 }`}
             >
-              {addedFeedback ? (
+              {actionMode === 'buy' ? (
+                <>Buy Now · KSh {totalPrice.toLocaleString()}</>
+              ) : addedFeedback ? (
                 <><Check size={20} className="stroke-[3]" /> Added to Cart!</>
               ) : isOutOfStock ? (
                 'Out of Stock'

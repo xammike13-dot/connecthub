@@ -148,7 +148,7 @@ const TransactionHistoryPage = () => {
   };
 
   const exportTransactions = () => {
-    const headers = ['Date', 'Reference', 'Type', 'Status', 'Amount', 'Commission', 'Provider Receives'];
+    const headers = ['Date', 'Reference', 'Type', 'Status', 'Amount'];
     const csvContent = [
       headers.join(','),
       ...transactions.map((t) => [
@@ -157,8 +157,6 @@ const TransactionHistoryPage = () => {
         t.type,
         t.status,
         t.amount.totalAmount,
-        t.commission.totalCommission,
-        t.commission.providerReceives,
       ].join(',')),
     ].join('\n');
 
@@ -285,9 +283,6 @@ const TransactionHistoryPage = () => {
                     Amount
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Commission
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -316,9 +311,6 @@ const TransactionHistoryPage = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         KES {transaction.amount.totalAmount.toLocaleString()}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        KES {transaction.commission.totalCommission.toLocaleString()}
-                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {getStatusBadge(transaction.status)}
                       </td>
@@ -335,7 +327,7 @@ const TransactionHistoryPage = () => {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
+                    <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
                       No transactions found
                     </td>
                   </tr>
@@ -421,14 +413,6 @@ const TransactionHistoryPage = () => {
                       <p className="font-medium">KES {selectedTransaction.amount.deliveryFee.toLocaleString()}</p>
                     </div>
                   )}
-                  <div>
-                    <p className="text-sm text-gray-500">Platform Fee (10%)</p>
-                    <p className="font-medium">KES {selectedTransaction.commission.totalCommission.toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Provider Receives</p>
-                    <p className="font-medium text-green-600">KES {selectedTransaction.commission.providerReceives.toLocaleString()}</p>
-                  </div>
                   {selectedTransaction.mpesaReceiptNumber && (
                     <div>
                       <p className="text-sm text-gray-500">M-Pesa Receipt</p>

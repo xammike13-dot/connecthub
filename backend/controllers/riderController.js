@@ -5,6 +5,34 @@ import { asyncHandler, ResponseError } from '../middleware/error.js';
 import { v2 as cloudinary } from 'cloudinary';
 import { normalizeArea } from '../utils/rideFareCalculator.js';
 
+const isWithinRiderWorkingHours = (workingHours, date = new Date()) => {
+  const parseMinutes = (time) => {
+    if (typeof time !== 'string' || !/^\d{2}:\d{2}$/.test(time)) return null;
+    const [hours, minutes] = time.split(':').map(Number);
+    if (hours > 23 || minutes > 59) return null;
+    return hours * 60 + minutes;
+  };
+
+  const start = parseMinutes(workingHours?.start);
+  const end = parseMinutes(workingHours?.end);
+  if (start === null || end === null) return true;
+
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Africa/Nairobi',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const hour = Number(parts.find((part) => part.type === 'hour')?.value);
+  const minute = Number(parts.find((part) => part.type === 'minute')?.value);
+  const now = hour * 60 + minute;
+
+  if (start === end) return true;
+  return start < end
+    ? now >= start && now <= end
+    : now >= start || now <= end;
+};
+
 /**
  * Get rider dashboard statistics
  */
@@ -630,8 +658,8 @@ export const updateRiderGPSLocation = asyncHandler(async (req, res) => {
  * Supports both fixed-location booking workflow and optional GPS coordinates.
  * Returns riders who satisfy ALL of the following:
  * - Rider account is active and not deleted
- * - Rider is online (profile.isOnline is true or status is not 'offline')
- * Prioritizes riders registered for the selected pickup corridor area.
+ * - Rider is online, within working hours, and not already occupied
+ * - Rider serves the selected pickup area and is within the configured search radius
  */
 export const getNearbyRiders = asyncHandler(async (req, res) => {
   const { latitude, longitude, maxDistance = 10000, pickup, pickupLocation, pickupArea } = req.query;
@@ -675,13 +703,18 @@ export const getNearbyRiders = asyncHandler(async (req, res) => {
   for (const rider of allRiders) {
     const profile = rider.riderProfile || {};
 
-    // Check online status: isOnline === true OR status is online/busy
-    const isOnline = profile.isOnline === true || profile.status === 'online';
+    // Exclude riders marked offline, busy, or already on a trip.
+    const isOnline =
+      (profile.isOnline === true || profile.status === 'online') &&
+      profile.status !== 'offline' &&
+      profile.status !== 'busy' &&
+      profile.status !== 'on_trip';
     if (!isOnline) continue;
+    if (!isWithinRiderWorkingHours(profile.workingHours)) continue;
 
     // Check working area relevance
     const workingAreas = profile.workingArea?.selectedWorkingAreas || [];
-    let matchesWorkingArea = true;
+    let matchesWorkingArea = !normPickup;
     if (normPickup && workingAreas.length > 0) {
       matchesWorkingArea = workingAreas.some((area) => {
         const canonical = normalizeArea(area);
@@ -705,12 +738,20 @@ export const getNearbyRiders = asyncHandler(async (req, res) => {
       if (hasCoords && rLat !== null && rLng !== null && !isNaN(rLat) && !isNaN(rLng)) {
         const calcDist = haversineKm(lat, lng, rLat, rLng);
         if (!isNaN(calcDist)) {
-          if (calcDist > maxSearchRadiusKm && !matchesWorkingArea) {
-            continue; // Exceeds radius and does not match working area
+          const configuredRadiusKm = parseFloat(profile.workingArea?.serviceRadius);
+          const riderRadiusKm = Number.isFinite(configuredRadiusKm) && configuredRadiusKm > 0
+            ? configuredRadiusKm
+            : maxSearchRadiusKm;
+          if (calcDist > Math.min(maxSearchRadiusKm, riderRadiusKm)) {
+            continue;
           }
           distance = parseFloat(calcDist.toFixed(1));
         }
       }
+    }
+
+    if (!hasCoords && normPickup && !matchesWorkingArea) {
+      continue;
     }
 
     availableRiders.push({

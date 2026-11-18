@@ -1,10 +1,12 @@
 // ProductCard.jsx – high-conversion light-mode product card with wishlist heart, dynamic badging, ratings, vendor trust & scarcity indicators
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Plus, Check, Heart, Star } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Check, Heart, Star, ShoppingCart, Zap } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
+import { useAuth } from '../context/AuthContext';
 import ProductDetailModal from './modals/ProductDetailModal';
+import { useToast } from './Toast';
 
 export default function ProductCard({
   product = {},
@@ -17,9 +19,13 @@ export default function ProductCard({
   deliveryTag: propDeliveryTag,
 }) {
   const [added, setAdded] = useState(false);
+  const [addLock, setAddLock] = useState(false);
   const [isWished, setIsWished] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [buyLock, setBuyLock] = useState(false);
+  const [modalMode, setModalMode] = useState('cart'); // 'cart' | 'buy'
+
+  const navigate = useNavigate();
+  const { success: showSuccess } = useToast();
 
   let cart = null;
   try {
@@ -31,6 +37,13 @@ export default function ProductCard({
   let wishlist = null;
   try {
     wishlist = useWishlist();
+  } catch (e) {
+    // Context fallback
+  }
+
+  let auth = null;
+  try {
+    auth = useAuth();
   } catch (e) {
     // Context fallback
   }
@@ -70,6 +83,8 @@ export default function ProductCard({
   }, [wishlist, _id]);
 
   const hasOptions = (product.variations?.length > 0) || (product.addOns?.length > 0);
+  const productId = _id || product.id;
+  const isOutOfStock = displayStock !== undefined && displayStock !== null && Number(displayStock) <= 0;
 
   const handleWishlist = async (e) => {
     e.preventDefault();
@@ -80,24 +95,69 @@ export default function ProductCard({
     }
   };
 
-  const handleAdd = (e) => {
+  // ── Add to Cart ──────────────────────────────────────────────────────────
+  const handleAddToCart = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    const availableStock = Number(displayStock);
-    if (buyLock || (Number.isFinite(availableStock) && availableStock <= 0)) return;
+    if (addLock || isOutOfStock) return;
     if (hasOptions) {
+      setModalMode('cart');
       setModalOpen(true);
       return;
     }
     if (cart?.addToCart) {
       cart.addToCart(product, 1);
     }
+    showSuccess(`${name} added to cart.`);
     setAdded(true);
-    setBuyLock(true);
+    setAddLock(true);
     setTimeout(() => {
       setAdded(false);
-      setBuyLock(false);
+      setAddLock(false);
     }, 1500);
+  };
+
+  // ── Buy Now ──────────────────────────────────────────────────────────────
+  const handleBuy = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isOutOfStock) return;
+
+    if (hasOptions) {
+      setModalMode('buy');
+      setModalOpen(true);
+      return;
+    }
+
+    goToDirectCheckout({
+      product: productId,
+      name,
+      price,
+      quantity: 1,
+      selectedOptions: {},
+      selectedAddOns: [],
+    });
+  };
+
+  const goToDirectCheckout = (item) => {
+    const checkoutState = { directPurchase: true, directItems: [item] };
+    if (!auth?.user) {
+      navigate('/login', {
+        state: { from: { pathname: '/checkout', state: checkoutState } },
+      });
+      return;
+    }
+    navigate('/checkout', { state: checkoutState });
+  };
+
+  const handleModalAddedToCart = () => {
+    showSuccess(`${name} added to cart.`);
+    setAdded(true);
+    setTimeout(() => setAdded(false), 1500);
+  };
+
+  const handleModalBuyNow = (item) => {
+    goToDirectCheckout(item);
   };
 
   const img = images?.[0] || null;
@@ -105,8 +165,6 @@ export default function ProductCard({
   const containerClasses = isGrid
     ? `relative w-full min-w-0 bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 group flex flex-col ${className}`
     : `relative flex-shrink-0 min-w-[160px] w-[160px] md:min-w-[190px] md:w-[190px] bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 snap-start group flex flex-col ${className}`;
-
-  const productId = _id || product.id;
 
   return (
     <>
@@ -210,9 +268,9 @@ export default function ProductCard({
             </div>
           )}
 
-          {/* ── Pricing & Add to Cart button ───────────────────── */}
-          <div className="flex items-center justify-between mt-1 pt-1.5 border-t border-gray-50">
-            <div className="flex flex-col min-w-0 pr-1">
+          {/* ── Price ───────────────────────────────────────── */}
+          <div className="flex flex-col mt-1 pt-1.5 border-t border-gray-50 gap-1.5">
+            <div className="flex flex-col min-w-0">
               <span className="text-olaOrange-DEFAULT font-extrabold text-sm md:text-base leading-tight truncate">
                 KSh {price?.toLocaleString()}
               </span>
@@ -223,22 +281,41 @@ export default function ProductCard({
               )}
             </div>
 
-            {/* Add button with hover pop */}
-            <button
-              type="button"
-              onClick={handleAdd}
-              disabled={buyLock || (displayStock !== undefined && displayStock !== null && Number(displayStock) <= 0)}
-              aria-label={hasOptions ? 'Buy and select options' : 'Buy now'}
-              className="px-2.5 h-8 rounded-full flex-shrink-0 flex items-center justify-center gap-1 text-[11px] font-bold text-white transition-all duration-200 shadow-sm hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ background: added ? '#027A2B' : '#FF5E00' }}
-            >
-              {added ? (
-                <Check size={16} className="text-white stroke-[2.5]" />
-              ) : (
-                <Plus size={16} className="text-white stroke-[2.5]" />
-              )}
-              <span>Buy</span>
-            </button>
+            {/* ── Two Action Buttons side by side ───────────── */}
+            <div className="flex gap-1.5">
+              {/* Add to Cart: white bg, orange border & text */}
+              <button
+                type="button"
+                onClick={handleAddToCart}
+                disabled={addLock || isOutOfStock}
+                aria-label={hasOptions ? 'Add to cart (select options)' : 'Add to cart'}
+                className="flex-1 h-8 rounded-full flex items-center justify-center gap-1 text-[11px] font-bold border transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{
+                  background: added ? '#027A2B' : 'white',
+                  color: added ? 'white' : '#FF5E00',
+                  borderColor: added ? '#027A2B' : '#FF5E00',
+                }}
+              >
+                {added ? (
+                  <Check size={13} className="hidden sm:block stroke-[2.5] flex-shrink-0" />
+                ) : (
+                  <ShoppingCart size={13} className="hidden sm:block flex-shrink-0" />
+                )}
+                <span className="truncate text-[10px] sm:text-[11px]">{added ? 'Added' : 'Add to Cart'}</span>
+              </button>
+
+              {/* Buy Now: solid orange bg, white text */}
+              <button
+                type="button"
+                onClick={handleBuy}
+                disabled={isOutOfStock}
+                aria-label={hasOptions ? 'Buy now (select options)' : 'Buy now'}
+                className="flex-1 h-8 rounded-full flex items-center justify-center gap-1 text-[11px] font-bold text-white bg-[#FF5E00] border border-[#FF5E00] transition-all duration-200 hover:bg-orange-600 hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+              >
+                <Zap size={13} className="flex-shrink-0" />
+                <span className="truncate">Buy</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -248,6 +325,9 @@ export default function ProductCard({
       product={product}
       isOpen={modalOpen}
       onClose={() => setModalOpen(false)}
+      onAddedToCart={handleModalAddedToCart}
+      actionMode={modalMode}
+      onBuyNow={handleModalBuyNow}
     />
   </>
 );

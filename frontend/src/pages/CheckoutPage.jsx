@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
@@ -14,6 +14,8 @@ const CheckoutPage = () => {
   const params = useParams();
   const { entityType, entityId } = params;
   const navigate = useNavigate();
+  const location = useLocation();
+  const directCheckout = location.state?.directPurchase ? location.state : null;
   const { user } = useAuth();
   const { cartItems, cartTotal, clearCart } = useCart();
   const { socket } = useSocket();
@@ -130,6 +132,35 @@ const CheckoutPage = () => {
 
         // Cart-based checkout
         if (!entityType && !entityId) {
+          if (directCheckout) {
+            const directItems = directCheckout.directItems || [];
+            if (directItems.length === 0) {
+              setOrderDetails(null);
+              setError('No product was selected for checkout.');
+              return;
+            }
+
+            const baseAmount = directItems.reduce(
+              (sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 1),
+              0
+            );
+            const deliveryFee = 0;
+            const paymentBreakdown = calculatePayment(baseAmount, deliveryFee);
+            setOrderDetails({
+              entityType: 'cart',
+              isDirectPurchase: true,
+              baseAmount,
+              deliveryFee,
+              platformFee: paymentBreakdown.platformFee,
+              customerShare: paymentBreakdown.customerShare,
+              providerShare: paymentBreakdown.providerShare,
+              customerPays: paymentBreakdown.customerPays,
+              providerReceives: paymentBreakdown.providerReceives,
+              platformReceives: paymentBreakdown.platformReceives,
+              items: directItems,
+            });
+            return;
+          }
 
           // After successful payment the cart is cleared,
           // but the checkout page must continue displaying
@@ -223,7 +254,7 @@ const CheckoutPage = () => {
     };
 
     fetchOrderDetails();
-  }, [entityType, entityId, cartItems, cartTotal, paymentSuccess]);
+  }, [entityType, entityId, cartItems, cartTotal, paymentSuccess, directCheckout]);
 
 
   const initiatePayment = async () => {
@@ -267,8 +298,17 @@ const CheckoutPage = () => {
         });
 
         if (paymentResponse.data.success) {
+          const breakdown = paymentResponse.data.data.paymentBreakdown;
+          if (breakdown) {
+            setOrderDetails((current) => ({
+              ...current,
+              baseAmount: breakdown.basePrice ?? breakdown.baseAmount ?? current.baseAmount,
+              deliveryFee: breakdown.deliveryFee ?? current.deliveryFee,
+              customerPays: breakdown.customerPays ?? breakdown.totalAmount ?? current.customerPays,
+            }));
+          }
           // If payment confirmation has already arrived, clear immediately.
-          if (paymentSuccess) {
+          if (paymentSuccess && !orderDetails.isDirectPurchase) {
             clearCart();
             console.log('[CART CLEARED]');
           }
@@ -288,6 +328,15 @@ const CheckoutPage = () => {
         });
 
         if (response.data.success) {
+          const breakdown = response.data.data.paymentBreakdown;
+          if (breakdown) {
+            setOrderDetails((current) => ({
+              ...current,
+              baseAmount: breakdown.basePrice ?? breakdown.baseAmount ?? current.baseAmount,
+              deliveryFee: breakdown.deliveryFee ?? current.deliveryFee,
+              customerPays: breakdown.customerPays ?? breakdown.totalAmount ?? current.customerPays,
+            }));
+          }
           setPaymentInitiated(true);
           setPaymentData(response.data.data);
         } else {
@@ -512,10 +561,6 @@ const CheckoutPage = () => {
                   <span>{formatCurrency(orderDetails?.deliveryFee || 0)}</span>
                 </div>
               )}
-              <div className="flex justify-between text-gray-600">
-                <span>Platform Fee (Customer Share 5%)</span>
-                <span>{formatCurrency(orderDetails?.customerShare || 0)}</span>
-              </div>
               <div className="border-t pt-2 mt-2">
                 <div className="flex justify-between text-lg font-bold">
                   <span>Total To Pay</span>
@@ -524,13 +569,6 @@ const CheckoutPage = () => {
                   </span>
                 </div>
               </div>
-            </div>
-
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-              <p className="text-sm text-blue-800">
-                <strong>Note:</strong> The platform fee is shared equally between you and the provider. The provider will receive{' '}
-                <strong>{formatCurrency(orderDetails?.providerReceives)}</strong> after completion.
-              </p>
             </div>
           </div>
 
@@ -679,7 +717,7 @@ const CheckoutPage = () => {
                       console.log('[VIEW SUCCESS CLICKED]');
 
                       if (orderDetails?.entityType === 'cart') {
-                        clearCart();
+                        if (!orderDetails.isDirectPurchase) clearCart();
                         console.log('[CART CLEARED AFTER SUCCESS]');
                       }
 

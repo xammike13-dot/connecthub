@@ -4,10 +4,10 @@
  * All payment calculations across the platform MUST use this service.
  * 
  * BUSINESS RULES:
- * - Platform Fee = 10% of BASE PRICE (product/room/ride fare only)
- * - Platform Fee is shared equally: Customer pays 5%, Provider pays 5%
- * - Provider's 5% share is deducted ONLY from BASE PRICE
- * - Delivery fee is NEVER deducted - it belongs entirely to the business
+ * - No platform commission charged to customers
+ * - Customer pays: basePrice + deliveryFee (no added fees)
+ * - Provider receives: basePrice + deliveryFee (full amount)
+ * - Delivery fee belongs entirely to the business
  * - NO VAT, NO taxes, NO hidden fees
  */
 
@@ -23,21 +23,21 @@ export const calculatePayment = (basePrice, deliveryFee = 0) => {
   if (basePrice < 0) throw new Error('Base price cannot be negative');
   if (deliveryFee < 0) throw new Error('Delivery fee cannot be negative');
 
-  // Platform fee is 10% of BASE PRICE ONLY (not including delivery)
-  const platformFee = Math.round(basePrice * 0.10);
+  // No platform commission — fee is 0
+  const platformFee = 0;
   
-  // Platform fee is shared equally (5% each)
-  const customerShare = Math.round(platformFee / 2); // 5% of base price
-  const providerShare = Math.round(platformFee / 2); // 5% of base price
+  // No commission shares
+  const customerShare = 0;
+  const providerShare = 0;
 
-  // Customer pays: base price + their share of platform fee + delivery fee
-  const customerPays = basePrice + customerShare + deliveryFee;
+  // Customer pays: base price + delivery fee (no commission)
+  const customerPays = basePrice + deliveryFee;
 
-  // Provider receives: base price - their share of platform fee + full delivery fee
-  const providerReceives = basePrice - providerShare + deliveryFee;
+  // Provider receives: full base price + delivery fee (no deduction)
+  const providerReceives = basePrice + deliveryFee;
 
-  // Platform receives: total platform fee (10% of base price)
-  const platformReceives = platformFee;
+  // Platform receives: 0 (no commission)
+  const platformReceives = 0;
 
   return {
     // Input values
@@ -46,12 +46,12 @@ export const calculatePayment = (basePrice, deliveryFee = 0) => {
     
     // Platform fee breakdown
     platformFee,
-    customerShare,    // 5% of base price (customer's portion)
-    providerShare,    // 5% of base price (provider's portion)
+    customerShare,
+    providerShare,
     
     // Final amounts
     customerPays,     // What customer pays total
-    providerReceives, // What provider receives after commission
+    providerReceives,
     platformReceives, // What platform earns
     
     // Total transaction value

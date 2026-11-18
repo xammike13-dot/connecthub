@@ -82,9 +82,20 @@ export const CartProvider = ({ children }) => {
       ? (matchedVariant.name || matchedVariant.value || Object.entries(selectedOptions).map(([k, v]) => `${k}: ${v}`).join(' · '))
       : (selectedOptions && Object.keys(selectedOptions).length > 0 ? Object.entries(selectedOptions).map(([k, v]) => `${k}: ${v}`).join(' · ') : '');
 
-    const maxStock = (matchedVariant && matchedVariant.stock !== undefined && matchedVariant.stock !== null)
+    const hasVariantStock = matchedVariant?.stock !== undefined && matchedVariant?.stock !== null;
+    const hasProductStock = product.stock !== undefined && product.stock !== null;
+    const hasStockCount = product.stockCount !== undefined && product.stockCount !== null;
+    const maxStock = hasVariantStock
       ? Number(matchedVariant.stock)
-      : ((product.stock !== undefined && product.stock !== null) ? Number(product.stock) : (Number(product.stockCount) || 0));
+      : hasProductStock
+        ? Number(product.stock)
+        : hasStockCount
+          ? Number(product.stockCount)
+          : null;
+
+    if (!Number.isFinite(quantity) || quantity <= 0 || (maxStock !== null && maxStock <= 0)) {
+      return;
+    }
 
     const itemImages = matchedVariant?.image ? [matchedVariant.image, ...(product.images || [])] : (product.images || []);
 
@@ -94,7 +105,7 @@ export const CartProvider = ({ children }) => {
         return prevItems.map((item, idx) => {
           if (idx !== existingIdx) return item;
           const newQty = item.quantity + quantity;
-          const cappedQty = maxStock > 0 ? Math.min(newQty, maxStock) : newQty;
+          const cappedQty = maxStock !== null ? Math.min(newQty, maxStock) : newQty;
           return { ...item, quantity: cappedQty };
         });
       }
@@ -104,7 +115,7 @@ export const CartProvider = ({ children }) => {
           ...product,
           price: basePrice,
           cartKey,
-          quantity: maxStock > 0 ? Math.min(quantity, maxStock) : quantity,
+          quantity: maxStock !== null ? Math.min(quantity, maxStock) : quantity,
           selectedOptions,
           selectedAddOns,
           variant: variantLabel,
@@ -130,7 +141,7 @@ export const CartProvider = ({ children }) => {
     setCartItems((prev) =>
       prev.map((item) => {
         if (item.cartKey !== cartKey) return item;
-        const capped = item.maxStock > 0 ? Math.min(quantity, item.maxStock) : quantity;
+        const capped = Number.isFinite(item.maxStock) ? Math.min(quantity, item.maxStock) : quantity;
         return { ...item, quantity: capped };
       })
     );

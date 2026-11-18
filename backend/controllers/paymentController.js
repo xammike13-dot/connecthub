@@ -8,6 +8,7 @@ import {
   calculateFareWithRiderRate,
   isNightRate,
   isNightRateInNairobi,
+  normalizeArea,
 } from '../utils/rideFareCalculator.js';
 import { creditPendingEscrow, releaseEscrow } from '../utils/walletService.js';
 import Transaction from '../models/Transaction.js';
@@ -553,6 +554,21 @@ export const initiateMpesaPaymentWithRider = asyncHandler(async (req, res) => {
 
   if (rider.role !== 'rider') {
     throw new ResponseError('Selected user is not a rider', 400);
+  }
+
+  const riderProfile = rider.riderProfile || {};
+  const riderIsOnline =
+    (riderProfile.isOnline === true || riderProfile.status === 'online') &&
+    riderProfile.status !== 'offline' &&
+    riderProfile.status !== 'busy' &&
+    riderProfile.status !== 'on_trip';
+  if (rider.isActive === false || rider.isDeleted === true || !riderIsOnline) {
+    throw new ResponseError('Selected rider is no longer available. Please choose another rider.', 409);
+  }
+  const pickupArea = normalizeArea(effectivePickup);
+  const riderWorkingAreas = riderProfile.workingArea?.selectedWorkingAreas || [];
+  if (pickupArea && !riderWorkingAreas.some((area) => normalizeArea(area) === pickupArea)) {
+    throw new ResponseError('Selected rider does not serve the chosen pickup area. Please choose another rider.', 409);
   }
 
   // Calculate fixed fare independently on the server using Africa/Nairobi time

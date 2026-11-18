@@ -16,7 +16,13 @@ const LoginPage = () => {
   const location = useLocation();
 
   // Get the return URL from location state or default to role-based dashboard
-  const from = location.state?.from?.pathname;
+  const fromLocation = location.state?.from;
+  const from = typeof fromLocation === 'string'
+    ? fromLocation
+    : fromLocation?.pathname;
+  const returnState = typeof fromLocation === 'object'
+    ? fromLocation?.state
+    : undefined;
 
   // If already authenticated, redirect to appropriate dashboard or setup page
   if (isAuthenticated && user) {
@@ -43,7 +49,7 @@ const LoginPage = () => {
     }
 
     if (window.location.pathname !== targetPath) {
-      navigate(targetPath, { replace: true });
+      navigate(targetPath, { replace: true, state: returnState });
     }
     return null;
   }
@@ -144,7 +150,7 @@ const LoginPage = () => {
       const targetPath = from || dashboardMap[result.user?.role] || '/';
       
       // Navigate to the target path
-      navigate(targetPath, { replace: true });
+      navigate(targetPath, { replace: true, state: returnState });
     } else {
       setError(result.message);
     }

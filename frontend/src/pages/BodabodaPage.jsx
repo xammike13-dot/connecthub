@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -71,6 +71,7 @@ const BodabodaPage = () => {
   const [bookingStep, setBookingStep] = useState(BOOKING_STEP.LOCATION);
   const [nearbyRiders, setNearbyRiders] = useState([]);
   const [loadingRiders, setLoadingRiders] = useState(false);
+  const [ridersLoaded, setRidersLoaded] = useState(false);
   const [selectedRider, setSelectedRider] = useState(null);
   const [rideRequest, setRideRequest] = useState(null);
   const [rideStatus, setRideStatus] = useState('pending');
@@ -86,6 +87,7 @@ const BodabodaPage = () => {
   // Rider acceptance states
   const [riderDeclinedMessage, setRiderDeclinedMessage] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const riderFetchSequence = useRef(0);
 
   // Pre-fill phone number when user profile loads
   useEffect(() => {
@@ -126,22 +128,33 @@ const BodabodaPage = () => {
   // Fetch available riders for selected pickup location
   const fetchAvailableRiders = useCallback(async (pickup) => {
     if (!pickup) return;
+    const requestId = ++riderFetchSequence.current;
 
     try {
       setLoadingRiders(true);
+      setRidersLoaded(false);
       const response = await riderAPI.getNearbyRiders({
         pickup: pickup,
       });
 
-      if (response.data.success) {
-        const riders = response.data.data || [];
-        setNearbyRiders(riders);
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Rider search failed.');
+      }
+      if (!Array.isArray(response.data.data)) {
+        throw new Error('Rider search returned an invalid response.');
+      }
+      if (requestId === riderFetchSequence.current) {
+        setNearbyRiders(response.data.data);
+        setRidersLoaded(true);
       }
     } catch (error) {
       console.error('[BodabodaPage] Failed to fetch riders:', error);
-      addToast('Could not load available riders for this area. Please retry.', 'error');
+      if (requestId === riderFetchSequence.current) {
+        setNearbyRiders([]);
+        addToast('Could not load available riders for this area. Please retry.', 'error');
+      }
     } finally {
-      setLoadingRiders(false);
+      if (requestId === riderFetchSequence.current) setLoadingRiders(false);
     }
   }, [addToast]);
 
@@ -154,19 +167,27 @@ const BodabodaPage = () => {
 
   // Handler for selecting a pickup
   const handleSelectPickup = (pickupId) => {
+    riderFetchSequence.current += 1;
+    setLoadingRiders(false);
     setSelectedPickup(pickupId);
     setSelectedRider(null);
+    setNearbyRiders([]);
+    setRidersLoaded(false);
   };
 
   // Handler for selecting a destination
   const handleSelectDestination = (destId) => {
+    riderFetchSequence.current += 1;
+    setLoadingRiders(false);
     setSelectedDestination(destId);
     setSelectedRider(null);
+    setNearbyRiders([]);
+    setRidersLoaded(false);
   };
 
   // Proceed to rider selection view or scroll down
   const handleProceedToRiders = () => {
-    if (!selectedPickup || !selectedDestination) {
+    if (!selectedPickup || !selectedDestination || !farePreview) {
       addToast('Please select both pickup and destination.', 'error');
       return;
     }
@@ -179,6 +200,12 @@ const BodabodaPage = () => {
 
   // Select a rider and proceed to review
   const handleSelectRider = (rider) => {
+    if (!ridersLoaded || loadingRiders || !nearbyRiders.some(
+      (available) => (available._id || available.id) === (rider._id || rider.id)
+    )) {
+      addToast('Please select a currently available rider.', 'error');
+      return;
+    }
     setSelectedRider(rider);
     setBookingStep(BOOKING_STEP.REVIEW);
   };
@@ -213,7 +240,10 @@ const BodabodaPage = () => {
       return;
     }
 
-    if (!selectedPickup || !selectedDestination || !selectedRider) {
+    const riderIsLoaded = nearbyRiders.some(
+      (rider) => (rider._id || rider.id) === (selectedRider?._id || selectedRider?.id)
+    );
+    if (!selectedPickup || !selectedDestination || !farePreview || !ridersLoaded || loadingRiders || !selectedRider || !riderIsLoaded) {
       addToast('Please complete pickup, destination and rider selection.', 'error');
       return;
     }
@@ -388,12 +418,15 @@ const BodabodaPage = () => {
 
   // Reset entire workflow for a new ride
   const handleResetRide = () => {
+    riderFetchSequence.current += 1;
     if (pollingInterval) clearInterval(pollingInterval);
     setSelectedPickup(null);
     setSelectedDestination(null);
     setSelectedRider(null);
+    setNearbyRiders([]);
+    setLoadingRiders(false);
+    setRidersLoaded(false);
     setRideRequest(null);
-    setFareBreakdown(null);
     setBookingStep(BOOKING_STEP.LOCATION);
     setPaymentStatus(PAYMENT_STATUS.IDLE);
     setPaymentError(null);
@@ -780,7 +813,11 @@ const BodabodaPage = () => {
                     {nearbyRiders.map((rider) => (
                       <div
                         key={rider._id || rider.id}
-                        className="bg-slate-900/80 border border-slate-700 hover:border-[#FF5E00]/60 rounded-2xl p-4 transition-all duration-200 flex flex-col justify-between group"
+                        className={`bg-slate-900/80 border rounded-2xl p-4 transition-all duration-200 flex flex-col justify-between group ${
+                          (selectedRider?._id || selectedRider?.id) === (rider._id || rider.id)
+                            ? 'border-[#FF5E00] ring-2 ring-[#FF5E00]/30'
+                            : 'border-slate-700 hover:border-[#FF5E00]/60'
+                        }`}
                       >
                         <div className="flex items-start gap-3.5 mb-4">
                           <div className="relative w-12 h-12 rounded-full overflow-hidden bg-slate-800 border border-slate-700 flex-shrink-0">
@@ -814,7 +851,24 @@ const BodabodaPage = () => {
                               🏍️ {rider.motorcycle?.brand || rider.vehicleType || 'Boda Boda'}
                               {rider.motorcycle?.plateNumber ? ` (${rider.motorcycle.plateNumber})` : ''}
                             </p>
+                            <p className="text-[10px] text-emerald-400 mt-1">Online · Available</p>
                           </div>
+                        </div>
+
+                        {rider.motorcycle?.photo && (
+                          <img
+                            src={rider.motorcycle.photo}
+                            alt={`${rider.name}'s motorcycle`}
+                            className="w-full h-24 object-cover rounded-xl mb-3"
+                          />
+                        )}
+                        <div className="flex items-center justify-between text-[11px] text-slate-400 mb-3">
+                          <span>
+                            {rider.distance !== null && rider.distance !== undefined && Number.isFinite(Number(rider.distance))
+                              ? `${rider.distance} km from pickup`
+                              : `Pickup area: ${selectedPickup}`}
+                          </span>
+                          <span className="capitalize">{farePreview?.fareType} rate</span>
                         </div>
 
                         <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
@@ -962,7 +1016,15 @@ const BodabodaPage = () => {
                     size="lg"
                     fullWidth
                     onClick={handleStartPayment}
-                    disabled={actionLoading}
+                    disabled={
+                      actionLoading ||
+                      !farePreview ||
+                      !ridersLoaded ||
+                      loadingRiders ||
+                      !nearbyRiders.some(
+                        (rider) => (rider._id || rider.id) === (selectedRider?._id || selectedRider?.id)
+                      )
+                    }
                     className="mt-2 bg-[#FF5E00] hover:bg-orange-600 text-white font-extrabold text-base py-3.5 shadow-lg shadow-[#FF5E00]/25"
                   >
                     {actionLoading ? (
