@@ -79,8 +79,11 @@ const BusinessProductsPage = () => {
     subcategory: '',
     stock: '',
     images: [],
+    hasVariations: false,
     variations: [],   // [{ name: '', options: '' }] – options as comma-string for input
-    addOns: [],       // [{ name: '', price: '' }]
+    hasAddOns: false,
+    addOns: [],       // [{ name: '', price: '', isRequired: false, isActive: true }]
+    maxAddOnsSelectable: '',
   });
   const [formErrors, setFormErrors] = useState({});
   const [imagePreviews, setImagePreviews] = useState([]);
@@ -166,12 +169,26 @@ const BusinessProductsPage = () => {
         subcategory: formData.subcategory,
         stock: parseInt(formData.stock) || 0,
         images: formData.images,
-        variations: formData.variations
-          .filter(v => v.name.trim() && v.options.trim())
-          .map(v => ({ name: v.name.trim(), options: v.options.split(',').map(o => o.trim()).filter(Boolean) })),
-        addOns: formData.addOns
-          .filter(a => a.name.trim() && a.price !== '')
-          .map(a => ({ name: a.name.trim(), price: parseFloat(a.price) || 0 })),
+        hasVariations: formData.hasVariations,
+        variations: formData.hasVariations
+          ? formData.variations
+              .filter(v => v.name.trim() && v.options.trim())
+              .map(v => ({ name: v.name.trim(), options: v.options.split(',').map(o => o.trim()).filter(Boolean) }))
+          : [],
+        hasAddOns: formData.hasAddOns,
+        addOns: formData.hasAddOns
+          ? formData.addOns
+              .filter(a => a.name.trim() && a.price !== '')
+              .map(a => ({
+                name: a.name.trim(),
+                price: parseFloat(a.price) || 0,
+                isRequired: Boolean(a.isRequired),
+                isActive: a.isActive !== false,
+              }))
+          : [],
+        maxAddOnsSelectable: formData.hasAddOns && formData.maxAddOnsSelectable !== ''
+          ? parseInt(formData.maxAddOnsSelectable) || null
+          : null,
       };
 
       const { data } = await productAPI.create(productData);
@@ -203,8 +220,16 @@ const BusinessProductsPage = () => {
       subcategory: product.subcategory || '',
       stock: (product.stock || 0).toString(),
       images: product.images || [],
-      variations: (product.variations || []).map(v => ({ name: v.name, options: v.options.join(', ') })),
-      addOns: (product.addOns || []).map(a => ({ name: a.name, price: a.price.toString() })),
+      hasVariations: Boolean(product.hasVariations) || (product.variations && product.variations.length > 0),
+      variations: (product.variations || []).map(v => ({ name: v.name, options: (v.options || []).join(', ') })),
+      hasAddOns: Boolean(product.hasAddOns) || (product.addOns && product.addOns.length > 0),
+      addOns: (product.addOns || []).map(a => ({
+        name: a.name,
+        price: (a.price || 0).toString(),
+        isRequired: Boolean(a.isRequired),
+        isActive: a.isActive !== false,
+      })),
+      maxAddOnsSelectable: product.maxAddOnsSelectable ? product.maxAddOnsSelectable.toString() : '',
     });
     setImagePreviews(product.images || []);
     setShowEditModal(true);
@@ -227,12 +252,26 @@ const BusinessProductsPage = () => {
         subcategory: formData.subcategory,
         stock: parseInt(formData.stock) || 0,
         images: formData.images,
-        variations: formData.variations
-          .filter(v => v.name.trim() && v.options.trim())
-          .map(v => ({ name: v.name.trim(), options: v.options.split(',').map(o => o.trim()).filter(Boolean) })),
-        addOns: formData.addOns
-          .filter(a => a.name.trim() && a.price !== '')
-          .map(a => ({ name: a.name.trim(), price: parseFloat(a.price) || 0 })),
+        hasVariations: formData.hasVariations,
+        variations: formData.hasVariations
+          ? formData.variations
+              .filter(v => v.name.trim() && v.options.trim())
+              .map(v => ({ name: v.name.trim(), options: v.options.split(',').map(o => o.trim()).filter(Boolean) }))
+          : [],
+        hasAddOns: formData.hasAddOns,
+        addOns: formData.hasAddOns
+          ? formData.addOns
+              .filter(a => a.name.trim() && a.price !== '')
+              .map(a => ({
+                name: a.name.trim(),
+                price: parseFloat(a.price) || 0,
+                isRequired: Boolean(a.isRequired),
+                isActive: a.isActive !== false,
+              }))
+          : [],
+        maxAddOnsSelectable: formData.hasAddOns && formData.maxAddOnsSelectable !== ''
+          ? parseInt(formData.maxAddOnsSelectable) || null
+          : null,
       };
 
       const { data } = await productAPI.update(selectedProduct._id, productData);
@@ -321,8 +360,11 @@ const BusinessProductsPage = () => {
       subcategory: '',
       stock: '',
       images: [],
+      hasVariations: false,
       variations: [],
+      hasAddOns: false,
       addOns: [],
+      maxAddOnsSelectable: '',
     });
     setFormErrors({});
     setImagePreviews([]);
@@ -467,11 +509,11 @@ const BusinessProductsPage = () => {
                   </div>
                 )}
                 <div className="absolute top-2 right-2 flex gap-2">
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${product.isActive !== false && product.stock > 0
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${product.isActive !== false && (product.stock > 0 || product.stockCount > 0)
                     ? 'bg-green-100 text-green-700'
                     : 'bg-red-100 text-red-700'
                     }`}>
-                    {product.isActive === false ? 'Inactive' : product.stock > 0 ? 'In Stock' : 'Out of Stock'}
+                    {product.isActive === false ? 'Inactive' : (product.stock > 0 || product.stockCount > 0) ? `In Stock (${Math.max(product.stock || 0, product.stockCount || 0)})` : 'Out of Stock'}
                   </span>
                 </div>
               </div>
@@ -493,9 +535,19 @@ const BusinessProductsPage = () => {
                   {product.subcategory && (
                     <span className="px-2 py-1 bg-secondary-100 rounded text-xs">{product.subcategory}</span>
                   )}
-                  <span className="text-xs">Stock: {product.stock || 0}</span>
+                  <span className="text-xs">Stock: {Math.max(product.stock || 0, product.stockCount || 0)}</span>
                   {product.deliveryFee > 0 && (
                     <span className="text-xs">Delivery: {formatCurrency(product.deliveryFee)}</span>
+                  )}
+                  {product.variations && product.variations.length > 0 && (
+                    <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-[11px] font-semibold">
+                      {product.variations.length} variation{product.variations.length > 1 ? 's' : ''}
+                    </span>
+                  )}
+                  {product.addOns && product.addOns.length > 0 && (
+                    <span className="px-2 py-0.5 bg-green-50 text-green-700 rounded text-[11px] font-semibold">
+                      {product.addOns.length} add-on{product.addOns.length > 1 ? 's' : ''}
+                    </span>
                   )}
                 </div>
 
@@ -642,114 +694,182 @@ const BusinessProductsPage = () => {
               {formErrors.stock && <p className="text-red-500 text-sm mt-1">{formErrors.stock}</p>}
             </div>
 
-            {/* ── Variations (Sizes, Colors, etc.) ──────────────────── */}
+            {/* ── Variations Toggle & Section ──────────────────────── */}
             <div className="col-span-2 border-t border-secondary-100 pt-4">
               <div className="flex items-center justify-between mb-3">
-                <div>
-                  <label className="block text-sm font-bold text-secondary-700">Product Variations</label>
-                  <p className="text-xs text-secondary-400 mt-0.5">e.g. Size → 40, 41, 42 · Color → Red, Blue</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setFormData(prev => ({ ...prev, variations: [...prev.variations, { name: '', options: '' }] }))}
-                  className="flex items-center gap-1.5 text-xs font-bold text-primary-600 bg-primary-50 hover:bg-primary-100 px-3 py-1.5 rounded-lg transition-colors"
-                >
-                  <Plus size={13} /> Add Variation
-                </button>
-              </div>
-              <div className="space-y-2">
-                {formData.variations.map((v, idx) => (
-                  <div key={idx} className="flex gap-2 items-center">
-                    <Input
-                      type="text"
-                      placeholder="Name (e.g. Size)"
-                      value={v.name}
-                      onChange={e => setFormData(prev => {
-                        const updated = [...prev.variations];
-                        updated[idx] = { ...updated[idx], name: e.target.value };
-                        return { ...prev, variations: updated };
-                      })}
-                      className="w-1/3"
-                    />
-                    <Input
-                      type="text"
-                      placeholder="Options (comma-separated: 40, 41, 42)"
-                      value={v.options}
-                      onChange={e => setFormData(prev => {
-                        const updated = [...prev.variations];
-                        updated[idx] = { ...updated[idx], options: e.target.value };
-                        return { ...prev, variations: updated };
-                      })}
-                      className="flex-1"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, variations: prev.variations.filter((_, i) => i !== idx) }))}
-                      className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
-                    >
-                      <X size={16} />
-                    </button>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="hasVariations"
+                    checked={formData.hasVariations}
+                    onChange={(e) => setFormData(prev => ({ ...prev, hasVariations: e.target.checked }))}
+                    className="w-4 h-4 text-primary-600 rounded"
+                  />
+                  <div>
+                    <label htmlFor="hasVariations" className="block text-sm font-bold text-secondary-700 cursor-pointer">
+                      Enable Product Variations
+                    </label>
+                    <p className="text-xs text-secondary-400 mt-0.5">e.g. Size → S, M, L · Color → Red, Blue · Weight → 250g, 500g</p>
                   </div>
-                ))}
-                {formData.variations.length === 0 && (
-                  <p className="text-xs text-secondary-400 italic py-1">No variations added yet. Click "Add Variation" to get started.</p>
+                </div>
+                {formData.hasVariations && (
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, variations: [...prev.variations, { name: '', options: '' }] }))}
+                    className="flex items-center gap-1.5 text-xs font-bold text-primary-600 bg-primary-50 hover:bg-primary-100 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    <Plus size={13} /> Add Variation
+                  </button>
                 )}
               </div>
+              {formData.hasVariations && (
+                <div className="space-y-2 pl-7">
+                  {formData.variations.map((v, idx) => (
+                    <div key={idx} className="flex gap-2 items-center">
+                      <Input
+                        type="text"
+                        placeholder="Name (e.g. Size)"
+                        value={v.name}
+                        onChange={e => setFormData(prev => {
+                          const updated = [...prev.variations];
+                          updated[idx] = { ...updated[idx], name: e.target.value };
+                          return { ...prev, variations: updated };
+                        })}
+                        className="w-1/3"
+                      />
+                      <Input
+                        type="text"
+                        placeholder="Options (comma-separated: 40, 41, 42)"
+                        value={v.options}
+                        onChange={e => setFormData(prev => {
+                          const updated = [...prev.variations];
+                          updated[idx] = { ...updated[idx], options: e.target.value };
+                          return { ...prev, variations: updated };
+                        })}
+                        className="flex-1"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, variations: prev.variations.filter((_, i) => i !== idx) }))}
+                        className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ))}
+                  {formData.variations.length === 0 && (
+                    <p className="text-xs text-secondary-400 italic py-1">Click "Add Variation" to create custom variation types for this product.</p>
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* ── Add-ons (Food extras, etc.) ───────────────────────── */}
+            {/* ── Add-ons Toggle & Section ──────────────────────────── */}
             <div className="col-span-2 border-t border-secondary-100 pt-4">
               <div className="flex items-center justify-between mb-3">
-                <div>
-                  <label className="block text-sm font-bold text-secondary-700">Add-ons / Extras</label>
-                  <p className="text-xs text-secondary-400 mt-0.5">e.g. Extra Avocado → KSh 30 · Extra Smokie → KSh 50</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setFormData(prev => ({ ...prev, addOns: [...prev.addOns, { name: '', price: '' }] }))}
-                  className="flex items-center gap-1.5 text-xs font-bold text-green-700 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg transition-colors"
-                >
-                  <Plus size={13} /> Add Extra
-                </button>
-              </div>
-              <div className="space-y-2">
-                {formData.addOns.map((a, idx) => (
-                  <div key={idx} className="flex gap-2 items-center">
-                    <Input
-                      type="text"
-                      placeholder="Extra name (e.g. Extra Avocado)"
-                      value={a.name}
-                      onChange={e => setFormData(prev => {
-                        const updated = [...prev.addOns];
-                        updated[idx] = { ...updated[idx], name: e.target.value };
-                        return { ...prev, addOns: updated };
-                      })}
-                      className="flex-1"
-                    />
-                    <Input
-                      type="number"
-                      placeholder="Price (KSh)"
-                      value={a.price}
-                      onChange={e => setFormData(prev => {
-                        const updated = [...prev.addOns];
-                        updated[idx] = { ...updated[idx], price: e.target.value };
-                        return { ...prev, addOns: updated };
-                      })}
-                      className="w-32"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, addOns: prev.addOns.filter((_, i) => i !== idx) }))}
-                      className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
-                    >
-                      <X size={16} />
-                    </button>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="hasAddOns"
+                    checked={formData.hasAddOns}
+                    onChange={(e) => setFormData(prev => ({ ...prev, hasAddOns: e.target.checked }))}
+                    className="w-4 h-4 text-green-600 rounded"
+                  />
+                  <div>
+                    <label htmlFor="hasAddOns" className="block text-sm font-bold text-secondary-700 cursor-pointer">
+                      Enable Product Add-ons
+                    </label>
+                    <p className="text-xs text-secondary-400 mt-0.5">e.g. Extra Avocado → KSh 30 · Protective Case → KSh 300</p>
                   </div>
-                ))}
-                {formData.addOns.length === 0 && (
-                  <p className="text-xs text-secondary-400 italic py-1">No add-ons yet. Great for food vendors (e.g. Extra Avocado, Smokie).</p>
+                </div>
+                {formData.hasAddOns && (
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, addOns: [...prev.addOns, { name: '', price: '', isRequired: false, isActive: true }] }))}
+                    className="flex items-center gap-1.5 text-xs font-bold text-green-700 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    <Plus size={13} /> Add Extra
+                  </button>
                 )}
               </div>
+              {formData.hasAddOns && (
+                <div className="space-y-3 pl-7">
+                  {/* Max add-ons limit */}
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-medium text-secondary-600 whitespace-nowrap">Max selectable:</label>
+                    <Input
+                      type="number"
+                      value={formData.maxAddOnsSelectable}
+                      onChange={(e) => setFormData(prev => ({ ...prev, maxAddOnsSelectable: e.target.value }))}
+                      placeholder="Unlimited"
+                      className="w-28"
+                    />
+                    <span className="text-[11px] text-secondary-400">(Leave empty for no limit)</span>
+                  </div>
+                  {formData.addOns.map((a, idx) => (
+                    <div key={idx} className="flex gap-2 items-center flex-wrap">
+                      <Input
+                        type="text"
+                        placeholder="Add-on name"
+                        value={a.name}
+                        onChange={e => setFormData(prev => {
+                          const updated = [...prev.addOns];
+                          updated[idx] = { ...updated[idx], name: e.target.value };
+                          return { ...prev, addOns: updated };
+                        })}
+                        className="flex-1 min-w-[140px]"
+                      />
+                      <Input
+                        type="number"
+                        placeholder="Price (KSh)"
+                        value={a.price}
+                        onChange={e => setFormData(prev => {
+                          const updated = [...prev.addOns];
+                          updated[idx] = { ...updated[idx], price: e.target.value };
+                          return { ...prev, addOns: updated };
+                        })}
+                        className="w-28"
+                      />
+                      <label className="flex items-center gap-1.5 text-xs text-secondary-600 cursor-pointer whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          checked={a.isRequired || false}
+                          onChange={e => setFormData(prev => {
+                            const updated = [...prev.addOns];
+                            updated[idx] = { ...updated[idx], isRequired: e.target.checked };
+                            return { ...prev, addOns: updated };
+                          })}
+                          className="w-3.5 h-3.5 text-red-500 rounded"
+                        />
+                        Required
+                      </label>
+                      <label className="flex items-center gap-1.5 text-xs text-secondary-600 cursor-pointer whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          checked={a.isActive !== false}
+                          onChange={e => setFormData(prev => {
+                            const updated = [...prev.addOns];
+                            updated[idx] = { ...updated[idx], isActive: e.target.checked };
+                            return { ...prev, addOns: updated };
+                          })}
+                          className="w-3.5 h-3.5 text-green-500 rounded"
+                        />
+                        Active
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, addOns: prev.addOns.filter((_, i) => i !== idx) }))}
+                        className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ))}
+                  {formData.addOns.length === 0 && (
+                    <p className="text-xs text-secondary-400 italic py-1">No add-ons yet. Click "Add Extra" to create optional extras for customers.</p>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="col-span-2">
@@ -871,114 +991,182 @@ const BusinessProductsPage = () => {
               {formErrors.stock && <p className="text-red-500 text-sm mt-1">{formErrors.stock}</p>}
             </div>
 
-            {/* ── Variations (Sizes, Colors, etc.) ──────────────────── */}
+            {/* ── Variations Toggle & Section ──────────────────────── */}
             <div className="col-span-2 border-t border-secondary-100 pt-4">
               <div className="flex items-center justify-between mb-3">
-                <div>
-                  <label className="block text-sm font-bold text-secondary-700">Product Variations</label>
-                  <p className="text-xs text-secondary-400 mt-0.5">e.g. Size → 40, 41, 42 · Color → Red, Blue</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setFormData(prev => ({ ...prev, variations: [...prev.variations, { name: '', options: '' }] }))}
-                  className="flex items-center gap-1.5 text-xs font-bold text-primary-600 bg-primary-50 hover:bg-primary-100 px-3 py-1.5 rounded-lg transition-colors"
-                >
-                  <Plus size={13} /> Add Variation
-                </button>
-              </div>
-              <div className="space-y-2">
-                {formData.variations.map((v, idx) => (
-                  <div key={idx} className="flex gap-2 items-center">
-                    <Input
-                      type="text"
-                      placeholder="Name (e.g. Size)"
-                      value={v.name}
-                      onChange={e => setFormData(prev => {
-                        const updated = [...prev.variations];
-                        updated[idx] = { ...updated[idx], name: e.target.value };
-                        return { ...prev, variations: updated };
-                      })}
-                      className="w-1/3"
-                    />
-                    <Input
-                      type="text"
-                      placeholder="Options (comma-separated: 40, 41, 42)"
-                      value={v.options}
-                      onChange={e => setFormData(prev => {
-                        const updated = [...prev.variations];
-                        updated[idx] = { ...updated[idx], options: e.target.value };
-                        return { ...prev, variations: updated };
-                      })}
-                      className="flex-1"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, variations: prev.variations.filter((_, i) => i !== idx) }))}
-                      className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
-                    >
-                      <X size={16} />
-                    </button>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="hasVariations"
+                    checked={formData.hasVariations}
+                    onChange={(e) => setFormData(prev => ({ ...prev, hasVariations: e.target.checked }))}
+                    className="w-4 h-4 text-primary-600 rounded"
+                  />
+                  <div>
+                    <label htmlFor="hasVariations" className="block text-sm font-bold text-secondary-700 cursor-pointer">
+                      Enable Product Variations
+                    </label>
+                    <p className="text-xs text-secondary-400 mt-0.5">e.g. Size → S, M, L · Color → Red, Blue · Weight → 250g, 500g</p>
                   </div>
-                ))}
-                {formData.variations.length === 0 && (
-                  <p className="text-xs text-secondary-400 italic py-1">No variations added yet. Click "Add Variation" to get started.</p>
+                </div>
+                {formData.hasVariations && (
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, variations: [...prev.variations, { name: '', options: '' }] }))}
+                    className="flex items-center gap-1.5 text-xs font-bold text-primary-600 bg-primary-50 hover:bg-primary-100 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    <Plus size={13} /> Add Variation
+                  </button>
                 )}
               </div>
+              {formData.hasVariations && (
+                <div className="space-y-2 pl-7">
+                  {formData.variations.map((v, idx) => (
+                    <div key={idx} className="flex gap-2 items-center">
+                      <Input
+                        type="text"
+                        placeholder="Name (e.g. Size)"
+                        value={v.name}
+                        onChange={e => setFormData(prev => {
+                          const updated = [...prev.variations];
+                          updated[idx] = { ...updated[idx], name: e.target.value };
+                          return { ...prev, variations: updated };
+                        })}
+                        className="w-1/3"
+                      />
+                      <Input
+                        type="text"
+                        placeholder="Options (comma-separated: 40, 41, 42)"
+                        value={v.options}
+                        onChange={e => setFormData(prev => {
+                          const updated = [...prev.variations];
+                          updated[idx] = { ...updated[idx], options: e.target.value };
+                          return { ...prev, variations: updated };
+                        })}
+                        className="flex-1"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, variations: prev.variations.filter((_, i) => i !== idx) }))}
+                        className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ))}
+                  {formData.variations.length === 0 && (
+                    <p className="text-xs text-secondary-400 italic py-1">Click "Add Variation" to create custom variation types for this product.</p>
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* ── Add-ons (Food extras, etc.) ───────────────────────── */}
+            {/* ── Add-ons Toggle & Section ──────────────────────────── */}
             <div className="col-span-2 border-t border-secondary-100 pt-4">
               <div className="flex items-center justify-between mb-3">
-                <div>
-                  <label className="block text-sm font-bold text-secondary-700">Add-ons / Extras</label>
-                  <p className="text-xs text-secondary-400 mt-0.5">e.g. Extra Avocado → KSh 30 · Extra Smokie → KSh 50</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setFormData(prev => ({ ...prev, addOns: [...prev.addOns, { name: '', price: '' }] }))}
-                  className="flex items-center gap-1.5 text-xs font-bold text-green-700 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg transition-colors"
-                >
-                  <Plus size={13} /> Add Extra
-                </button>
-              </div>
-              <div className="space-y-2">
-                {formData.addOns.map((a, idx) => (
-                  <div key={idx} className="flex gap-2 items-center">
-                    <Input
-                      type="text"
-                      placeholder="Extra name (e.g. Extra Avocado)"
-                      value={a.name}
-                      onChange={e => setFormData(prev => {
-                        const updated = [...prev.addOns];
-                        updated[idx] = { ...updated[idx], name: e.target.value };
-                        return { ...prev, addOns: updated };
-                      })}
-                      className="flex-1"
-                    />
-                    <Input
-                      type="number"
-                      placeholder="Price (KSh)"
-                      value={a.price}
-                      onChange={e => setFormData(prev => {
-                        const updated = [...prev.addOns];
-                        updated[idx] = { ...updated[idx], price: e.target.value };
-                        return { ...prev, addOns: updated };
-                      })}
-                      className="w-32"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, addOns: prev.addOns.filter((_, i) => i !== idx) }))}
-                      className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
-                    >
-                      <X size={16} />
-                    </button>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="hasAddOns"
+                    checked={formData.hasAddOns}
+                    onChange={(e) => setFormData(prev => ({ ...prev, hasAddOns: e.target.checked }))}
+                    className="w-4 h-4 text-green-600 rounded"
+                  />
+                  <div>
+                    <label htmlFor="hasAddOns" className="block text-sm font-bold text-secondary-700 cursor-pointer">
+                      Enable Product Add-ons
+                    </label>
+                    <p className="text-xs text-secondary-400 mt-0.5">e.g. Extra Avocado → KSh 30 · Protective Case → KSh 300</p>
                   </div>
-                ))}
-                {formData.addOns.length === 0 && (
-                  <p className="text-xs text-secondary-400 italic py-1">No add-ons yet. Great for food vendors (e.g. Extra Avocado, Smokie).</p>
+                </div>
+                {formData.hasAddOns && (
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, addOns: [...prev.addOns, { name: '', price: '', isRequired: false, isActive: true }] }))}
+                    className="flex items-center gap-1.5 text-xs font-bold text-green-700 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    <Plus size={13} /> Add Extra
+                  </button>
                 )}
               </div>
+              {formData.hasAddOns && (
+                <div className="space-y-3 pl-7">
+                  {/* Max add-ons limit */}
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-medium text-secondary-600 whitespace-nowrap">Max selectable:</label>
+                    <Input
+                      type="number"
+                      value={formData.maxAddOnsSelectable}
+                      onChange={(e) => setFormData(prev => ({ ...prev, maxAddOnsSelectable: e.target.value }))}
+                      placeholder="Unlimited"
+                      className="w-28"
+                    />
+                    <span className="text-[11px] text-secondary-400">(Leave empty for no limit)</span>
+                  </div>
+                  {formData.addOns.map((a, idx) => (
+                    <div key={idx} className="flex gap-2 items-center flex-wrap">
+                      <Input
+                        type="text"
+                        placeholder="Add-on name"
+                        value={a.name}
+                        onChange={e => setFormData(prev => {
+                          const updated = [...prev.addOns];
+                          updated[idx] = { ...updated[idx], name: e.target.value };
+                          return { ...prev, addOns: updated };
+                        })}
+                        className="flex-1 min-w-[140px]"
+                      />
+                      <Input
+                        type="number"
+                        placeholder="Price (KSh)"
+                        value={a.price}
+                        onChange={e => setFormData(prev => {
+                          const updated = [...prev.addOns];
+                          updated[idx] = { ...updated[idx], price: e.target.value };
+                          return { ...prev, addOns: updated };
+                        })}
+                        className="w-28"
+                      />
+                      <label className="flex items-center gap-1.5 text-xs text-secondary-600 cursor-pointer whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          checked={a.isRequired || false}
+                          onChange={e => setFormData(prev => {
+                            const updated = [...prev.addOns];
+                            updated[idx] = { ...updated[idx], isRequired: e.target.checked };
+                            return { ...prev, addOns: updated };
+                          })}
+                          className="w-3.5 h-3.5 text-red-500 rounded"
+                        />
+                        Required
+                      </label>
+                      <label className="flex items-center gap-1.5 text-xs text-secondary-600 cursor-pointer whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          checked={a.isActive !== false}
+                          onChange={e => setFormData(prev => {
+                            const updated = [...prev.addOns];
+                            updated[idx] = { ...updated[idx], isActive: e.target.checked };
+                            return { ...prev, addOns: updated };
+                          })}
+                          className="w-3.5 h-3.5 text-green-500 rounded"
+                        />
+                        Active
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, addOns: prev.addOns.filter((_, i) => i !== idx) }))}
+                        className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ))}
+                  {formData.addOns.length === 0 && (
+                    <p className="text-xs text-secondary-400 italic py-1">No add-ons yet. Click "Add Extra" to create optional extras for customers.</p>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="col-span-2">

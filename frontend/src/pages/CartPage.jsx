@@ -132,18 +132,22 @@ const CartPage = () => {
                     <p className="text-sm text-gray-500 mt-1">
                       {item.category}
                     </p>
-                    {item.selectedOptions && Object.keys(item.selectedOptions).length > 0 && (
-                      <p className="text-xs text-gray-400 mt-0.5">
+                    {item.variant ? (
+                      <p className="text-xs text-secondary-600 font-semibold mt-0.5">
+                        {item.variant}
+                      </p>
+                    ) : item.selectedOptions && Object.keys(item.selectedOptions).length > 0 ? (
+                      <p className="text-xs text-gray-500 font-medium mt-0.5">
                         {Object.entries(item.selectedOptions).map(([k, v]) => `${k}: ${v}`).join(' · ')}
                       </p>
-                    )}
+                    ) : null}
                     {item.selectedAddOns && item.selectedAddOns.length > 0 && (
                       <p className="text-xs text-[#027A2B] mt-0.5 font-medium">
                         + {item.selectedAddOns.map(a => `${a.name} (+KSh ${a.price})`).join(', ')}
                       </p>
                     )}
                     <p className="text-lg font-bold text-gray-900 mt-2">
-                      KSh {(((item.price || 0) + (item.selectedAddOns || []).reduce((s, a) => s + (a.price || 0), 0))).toLocaleString()}
+                      KSh {(((item.price || 0) + (item.selectedAddOns || []).reduce((s, a) => s + (Number(a.price) || 0), 0))).toLocaleString()}
                     </p>
                   </div>
 
@@ -152,13 +156,14 @@ const CartPage = () => {
                     <button
                       onClick={() => handleRemove(item.cartKey || item._id)}
                       className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                      title="Remove from cart"
                     >
                       <Trash2 size={18} />
                     </button>
                     <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
                       <button
                         onClick={() => updateQuantity(item.cartKey || item._id, item.quantity - 1)}
-                        className="p-1 hover:bg-white rounded transition-colors"
+                        className="p-1 hover:bg-white rounded transition-colors disabled:opacity-40"
                         disabled={item.quantity <= 1}
                       >
                         <Minus size={14} />
@@ -168,8 +173,12 @@ const CartPage = () => {
                       </span>
                       <button
                         onClick={() => updateQuantity(item.cartKey || item._id, item.quantity + 1)}
-                        className="p-1 hover:bg-white rounded transition-colors"
-                        disabled={item.quantity >= (item.stock || 10)}
+                        className="p-1 hover:bg-white rounded transition-colors disabled:opacity-40"
+                        disabled={
+                          (item.maxStock !== undefined && item.maxStock !== null && item.maxStock > 0)
+                            ? item.quantity >= item.maxStock
+                            : (item.stock !== undefined && item.stock !== null && item.stock > 0 ? item.quantity >= item.stock : false)
+                        }
                       >
                         <Plus size={14} />
                       </button>

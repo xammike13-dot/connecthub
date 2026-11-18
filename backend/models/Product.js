@@ -62,10 +62,26 @@ const variationSchema = new mongoose.Schema({
   options: [{ type: String, trim: true }],              // e.g. ["40","41","42"]
 }, { _id: false });
 
+const variantSchema = new mongoose.Schema({
+  name: { type: String, trim: true },              // e.g. "Size: 42, Color: Black" or "42"
+  value: { type: String, trim: true },             // e.g. "42" or "42 / Black"
+  options: { type: mongoose.Schema.Types.Mixed, default: {} }, // e.g. { "Size": "42", "Color": "Black" }
+  price: { type: Number, min: 0 },                 // variant-specific price
+  priceAdjustment: { type: Number, default: 0 },   // difference relative to base price
+  stock: { type: Number, min: 0 },                 // individual stock quantity for this variant
+  sku: { type: String, trim: true },
+  image: { type: String, trim: true },             // variant-specific image URL
+  isActive: { type: Boolean, default: true },
+  isAvailable: { type: Boolean, default: true },
+}, { _id: true });
+
 const addOnSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },   // e.g. "Extra Avocado"
   price: { type: Number, required: true, min: 0 },      // e.g. 30
-}, { _id: false });
+  isActive: { type: Boolean, default: true },
+  isAvailable: { type: Boolean, default: true },
+  isRequired: { type: Boolean, default: false },
+}, { _id: true });
 
 const productSchema = new mongoose.Schema(
   {
@@ -140,7 +156,6 @@ const productSchema = new mongoose.Schema(
     },
     stockCount: {
       type: Number,
-      default: 0,
       min: 0,
     },
     sku: {
@@ -153,14 +168,22 @@ const productSchema = new mongoose.Schema(
     tags: [{
       type: String,
     }],
-    variants: [{
-      name: String,
-      value: String,
-      price: Number,
-      stock: Number,
-    }],
+    hasVariations: {
+      type: Boolean,
+      default: false,
+    },
     variations: [variationSchema],
+    variants: [variantSchema],
+    hasAddOns: {
+      type: Boolean,
+      default: false,
+    },
     addOns: [addOnSchema],
+    maxAddOnsSelectable: {
+      type: Number,
+      default: null,
+      min: 0,
+    },
     rating: {
       type: Number,
       default: 0,
@@ -207,17 +230,56 @@ const productSchema = new mongoose.Schema(
 );
 
 // Create index for text search and geospatial queries
-// Auto-derive categorySlug and sync stockCount on save
+// Auto-derive categorySlug and ensure stock & stockCount stay synchronized
 productSchema.pre('save', function (next) {
   if (this.category && !this.categorySlug) {
     this.categorySlug = this.category.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
   }
-  if (this.stockCount !== undefined && this.stock === undefined) {
-    this.stock = this.stockCount;
-  } else if (this.stock !== undefined && (!this.stockCount || this.stockCount === 0)) {
+
+  // Ensure stock and stockCount are always numbers and strictly synchronized
+  if (this.stock !== undefined && this.stock !== null) {
+    this.stock = Number(this.stock);
     this.stockCount = this.stock;
+  } else if (this.stockCount !== undefined && this.stockCount !== null) {
+    this.stockCount = Number(this.stockCount);
+    this.stock = this.stockCount;
+  } else {
+    this.stock = 0;
+    this.stockCount = 0;
   }
+
+  // Sync hasVariations / hasAddOns flags based on presence of data
+  if (Array.isArray(this.variations) && this.variations.length > 0 && this.hasVariations === undefined) {
+    this.hasVariations = true;
+  }
+  if (Array.isArray(this.addOns) && this.addOns.length > 0 && this.hasAddOns === undefined) {
+    this.hasAddOns = true;
+  }
+
   next();
+});
+
+productSchema.pre(['findOneAndUpdate', 'updateOne', 'updateMany'], function () {
+  const update = this.getUpdate();
+  if (!update) return;
+
+  if (update.stock !== undefined && update.stock !== null) {
+    update.stock = Number(update.stock);
+    update.stockCount = update.stock;
+  } else if (update.stockCount !== undefined && update.stockCount !== null) {
+    update.stockCount = Number(update.stockCount);
+    update.stock = update.stockCount;
+  }
+
+  if (update.$set) {
+    if (update.$set.stock !== undefined && update.$set.stock !== null) {
+      update.$set.stock = Number(update.$set.stock);
+      update.$set.stockCount = update.$set.stock;
+    } else if (update.$set.stockCount !== undefined && update.$set.stockCount !== null) {
+      update.$set.stockCount = Number(update.$set.stockCount);
+      update.$set.stock = update.$set.stockCount;
+    }
+  }
 });
 
 productSchema.index({ categorySlug: 1, isActive: 1, createdAt: -1 });

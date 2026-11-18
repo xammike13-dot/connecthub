@@ -4,7 +4,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ChevronRight, Star, Heart, Minus, Plus, ShoppingCart,
   Truck, Shield, RotateCcw, Share2, Store, Package,
-  CheckCircle2, AlertTriangle, ChevronLeft, Loader2, MapPin,
+  CheckCircle2, AlertTriangle, ChevronLeft, Loader2, MapPin, Zap,
 } from 'lucide-react';
 import { productAPI } from '../services/api';
 import { useCart } from '../context/CartContext';
@@ -307,6 +307,12 @@ export default function ProductDetailsPage() {
       .then((res) => {
         const p = res.data?.product || res.data?.data || res.data;
         setProduct(p);
+
+        // Pre-select required add-ons
+        const requiredExtras = (p?.addOns || [])
+          .filter((a) => a.isRequired && a.isActive !== false && a.isAvailable !== false)
+          .map((a) => ({ name: a.name, price: Number(a.price) || 0 }));
+        setSelectedAddOns(requiredExtras);
       })
       .catch(() => setError('Product not found.'))
       .finally(() => setLoading(false));
@@ -329,7 +335,34 @@ export default function ProductDetailsPage() {
     return img?.url || img?.secure_url || '';
   }).filter(Boolean);
 
-  const mainImg = imgs[currentImageIdx] || null;
+  // ── Variations & Variants ──────────────────────────────────────────────────
+  const variations = product?.variations || [];
+  const variants = product?.variants || [];
+  const addOns = product?.addOns || [];
+
+  // Match selected variant from variants list
+  let matchedVariant = null;
+  if (variants.length > 0 && Object.keys(selectedOptions).length > 0) {
+    matchedVariant = variants.find((v) => {
+      if (v.options && typeof v.options === 'object') {
+        const opts = v.options instanceof Map ? Object.fromEntries(v.options) : v.options;
+        return Object.entries(selectedOptions).every(([k, val]) => opts[k] === val);
+      }
+      if (v.name && v.value) {
+        return selectedOptions[v.name] === v.value;
+      }
+      return false;
+    });
+
+    if (!matchedVariant) {
+      const selectedStr = Object.values(selectedOptions).join(' / ');
+      matchedVariant = variants.find((v) => v.value === selectedStr || v.name === selectedStr);
+    }
+  }
+
+  // Variant image takes priority if defined
+  const variantImg = matchedVariant?.image || null;
+  const mainImg = variantImg || imgs[currentImageIdx] || null;
 
   // ── Swipe handlers ─────────────────────────────────────────────────────────
   const handleTouchStart = (e) => {
@@ -346,10 +379,8 @@ export default function ProductDetailsPage() {
     const minDistance = 45;
 
     if (diff > minDistance) {
-      // Swiped left -> next image
       setCurrentImageIdx((prev) => (prev + 1) % imgs.length);
     } else if (diff < -minDistance) {
-      // Swiped right -> prev image
       setCurrentImageIdx((prev) => (prev - 1 + imgs.length) % imgs.length);
     }
 
@@ -357,28 +388,41 @@ export default function ProductDetailsPage() {
     touchEndX.current = null;
   };
 
-  // ── Variations & Price Differences ─────────────────────────────────────────
-  const variations = product?.variations || [];
-  const variants = product?.variants || [];
-
-  // Calculate any price difference from variants
-  let variantPriceDiff = 0;
-  if (variants.length > 0 && Object.keys(selectedOptions).length > 0) {
-    const matchedVariant = variants.find((v) => {
-      if (v.name && v.value) {
-        return selectedOptions[v.name] === v.value;
-      }
-      return false;
-    });
-    if (matchedVariant?.price && matchedVariant.price > (product?.price || 0)) {
-      variantPriceDiff = matchedVariant.price - (product?.price || 0);
+  // Base price calculation: variant price (if specified and > 0) or base price + adjustment
+  let basePrice = product?.price || 0;
+  if (matchedVariant) {
+    if (matchedVariant.price !== undefined && matchedVariant.price !== null && matchedVariant.price > 0) {
+      basePrice = Number(matchedVariant.price);
+    } else if (matchedVariant.priceAdjustment) {
+      basePrice = (product?.price || 0) + Number(matchedVariant.priceAdjustment);
     }
   }
 
   const addOnsTotal = selectedAddOns.reduce((sum, a) => sum + (Number(a.price) || 0), 0);
-  const basePrice = (product?.price || 0) + variantPriceDiff;
   const unitPrice = basePrice + addOnsTotal;
   const totalPrice = unitPrice * quantity;
+
+  // Stock calculation: resolve base stock safely, or variant stock if variant selected
+  const resolvedBaseStock = (product?.stock !== undefined && product?.stock !== null)
+    ? Number(product.stock)
+    : (product?.stockCount !== undefined && product?.stockCount !== null ? Number(product.stockCount) : 0);
+
+  let displayStock = resolvedBaseStock;
+  if (matchedVariant && matchedVariant.stock !== undefined && matchedVariant.stock !== null) {
+    displayStock = Number(matchedVariant.stock);
+  }
+
+  // Availability status
+  const isVariantUnavailable = matchedVariant && (matchedVariant.isActive === false || matchedVariant.isAvailable === false);
+  const isOutOfStock = displayStock <= 0 || product?.isActive === false || isVariantUnavailable;
+  const isLowStock = !isOutOfStock && displayStock <= 5;
+
+  // Auto-clamp quantity if stock limit is reached
+  useEffect(() => {
+    if (displayStock > 0 && quantity > displayStock) {
+      setQuantity(displayStock);
+    }
+  }, [displayStock, quantity]);
 
   // Validate required variations
   const requiredVariations = variations.filter((v) => v.options?.length > 0);
@@ -394,15 +438,29 @@ export default function ProductDetailsPage() {
   }, []);
 
   const handleAddOnToggle = useCallback((addOn) => {
+    if (addOn.isRequired) return;
+    if (addOn.isActive === false || addOn.isAvailable === false) return;
+
     setSelectedAddOns((prev) => {
       const exists = prev.find((a) => a.name.toLowerCase() === addOn.name.toLowerCase());
-      return exists
-        ? prev.filter((a) => a.name.toLowerCase() !== addOn.name.toLowerCase())
-        : [...prev, { name: addOn.name, price: Number(addOn.price) || 0 }];
+      if (exists) {
+        return prev.filter((a) => a.name.toLowerCase() !== addOn.name.toLowerCase());
+      }
+      if (product?.maxAddOnsSelectable) {
+        const optionalCount = prev.filter((a) => {
+          const orig = product.addOns?.find((o) => o.name.toLowerCase() === a.name.toLowerCase());
+          return !orig?.isRequired;
+        }).length;
+        if (optionalCount >= product.maxAddOnsSelectable) {
+          toast?.show?.(`Maximum of ${product.maxAddOnsSelectable} extras allowed`, 'warning');
+          return prev;
+        }
+      }
+      return [...prev, { name: addOn.name, price: Number(addOn.price) || 0 }];
     });
-  }, []);
+  }, [product, toast]);
 
-  const handleAddToCart = useCallback(() => {
+  const handleAddToCart = useCallback((andCheckout = false) => {
     if (!allVariationsSelected) {
       const unselected = requiredVariations
         .filter((v) => !selectedOptions[v.name])
@@ -412,13 +470,27 @@ export default function ProductDetailsPage() {
       return;
     }
 
+    if (isOutOfStock) {
+      toast?.show?.('This item is currently out of stock', 'error');
+      return;
+    }
+
     if (cart?.addToCart) {
-      cart.addToCart(product, quantity, selectedOptions, selectedAddOns);
+      cart.addToCart(product, quantity, selectedOptions, selectedAddOns, matchedVariant, basePrice);
     }
     setAddedToCart(true);
     toast?.show?.('Added to cart!', 'success');
-    setTimeout(() => setAddedToCart(false), 2000);
-  }, [allVariationsSelected, requiredVariations, selectedOptions, cart, product, quantity, selectedAddOns, toast]);
+
+    if (andCheckout) {
+      navigate('/checkout');
+    } else {
+      setTimeout(() => setAddedToCart(false), 2000);
+    }
+  }, [allVariationsSelected, requiredVariations, selectedOptions, isOutOfStock, cart, product, quantity, selectedAddOns, matchedVariant, basePrice, toast, navigate]);
+
+  const handleBuyNow = useCallback(() => {
+    handleAddToCart(true);
+  }, [handleAddToCart]);
 
   const handleWishlist = useCallback(async () => {
     setIsWished((prev) => !prev);
@@ -469,7 +541,6 @@ export default function ProductDetailsPage() {
     category,
     subcategory,
     condition,
-    addOns = [],
     stock,
     stockCount,
     rating = 4.8,
@@ -478,10 +549,6 @@ export default function ProductDetailsPage() {
     business,
     isLive,
   } = product;
-
-  const displayStock = stockCount !== undefined ? stockCount : stock;
-  const isOutOfStock = displayStock === 0 || product.isActive === false;
-  const isLowStock = displayStock !== undefined && displayStock !== null && displayStock > 0 && displayStock < 5;
 
   // Discount calculation
   const comparePrice = originalPrice || oldPrice;
@@ -633,7 +700,7 @@ export default function ProductDetailsPage() {
           {/* ════════════════ RIGHT: Product Information & Customisation ════════════════ */}
           <div className="flex flex-col gap-5">
 
-            {/* Category tag */}
+            {/* 1. Product category */}
             {category && (
               <div className="flex items-center gap-2">
                 <Link to={`/c/${categorySlug}`} className="inline-flex">
@@ -649,7 +716,7 @@ export default function ProductDetailsPage() {
               </div>
             )}
 
-            {/* Title + Action buttons */}
+            {/* 2. Product name */}
             <div className="flex items-start justify-between gap-3">
               <h1 className="text-2xl md:text-3xl font-black text-gray-900 leading-tight flex-1">
                 {name}
@@ -676,73 +743,9 @@ export default function ProductDetailsPage() {
               </div>
             </div>
 
-            {/* Rating + Real Business Store Row */}
-            <div className="flex items-center flex-wrap gap-3">
-              <div className="flex items-center gap-1.5 bg-yellow-50 border border-yellow-100 px-3 py-1.5 rounded-full">
-                <Star size={14} className="fill-yellow-400 text-yellow-400" />
-                <span className="text-sm font-black text-gray-800">{rating}</span>
-                <span className="text-xs text-gray-400">({numReviews} reviews)</span>
-              </div>
-
-              {/* Clickable real business profile link */}
-              <Link
-                to={businessId ? `/marketplace?business=${businessId}` : `/c/${categorySlug}`}
-                className="flex items-center gap-2 text-sm text-gray-600 hover:text-[#FF5E00] transition-colors p-1 rounded-lg"
-                title={`Visit ${vendorName}'s store`}
-              >
-                {businessLogo ? (
-                  <img
-                    src={businessLogo}
-                    alt={vendorName}
-                    className="w-6 h-6 rounded-full object-cover border border-gray-200"
-                  />
-                ) : (
-                  <Store size={15} className="text-gray-400" />
-                )}
-                <span>
-                  Sold by <strong className="text-gray-900 hover:underline">{vendorName}</strong>
-                  {businessCampus && <span className="text-xs text-gray-400 ml-1">({businessCampus})</span>}
-                </span>
-              </Link>
-            </div>
-
-            {/* Pricing */}
-            <div className="flex items-baseline gap-3 flex-wrap">
-              <span className="text-3xl md:text-4xl font-black text-[#FF5E00] leading-none">
-                KSh {totalPrice.toLocaleString()}
-              </span>
-              {hasDiscount && (
-                <span className="text-lg text-gray-400 line-through leading-none">
-                  KSh {(comparePrice * quantity).toLocaleString()}
-                </span>
-              )}
-              {addOnsTotal > 0 && (
-                <span className="text-xs text-gray-500">
-                  (Includes KSh {(addOnsTotal * quantity).toLocaleString()} for selected extras)
-                </span>
-              )}
-            </div>
-
-            {/* Stock / Availability Status */}
-            <div>
-              {isOutOfStock ? (
-                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-3 py-1.5 rounded-full">
-                  <Package size={14} /> Out of Stock
-                </span>
-              ) : isLowStock ? (
-                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-orange-700 bg-orange-50 border border-orange-200 px-3 py-1.5 rounded-full animate-pulse">
-                  🔥 Only {displayStock} left in stock!
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full">
-                  <CheckCircle2 size={14} /> In Stock ({displayStock !== undefined ? `${displayStock} available` : 'Ready to ship'})
-                </span>
-              )}
-            </div>
-
-            {/* ── Product Variations (Sizes, Colours, Weights, etc.) ──── */}
-            {variations.length > 0 && (
-              <div className="space-y-4 pt-2">
+            {/* 3. Product variations configured by the business */}
+            {product?.hasVariations !== false && variations.length > 0 && (
+              <div className="space-y-4 pt-1">
                 {variations.map((variation) => {
                   const selectedVal = selectedOptions[variation.name];
                   return (
@@ -787,37 +790,55 @@ export default function ProductDetailsPage() {
               </div>
             )}
 
-            {/* ── Add-ons & Extras ──────────────────────────────────── */}
-            {addOns.length > 0 && (
-              <div className="space-y-2.5 pt-2">
-                <span className="text-xs font-bold text-gray-700 uppercase tracking-wider block">
-                  Optional Extras & Add-ons:
-                </span>
+            {/* 4. Product add-ons configured by the business */}
+            {product?.hasAddOns !== false && addOns.length > 0 && (
+              <div className="space-y-2.5 pt-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-gray-700 uppercase tracking-wider block">
+                    Product Add-ons & Extras:
+                  </span>
+                  {product?.maxAddOnsSelectable ? (
+                    <span className="text-[11px] text-gray-500 font-medium">
+                      (Max {product.maxAddOnsSelectable} selectable)
+                    </span>
+                  ) : null}
+                </div>
                 <div className="space-y-2">
                   {addOns.map((addOn) => {
                     const checked = selectedAddOns.some(
                       (a) => a.name.toLowerCase() === addOn.name.toLowerCase()
                     );
                     const extraPrice = Number(addOn.price) || 0;
+                    const isAvail = addOn.isActive !== false && addOn.isAvailable !== false;
                     return (
                       <label
                         key={addOn.name}
-                        className={`flex items-center justify-between gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                          checked
-                            ? 'border-[#027A2B] bg-emerald-50/50'
-                            : 'border-gray-100 bg-gray-50/80 hover:border-gray-200'
+                        className={`flex items-center justify-between gap-3 p-3 rounded-xl border-2 transition-all ${
+                          !isAvail
+                            ? 'opacity-50 cursor-not-allowed border-gray-200 bg-gray-50'
+                            : checked
+                              ? 'border-[#027A2B] bg-emerald-50/50 cursor-pointer'
+                              : 'border-gray-100 bg-gray-50/80 hover:border-gray-200 cursor-pointer'
                         }`}
                       >
                         <div className="flex items-center gap-3">
                           <input
                             type="checkbox"
                             checked={checked}
+                            disabled={!isAvail || addOn.isRequired}
                             onChange={() => handleAddOnToggle(addOn)}
                             className="w-4 h-4 accent-[#027A2B] cursor-pointer rounded"
                           />
-                          <span className={`text-sm font-bold ${checked ? 'text-[#027A2B]' : 'text-gray-800'}`}>
-                            {addOn.name}
-                          </span>
+                          <div>
+                            <span className={`text-sm font-bold ${checked ? 'text-[#027A2B]' : 'text-gray-800'}`}>
+                              {addOn.name}
+                            </span>
+                            {addOn.isRequired && (
+                              <span className="ml-2 text-[10px] font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded">
+                                Required
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <span className={`text-sm font-bold ${checked ? 'text-[#027A2B]' : 'text-gray-600'}`}>
                           +KSh {extraPrice.toLocaleString()}
@@ -829,54 +850,149 @@ export default function ProductDetailsPage() {
               </div>
             )}
 
-            {/* ── Quantity Selector ─────────────────────────────────── */}
-            <div className="flex items-center gap-4 pt-2">
+            {/* 5. Product rating and seller information */}
+            <div className="flex items-center flex-wrap gap-3 pt-1">
+              <div className="flex items-center gap-1.5 bg-yellow-50 border border-yellow-100 px-3 py-1.5 rounded-full">
+                <Star size={14} className="fill-yellow-400 text-yellow-400" />
+                <span className="text-sm font-black text-gray-800">{rating}</span>
+                <span className="text-xs text-gray-400">({numReviews} reviews)</span>
+              </div>
+
+              {/* Clickable real business profile link */}
+              <Link
+                to={businessId ? `/marketplace?business=${businessId}` : `/c/${categorySlug}`}
+                className="flex items-center gap-2 text-sm text-gray-600 hover:text-[#FF5E00] transition-colors p-1 rounded-lg"
+                title={`Visit ${vendorName}'s store`}
+              >
+                {businessLogo ? (
+                  <img
+                    src={businessLogo}
+                    alt={vendorName}
+                    className="w-6 h-6 rounded-full object-cover border border-gray-200"
+                  />
+                ) : (
+                  <Store size={15} className="text-gray-400" />
+                )}
+                <span>
+                  Sold by <strong className="text-gray-900 hover:underline">{vendorName}</strong>
+                  {businessCampus && <span className="text-xs text-gray-400 ml-1">({businessCampus})</span>}
+                </span>
+              </Link>
+            </div>
+
+            {/* 6. Product price */}
+            <div className="flex items-baseline gap-3 flex-wrap pt-1">
+              <span className="text-3xl md:text-4xl font-black text-[#FF5E00] leading-none">
+                KSh {totalPrice.toLocaleString()}
+              </span>
+              {hasDiscount && (
+                <span className="text-lg text-gray-400 line-through leading-none">
+                  KSh {(comparePrice * quantity).toLocaleString()}
+                </span>
+              )}
+              {addOnsTotal > 0 && (
+                <span className="text-xs text-gray-500">
+                  (Includes KSh {(addOnsTotal * quantity).toLocaleString()} for selected extras)
+                </span>
+              )}
+            </div>
+
+            {/* 7. Actual stock availability and quantity */}
+            <div>
+              {isOutOfStock ? (
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-3.5 py-1.5 rounded-full">
+                  <Package size={14} /> Out of Stock
+                </span>
+              ) : isLowStock ? (
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-orange-700 bg-orange-50 border border-orange-200 px-3.5 py-1.5 rounded-full animate-pulse">
+                  🔥 Only {displayStock} {displayStock === 1 ? 'item' : 'items'} left
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 rounded-full">
+                  <CheckCircle2 size={14} /> In Stock — {displayStock} {displayStock === 1 ? 'item' : 'items'} available
+                </span>
+              )}
+            </div>
+
+            {/* 8. Quantity selector */}
+            <div className="flex items-center gap-4 pt-1">
               <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">Quantity:</span>
               <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden bg-white shadow-2xs">
                 <button
                   type="button"
                   onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                  disabled={quantity <= 1}
+                  disabled={quantity <= 1 || isOutOfStock}
                   className="w-10 h-10 flex items-center justify-center hover:bg-gray-100 transition-colors text-gray-700 disabled:opacity-40"
+                  aria-label="Decrease quantity"
                 >
                   <Minus size={16} />
                 </button>
-                <span className="w-10 text-center text-sm font-black text-gray-900">{quantity}</span>
+                <span className="w-12 text-center text-sm font-black text-gray-900">{quantity}</span>
                 <button
                   type="button"
-                  onClick={() => setQuantity((q) => q + 1)}
-                  disabled={isOutOfStock}
+                  onClick={() => setQuantity((q) => (displayStock > 0 ? Math.min(displayStock, q + 1) : q + 1))}
+                  disabled={isOutOfStock || (displayStock !== undefined && displayStock !== null && quantity >= displayStock)}
                   className="w-10 h-10 flex items-center justify-center hover:bg-gray-100 transition-colors text-gray-700 disabled:opacity-40"
+                  aria-label="Increase quantity"
                 >
                   <Plus size={16} />
                 </button>
               </div>
+              {displayStock > 0 && quantity >= displayStock && (
+                <span className="text-[11px] text-gray-500 font-medium">Max available reached</span>
+              )}
             </div>
 
-            {/* ── Desktop CTA ───────────────────────────────────────── */}
+            {/* 9. Delivery and buyer protection information */}
+            <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-2xl border border-gray-100 text-xs text-gray-600 mt-1">
+              <div className="flex items-center gap-2.5">
+                <Truck size={16} className="text-[#027A2B] flex-shrink-0" />
+                <span><strong className="text-gray-800">Campus Delivery Available</strong> — Kesses · Chebarus · Mabs · Stage</span>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <Shield size={16} className="text-[#027A2B] flex-shrink-0" />
+                <span><strong className="text-gray-800">Buyer Protection</strong> — Escrow secured payment</span>
+              </div>
+            </div>
+
+            {/* 10. Add to Cart / Buy Now buttons */}
             <div className="hidden md:flex flex-col gap-2 pt-2">
-              <button
-                type="button"
-                onClick={handleAddToCart}
-                disabled={isOutOfStock}
-                className={`w-full py-4 px-6 rounded-2xl text-white font-black text-base flex items-center justify-center gap-2.5 transition-all shadow-sm active:scale-98 ${
-                  addedToCart
-                    ? 'bg-[#027A2B]'
-                    : isOutOfStock
-                      ? 'bg-gray-300 cursor-not-allowed'
-                      : !allVariationsSelected
-                        ? 'bg-orange-400 hover:bg-[#FF5E00]'
-                        : 'bg-[#FF5E00] hover:bg-orange-600 shadow-orange-100'
-                }`}
-              >
-                {addedToCart ? (
-                  <><CheckCircle2 size={20} /> Added to Cart!</>
-                ) : isOutOfStock ? (
-                  'Out of Stock'
-                ) : (
-                  <><ShoppingCart size={20} /> Add to Cart · KSh {totalPrice.toLocaleString()}</>
-                )}
-              </button>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleAddToCart(false)}
+                  disabled={isOutOfStock}
+                  className={`flex-1 py-4 px-6 rounded-2xl text-white font-black text-base flex items-center justify-center gap-2.5 transition-all shadow-sm active:scale-98 ${
+                    addedToCart
+                      ? 'bg-[#027A2B]'
+                      : isOutOfStock
+                        ? 'bg-gray-300 cursor-not-allowed'
+                        : !allVariationsSelected
+                          ? 'bg-orange-400 hover:bg-[#FF5E00]'
+                          : 'bg-[#FF5E00] hover:bg-orange-600 shadow-orange-100'
+                  }`}
+                >
+                  {addedToCart ? (
+                    <><CheckCircle2 size={20} /> Added to Cart!</>
+                  ) : isOutOfStock ? (
+                    'Out of Stock'
+                  ) : (
+                    <><ShoppingCart size={20} /> Add to Cart</>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBuyNow}
+                  disabled={isOutOfStock}
+                  className={`flex-1 py-4 px-6 rounded-2xl font-black text-base flex items-center justify-center gap-2.5 transition-all shadow-sm active:scale-98 ${
+                    isOutOfStock
+                      ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-100'
+                  }`}
+                >
+                  <Zap size={20} /> Buy Now
+                </button>
+              </div>
 
               {/* Incomplete variations notice */}
               {!allVariationsSelected && (
@@ -887,18 +1003,6 @@ export default function ProductDetailsPage() {
                   to add to cart.
                 </p>
               )}
-            </div>
-
-            {/* ── Delivery Info Row ─────────────────────────────────── */}
-            <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-2xl border border-gray-100 text-xs text-gray-600 mt-2">
-              <div className="flex items-center gap-2.5">
-                <Truck size={16} className="text-[#027A2B] flex-shrink-0" />
-                <span><strong className="text-gray-800">Campus Delivery Available</strong> — Kesses · Chebarus · Mabs · Stage</span>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <Shield size={16} className="text-[#027A2B] flex-shrink-0" />
-                <span><strong className="text-gray-800">Buyer Protection</strong> — Escrow secured payment</span>
-              </div>
             </div>
           </div>
         </div>
@@ -956,29 +1060,39 @@ export default function ProductDetailsPage() {
             </span>
           </div>
 
-          {/* Mobile Add to Cart */}
-          <button
-            type="button"
-            onClick={handleAddToCart}
-            disabled={isOutOfStock}
-            className={`flex-1 py-3.5 px-4 rounded-xl text-white font-black text-sm flex items-center justify-center gap-2 transition-all active:scale-95 ${
-              addedToCart
-                ? 'bg-[#027A2B]'
-                : isOutOfStock
-                  ? 'bg-gray-300 cursor-not-allowed'
-                  : !allVariationsSelected
-                    ? 'bg-orange-400'
-                    : 'bg-[#FF5E00] hover:bg-orange-600'
-            }`}
-          >
-            {addedToCart ? (
-              <><CheckCircle2 size={18} /> Added!</>
-            ) : isOutOfStock ? (
-              'Out of Stock'
-            ) : (
-              <><ShoppingCart size={18} /> Add to Cart</>
-            )}
-          </button>
+          {/* Mobile Buttons */}
+          <div className="flex flex-1 gap-2">
+            <button
+              type="button"
+              onClick={() => handleAddToCart(false)}
+              disabled={isOutOfStock}
+              className={`flex-1 py-3 px-3 rounded-xl text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 ${
+                addedToCart
+                  ? 'bg-[#027A2B]'
+                  : isOutOfStock
+                    ? 'bg-gray-300 cursor-not-allowed'
+                    : !allVariationsSelected
+                      ? 'bg-orange-400'
+                      : 'bg-[#FF5E00] hover:bg-orange-600'
+              }`}
+            >
+              {addedToCart ? <CheckCircle2 size={16} /> : <ShoppingCart size={16} />}
+              <span>Add to Cart</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleBuyNow}
+              disabled={isOutOfStock}
+              className={`flex-1 py-3 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 ${
+                isOutOfStock
+                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+              }`}
+            >
+              <Zap size={16} />
+              <span>Buy Now</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

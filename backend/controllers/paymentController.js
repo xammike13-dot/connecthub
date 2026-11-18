@@ -21,6 +21,7 @@ import SystemLog from '../models/SystemLog.js';
 import { asyncHandler } from '../middleware/error.js';
 import { ResponseError } from '../middleware/error.js';
 import { createPaymentNotification, createNotification } from './notificationController.js';
+import { deductOrderInventory } from './orderController.js';
 
 const normalizeEntityType = (type) => {
   const lower = String(type || '').toLowerCase();
@@ -55,6 +56,13 @@ const handleOrderPaymentSuccess = async (transaction, orderId, req) => {
   order.transaction = transaction._id;
   // order.status = 'paid'; // REMOVED: Don't change order status
   await order.save();
+
+  // Deduct inventory for all ordered products and variants
+  try {
+    await deductOrderInventory(order, req?.app?.get('io') || getIO());
+  } catch (invErr) {
+    console.error('[Failed to deduct order inventory]', invErr);
+  }
 
   // Reload order to verify save
   const updatedOrder = await Order.findById(order._id);
@@ -1712,16 +1720,88 @@ export const initiatePayment = asyncHandler(async (req, res) => {
       if (!product) {
         throw new ResponseError(`Product ${item.product} not found`, 404);
       }
+      if (product.isActive === false) {
+        throw new ResponseError(`Product "${product.name}" is currently unavailable`, 400);
+      }
 
-      if (product.stock < item.quantity) {
-        throw new ResponseError(`Insufficient stock for ${product.name}`, 400);
+      const productBaseStock = (product.stock !== undefined && product.stock !== null)
+        ? Number(product.stock)
+        : (Number(product.stockCount) || 0);
+
+      // Match variant
+      let matchedVariant = null;
+      if (product.variants && product.variants.length > 0) {
+        if (item.variantId) {
+          matchedVariant = product.variants.id?.(item.variantId) || product.variants.find(v => v._id?.toString() === item.variantId?.toString());
+        }
+        if (!matchedVariant && item.selectedOptions && Object.keys(item.selectedOptions).length > 0) {
+          matchedVariant = product.variants.find(v => {
+            if (v.options && typeof v.options === 'object') {
+              const opts = v.options instanceof Map ? Object.fromEntries(v.options) : v.options;
+              return Object.entries(item.selectedOptions).every(([k, val]) => opts[k] === val);
+            }
+            if (v.name && v.value) {
+              return item.selectedOptions[v.name] === v.value;
+            }
+            return false;
+          });
+        }
+        if (!matchedVariant && item.variant) {
+          matchedVariant = product.variants.find(v => v.name === item.variant || v.value === item.variant);
+        }
+      }
+
+      if (matchedVariant) {
+        if (matchedVariant.isActive === false || matchedVariant.isAvailable === false) {
+          throw new ResponseError(`Selected variant "${matchedVariant.name || matchedVariant.value}" is currently unavailable`, 400);
+        }
+      }
+
+      let availableStock = productBaseStock;
+      if (matchedVariant && matchedVariant.stock !== undefined && matchedVariant.stock !== null) {
+        availableStock = Number(matchedVariant.stock);
+      }
+
+      if (availableStock < item.quantity) {
+        throw new ResponseError(
+          availableStock <= 0
+            ? `"${product.name}${matchedVariant ? ` (${matchedVariant.name || matchedVariant.value})` : ''}" is out of stock`
+            : `Insufficient stock for "${product.name}${matchedVariant ? ` (${matchedVariant.name || matchedVariant.value})` : ''}". Available: ${availableStock}`,
+          400
+        );
+      }
+
+      let itemBasePrice = product.price;
+      if (matchedVariant) {
+        if (matchedVariant.price !== undefined && matchedVariant.price !== null && matchedVariant.price > 0) {
+          itemBasePrice = Number(matchedVariant.price);
+        } else if (matchedVariant.priceAdjustment) {
+          itemBasePrice = product.price + Number(matchedVariant.priceAdjustment);
+        }
       }
 
       let addOnsTotal = 0;
+      const verifiedAddOns = [];
       if (item.selectedAddOns && Array.isArray(item.selectedAddOns)) {
-        addOnsTotal = item.selectedAddOns.reduce((s, a) => s + (Number(a.price) || 0), 0);
+        if (product.maxAddOnsSelectable && item.selectedAddOns.length > product.maxAddOnsSelectable) {
+          throw new ResponseError(`Cannot select more than ${product.maxAddOnsSelectable} add-ons for "${product.name}"`, 400);
+        }
+        for (const clientAddOn of item.selectedAddOns) {
+          const officialAddOn = product.addOns?.find(
+            (a) => a.name.toLowerCase().trim() === (clientAddOn.name || '').toLowerCase().trim()
+          );
+          if (officialAddOn) {
+            if (officialAddOn.isActive === false || officialAddOn.isAvailable === false) {
+              throw new ResponseError(`Add-on "${officialAddOn.name}" is currently unavailable`, 400);
+            }
+            const price = Number(officialAddOn.price) || 0;
+            addOnsTotal += price;
+            verifiedAddOns.push({ name: officialAddOn.name, price });
+          }
+        }
       }
-      const itemUnitPrice = product.price + addOnsTotal;
+
+      const itemUnitPrice = itemBasePrice + addOnsTotal;
       const itemTotal = itemUnitPrice * item.quantity;
       totalAmount += itemTotal;
 
@@ -1730,11 +1810,13 @@ export const initiatePayment = asyncHandler(async (req, res) => {
         name: product.name,
         quantity: item.quantity,
         price: itemUnitPrice,
-        variant: item.variant,
+        variant: matchedVariant ? (matchedVariant.name || matchedVariant.value || item.variant) : (item.variant || ''),
+        variantId: matchedVariant?._id,
         selectedOptions: item.selectedOptions || {},
-        selectedAddOns: item.selectedAddOns || [],
+        selectedAddOns: verifiedAddOns,
+        selectedVariations: item.selectedVariations || item.selectedOptions || {},
         addOnsTotal,
-        image: product.images?.[0],
+        image: (matchedVariant?.image) || product.images?.[0],
       });
     }
 

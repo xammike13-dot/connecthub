@@ -45,12 +45,16 @@ export const createProduct = asyncHandler(async (req, res) => {
     specifications,
     coverImage,
     stock,
+    stockCount,
     sku,
     brand,
     tags,
+    hasVariations,
     variants,
     variations,
+    hasAddOns,
     addOns,
+    maxAddOnsSelectable,
     images,
   } = req.body;
 
@@ -59,6 +63,11 @@ export const createProduct = asyncHandler(async (req, res) => {
     throw new ResponseError('Missing required fields', 400);
   }
   const validatedCategory = validateCategory(category);
+
+  // Normalize stock quantity
+  const parsedStock = stock !== undefined && stock !== '' && stock !== null
+    ? Math.max(0, parseInt(stock) || 0)
+    : (stockCount !== undefined && stockCount !== '' && stockCount !== null ? Math.max(0, parseInt(stockCount) || 0) : 0);
 
   const product = await Product.create({
     business: businessId,
@@ -73,13 +82,17 @@ export const createProduct = asyncHandler(async (req, res) => {
     model: model || '',
     specifications: specifications || {},
     coverImage: coverImage || 0,
-    stock,
+    stock: parsedStock,
+    stockCount: parsedStock,
     sku,
     brand,
     tags,
-    variants,
-    variations: variations || [],
-    addOns: addOns || [],
+    hasVariations: hasVariations !== undefined ? Boolean(hasVariations) : (Array.isArray(variations) && variations.length > 0),
+    variants: Array.isArray(variants) ? variants : [],
+    variations: Array.isArray(variations) ? variations : [],
+    hasAddOns: hasAddOns !== undefined ? Boolean(hasAddOns) : (Array.isArray(addOns) && addOns.length > 0),
+    addOns: Array.isArray(addOns) ? addOns : [],
+    maxAddOnsSelectable: maxAddOnsSelectable !== undefined && maxAddOnsSelectable !== '' && maxAddOnsSelectable !== null ? Number(maxAddOnsSelectable) : null,
     images,
   });
 
@@ -244,6 +257,17 @@ export const getProduct = asyncHandler(async (req, res) => {
 
   if (!product) {
     throw new ResponseError('Product not found', 404);
+  }
+
+  // Ensure stock is accurately resolved for legacy or existing records
+  const resolvedStock = (product.stock !== undefined && product.stock !== null)
+    ? Number(product.stock)
+    : (product.stockCount !== undefined && product.stockCount !== null ? Number(product.stockCount) : 0);
+
+  if (product.stock !== resolvedStock || product.stockCount !== resolvedStock) {
+    product.stock = resolvedStock;
+    product.stockCount = resolvedStock;
+    await Product.findByIdAndUpdate(product._id, { stock: resolvedStock, stockCount: resolvedStock });
   }
 
   res.status(200).json({
@@ -434,6 +458,25 @@ export const updateProduct = asyncHandler(async (req, res) => {
     req.body.categorySlug = categorySlug(req.body.category);
   }
 
+  // Keep stock and stockCount in sync on update
+  if (req.body.stock !== undefined && req.body.stock !== null && req.body.stock !== '') {
+    req.body.stock = Math.max(0, parseInt(req.body.stock) || 0);
+    req.body.stockCount = req.body.stock;
+  } else if (req.body.stockCount !== undefined && req.body.stockCount !== null && req.body.stockCount !== '') {
+    req.body.stockCount = Math.max(0, parseInt(req.body.stockCount) || 0);
+    req.body.stock = req.body.stockCount;
+  }
+
+  if (req.body.hasVariations !== undefined) {
+    req.body.hasVariations = Boolean(req.body.hasVariations);
+  }
+  if (req.body.hasAddOns !== undefined) {
+    req.body.hasAddOns = Boolean(req.body.hasAddOns);
+  }
+  if (req.body.maxAddOnsSelectable !== undefined) {
+    req.body.maxAddOnsSelectable = req.body.maxAddOnsSelectable === '' || req.body.maxAddOnsSelectable === null ? null : Number(req.body.maxAddOnsSelectable);
+  }
+
   const updatedProduct = await Product.findByIdAndUpdate(
     productId,
     req.body,
@@ -498,7 +541,7 @@ export const deleteProduct = asyncHandler(async (req, res) => {
  */
 export const updateProductStock = asyncHandler(async (req, res) => {
   const { productId } = req.params;
-  const { stock, isActive } = req.body;
+  const { stock, isActive, variantId, variantStock } = req.body;
   const businessId = getActiveBusinessId(req.user);
 
   const product = await Product.findById(productId);
@@ -513,13 +556,26 @@ export const updateProductStock = asyncHandler(async (req, res) => {
 
   const updateData = {};
   if (stock !== undefined) {
-    if (stock < 0) {
-      throw new ResponseError('Stock cannot be negative', 400);
-    }
-    updateData.stock = stock;
+    const parsedStock = Math.max(0, parseInt(stock) || 0);
+    updateData.stock = parsedStock;
+    updateData.stockCount = parsedStock;
   }
   if (isActive !== undefined) {
     updateData.isActive = isActive;
+  }
+
+  // Update variant stock if variantId is provided
+  if (variantId && variantStock !== undefined && product.variants) {
+    const vStock = Math.max(0, parseInt(variantStock) || 0);
+    const variant = product.variants.id?.(variantId) || product.variants.find(v => v._id?.toString() === variantId.toString());
+    if (variant) {
+      variant.stock = vStock;
+      if (isActive !== undefined) {
+        variant.isActive = isActive;
+        variant.isAvailable = isActive;
+      }
+    }
+    updateData.variants = product.variants;
   }
 
   const updatedProduct = await Product.findByIdAndUpdate(

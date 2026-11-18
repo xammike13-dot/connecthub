@@ -8,13 +8,13 @@ export const useCart = () => {
   return context;
 };
 
-/** Build a stable string key that uniquely identifies a product+variation combo */
-const buildCartKey = (productId, selectedOptions = {}, selectedAddOns = []) => {
+/** Build a stable string key that uniquely identifies a product+variation+addons combo */
+const buildCartKey = (productId, selectedOptions = {}, selectedAddOns = [], variantId = '') => {
   const optStr = JSON.stringify(
     Object.fromEntries(Object.entries(selectedOptions).sort())
   );
   const addStr = [...selectedAddOns].map(a => a.name).sort().join(',');
-  return `${productId}__${optStr}__${addStr}`;
+  return `${productId}__${variantId || ''}__${optStr}__${addStr}`;
 };
 
 export const CartProvider = ({ children }) => {
@@ -60,24 +60,57 @@ export const CartProvider = ({ children }) => {
    * @param {number} quantity  – default 1
    * @param {object} selectedOptions  – e.g. { Size: '42', Color: 'Black' }
    * @param {Array}  selectedAddOns   – e.g. [{ name: 'Extra Smokie', price: 30 }]
+   * @param {object} matchedVariant   – optional matched variant object
+   * @param {number} customBasePrice  – optional base price override
    */
-  const addToCart = useCallback((product, quantity = 1, selectedOptions = {}, selectedAddOns = []) => {
-    const cartKey = buildCartKey(product._id, selectedOptions, selectedAddOns);
+  const addToCart = useCallback((product, quantity = 1, selectedOptions = {}, selectedAddOns = [], matchedVariant = null, customBasePrice = null) => {
+    const variantId = matchedVariant?._id || matchedVariant?.id || '';
+    const cartKey = buildCartKey(product._id, selectedOptions, selectedAddOns, variantId);
+
+    let basePrice = product.price;
+    if (matchedVariant) {
+      if (matchedVariant.price !== undefined && matchedVariant.price !== null && matchedVariant.price > 0) {
+        basePrice = Number(matchedVariant.price);
+      } else if (matchedVariant.priceAdjustment) {
+        basePrice = product.price + Number(matchedVariant.priceAdjustment);
+      }
+    } else if (customBasePrice !== null && customBasePrice !== undefined) {
+      basePrice = Number(customBasePrice);
+    }
+
+    const variantLabel = matchedVariant
+      ? (matchedVariant.name || matchedVariant.value || Object.entries(selectedOptions).map(([k, v]) => `${k}: ${v}`).join(' · '))
+      : (selectedOptions && Object.keys(selectedOptions).length > 0 ? Object.entries(selectedOptions).map(([k, v]) => `${k}: ${v}`).join(' · ') : '');
+
+    const maxStock = (matchedVariant && matchedVariant.stock !== undefined && matchedVariant.stock !== null)
+      ? Number(matchedVariant.stock)
+      : ((product.stock !== undefined && product.stock !== null) ? Number(product.stock) : (Number(product.stockCount) || 0));
+
+    const itemImages = matchedVariant?.image ? [matchedVariant.image, ...(product.images || [])] : (product.images || []);
+
     setCartItems((prevItems) => {
       const existingIdx = prevItems.findIndex((item) => item.cartKey === cartKey);
       if (existingIdx !== -1) {
-        return prevItems.map((item, idx) =>
-          idx === existingIdx ? { ...item, quantity: item.quantity + quantity } : item
-        );
+        return prevItems.map((item, idx) => {
+          if (idx !== existingIdx) return item;
+          const newQty = item.quantity + quantity;
+          const cappedQty = maxStock > 0 ? Math.min(newQty, maxStock) : newQty;
+          return { ...item, quantity: cappedQty };
+        });
       }
       return [
         ...prevItems,
         {
           ...product,
+          price: basePrice,
           cartKey,
-          quantity,
+          quantity: maxStock > 0 ? Math.min(quantity, maxStock) : quantity,
           selectedOptions,
           selectedAddOns,
+          variant: variantLabel,
+          variantId,
+          maxStock,
+          images: itemImages,
         },
       ];
     });
@@ -95,7 +128,11 @@ export const CartProvider = ({ children }) => {
       return;
     }
     setCartItems((prev) =>
-      prev.map((item) => item.cartKey === cartKey ? { ...item, quantity } : item)
+      prev.map((item) => {
+        if (item.cartKey !== cartKey) return item;
+        const capped = item.maxStock > 0 ? Math.min(quantity, item.maxStock) : quantity;
+        return { ...item, quantity: capped };
+      })
     );
   }, [removeFromCart]);
 

@@ -40,25 +40,92 @@ export const createOrder = asyncHandler(async (req, res) => {
     if (!product) {
       throw new ResponseError(`Product ${item.product} not found`, 404);
     }
-
-    const availableStock = product.stockCount !== undefined ? product.stockCount : product.stock;
-    if (availableStock < item.quantity) {
-      throw new ResponseError(`Insufficient stock for "${product.name}". Available: ${availableStock}`, 400);
+    if (product.isActive === false) {
+      throw new ResponseError(`Product "${product.name}" is currently unavailable`, 400);
     }
 
+    const productBaseStock = (product.stock !== undefined && product.stock !== null)
+      ? Number(product.stock)
+      : (Number(product.stockCount) || 0);
+
+    // Check if item has a selected variant
+    let matchedVariant = null;
+    if (product.variants && product.variants.length > 0) {
+      if (item.variantId) {
+        matchedVariant = product.variants.id?.(item.variantId) || product.variants.find(v => v._id?.toString() === item.variantId?.toString());
+      }
+      if (!matchedVariant && item.selectedOptions && Object.keys(item.selectedOptions).length > 0) {
+        matchedVariant = product.variants.find(v => {
+          if (v.options && typeof v.options === 'object') {
+            const opts = v.options instanceof Map ? Object.fromEntries(v.options) : v.options;
+            return Object.entries(item.selectedOptions).every(([k, val]) => opts[k] === val);
+          }
+          if (v.name && v.value) {
+            return item.selectedOptions[v.name] === v.value;
+          }
+          return false;
+        });
+      }
+      if (!matchedVariant && item.variant) {
+        matchedVariant = product.variants.find(v => v.name === item.variant || v.value === item.variant);
+      }
+    }
+
+    // Validate variant availability
+    if (matchedVariant) {
+      if (matchedVariant.isActive === false || matchedVariant.isAvailable === false) {
+        throw new ResponseError(`Selected variant "${matchedVariant.name || matchedVariant.value}" is currently unavailable`, 400);
+      }
+    }
+
+    // Determine available stock: variant stock if specified, else base product stock
+    let availableStock = productBaseStock;
+    if (matchedVariant && matchedVariant.stock !== undefined && matchedVariant.stock !== null) {
+      availableStock = Number(matchedVariant.stock);
+    }
+
+    if (availableStock < item.quantity) {
+      throw new ResponseError(
+        availableStock <= 0
+          ? `"${product.name}${matchedVariant ? ` (${matchedVariant.name || matchedVariant.value})` : ''}" is out of stock`
+          : `Insufficient stock for "${product.name}${matchedVariant ? ` (${matchedVariant.name || matchedVariant.value})` : ''}". Available: ${availableStock}`,
+        400
+      );
+    }
+
+    // Calculate base unit price: variant price (if specified) or base price + adjustment
+    let itemBasePrice = product.price;
+    if (matchedVariant) {
+      if (matchedVariant.price !== undefined && matchedVariant.price !== null && matchedVariant.price > 0) {
+        itemBasePrice = Number(matchedVariant.price);
+      } else if (matchedVariant.priceAdjustment) {
+        itemBasePrice = product.price + Number(matchedVariant.priceAdjustment);
+      }
+    }
+
+    // Validate and calculate add-ons
     let addOnsTotal = 0;
     const verifiedAddOns = [];
     if (item.selectedAddOns && Array.isArray(item.selectedAddOns)) {
+      if (product.maxAddOnsSelectable && item.selectedAddOns.length > product.maxAddOnsSelectable) {
+        throw new ResponseError(`Cannot select more than ${product.maxAddOnsSelectable} add-ons for "${product.name}"`, 400);
+      }
       for (const clientAddOn of item.selectedAddOns) {
         const officialAddOn = product.addOns?.find(
-          (a) => a.name.toLowerCase().trim() === clientAddOn.name.toLowerCase().trim()
+          (a) => a.name.toLowerCase().trim() === (clientAddOn.name || '').toLowerCase().trim()
         );
-        const verifiedPrice = officialAddOn ? officialAddOn.price : (Number(clientAddOn.price) || 0);
-        addOnsTotal += verifiedPrice;
-        verifiedAddOns.push({ name: clientAddOn.name, price: verifiedPrice });
+        if (officialAddOn) {
+          if (officialAddOn.isActive === false || officialAddOn.isAvailable === false) {
+            throw new ResponseError(`Add-on "${officialAddOn.name}" is currently unavailable`, 400);
+          }
+          const price = Number(officialAddOn.price) || 0;
+          addOnsTotal += price;
+          verifiedAddOns.push({ name: officialAddOn.name, price });
+        }
       }
     }
-    const itemUnitPrice = product.price + addOnsTotal;
+
+    const itemUnitPrice = itemBasePrice + addOnsTotal;
     const itemTotal = itemUnitPrice * item.quantity;
     totalAmount += itemTotal;
 
@@ -67,12 +134,13 @@ export const createOrder = asyncHandler(async (req, res) => {
       name: product.name,
       quantity: item.quantity,
       price: itemUnitPrice,
-      variant: item.variant,
+      variant: matchedVariant ? (matchedVariant.name || matchedVariant.value || item.variant) : (item.variant || ''),
+      variantId: matchedVariant?._id,
       selectedOptions: item.selectedOptions || {},
       selectedAddOns: verifiedAddOns,
       selectedVariations: item.selectedVariations || item.selectedOptions || {},
       addOnsTotal,
-      image: product.images?.[0],
+      image: (matchedVariant?.image) || product.images?.[0],
     });
   }
 
@@ -450,6 +518,110 @@ export const confirmDelivery = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Deduct inventory for items in an order
+ */
+export const deductOrderInventory = async (order, io) => {
+  if (!order || !order.items) return;
+  for (const item of order.items) {
+    if (item.product) {
+      try {
+        const prod = await Product.findById(item.product);
+        if (prod) {
+          // If variant exists, decrement variant stock
+          if (item.variantId && prod.variants) {
+            const variant = prod.variants.id?.(item.variantId) || prod.variants.find(v => v._id?.toString() === item.variantId?.toString());
+            if (variant && variant.stock !== undefined && variant.stock !== null) {
+              variant.stock = Math.max(0, variant.stock - item.quantity);
+            }
+          } else if (item.selectedOptions && Object.keys(item.selectedOptions).length > 0 && prod.variants) {
+            const variant = prod.variants.find(v => {
+              if (v.options && typeof v.options === 'object') {
+                const opts = v.options instanceof Map ? Object.fromEntries(v.options) : v.options;
+                return Object.entries(item.selectedOptions).every(([k, val]) => opts[k] === val);
+              }
+              return false;
+            });
+            if (variant && variant.stock !== undefined && variant.stock !== null) {
+              variant.stock = Math.max(0, variant.stock - item.quantity);
+            }
+          }
+
+          // Decrement product overall stock
+          const curStock = (prod.stock !== undefined && prod.stock !== null) ? Number(prod.stock) : (Number(prod.stockCount) || 0);
+          const newStock = Math.max(0, curStock - item.quantity);
+          prod.stock = newStock;
+          prod.stockCount = newStock;
+          await prod.save();
+
+          if (io) {
+            io.emit('product_stock_updated', {
+              productId: prod._id,
+              stock: newStock,
+              isActive: prod.isActive,
+              product: prod,
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Failed to deduct inventory for item:', item, err);
+      }
+    }
+  }
+};
+
+/**
+ * Restore inventory for items in an order
+ */
+export const restoreOrderInventory = async (order, io) => {
+  if (!order || !order.items) return;
+  for (const item of order.items) {
+    if (item.product) {
+      try {
+        const prod = await Product.findById(item.product);
+        if (prod) {
+          // If variant exists, restore variant stock
+          if (item.variantId && prod.variants) {
+            const variant = prod.variants.id?.(item.variantId) || prod.variants.find(v => v._id?.toString() === item.variantId?.toString());
+            if (variant && variant.stock !== undefined && variant.stock !== null) {
+              variant.stock = (variant.stock || 0) + item.quantity;
+            }
+          } else if (item.selectedOptions && Object.keys(item.selectedOptions).length > 0 && prod.variants) {
+            const variant = prod.variants.find(v => {
+              if (v.options && typeof v.options === 'object') {
+                const opts = v.options instanceof Map ? Object.fromEntries(v.options) : v.options;
+                return Object.entries(item.selectedOptions).every(([k, val]) => opts[k] === val);
+              }
+              return false;
+            });
+            if (variant && variant.stock !== undefined && variant.stock !== null) {
+              variant.stock = (variant.stock || 0) + item.quantity;
+            }
+          }
+
+          // Restore product overall stock
+          const curStock = (prod.stock !== undefined && prod.stock !== null) ? Number(prod.stock) : (Number(prod.stockCount) || 0);
+          const newStock = curStock + item.quantity;
+          prod.stock = newStock;
+          prod.stockCount = newStock;
+          await prod.save();
+
+          if (io) {
+            io.emit('product_stock_updated', {
+              productId: prod._id,
+              stock: newStock,
+              isActive: prod.isActive,
+              product: prod,
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Failed to restore inventory for item:', item, err);
+      }
+    }
+  }
+};
+
+/**
  * Cancel order (customer only - for pending orders)
  */
 export const cancelOrder = asyncHandler(async (req, res) => {
@@ -542,8 +714,12 @@ export const acceptOrder = asyncHandler(async (req, res) => {
 
   await order.save();
 
-  // Emit socket event
   const io = req.app.get('io');
+
+  // Restore inventory on cancellation
+  await restoreOrderInventory(order, io);
+
+  // Emit socket event
   if (io && order.customer) {
     const customerId = order.customer._id || order.customer;
     const targetRoom = `user_${customerId}`;
@@ -601,8 +777,12 @@ export const businessCancelOrder = asyncHandler(async (req, res) => {
 
   await order.save();
 
-  // Emit socket event
   const io = req.app.get('io');
+
+  // Restore inventory on cancellation
+  await restoreOrderInventory(order, io);
+
+  // Emit socket event
   if (io && order.customer) {
     console.log('[EMITTING ORDER CANCELLED]', {
       customerId: order.customer._id,
@@ -672,8 +852,12 @@ export const markOrderDelivered = asyncHandler(async (req, res) => {
 
   await order.save();
 
-  // Emit socket event
   const io = req.app.get('io');
+
+  // Restore inventory on cancellation
+  await restoreOrderInventory(order, io);
+
+  // Emit socket event
   if (io && order.customer) {
     console.log('[EMITTING ORDER DELIVERED]', {
       customerId: order.customer._id,

@@ -49,6 +49,7 @@ const orderSchema = new mongoose.Schema(
         required: true,
       },
       variant: String,
+      variantId: { type: mongoose.Schema.Types.ObjectId },
       image: String,
       business: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
       selectedVariations: { type: mongoose.Schema.Types.Mixed, default: {} },

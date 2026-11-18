@@ -160,13 +160,14 @@ const CheckoutPage = () => {
             providerReceives: paymentBreakdown.providerReceives,
             platformReceives: paymentBreakdown.platformReceives,
             items: cartItems.map((item) => {
-              const addOnsTotal = (item.selectedAddOns || []).reduce((s, a) => s + (a.price || 0), 0);
+              const addOnsTotal = (item.selectedAddOns || []).reduce((s, a) => s + (Number(a.price) || 0), 0);
               return {
                 name: item.name,
-                price: item.price + addOnsTotal,
+                price: (item.price || 0) + addOnsTotal,
                 quantity: item.quantity,
                 product: item._id,
-                variant: item.selectedOptions ? Object.entries(item.selectedOptions).map(([k, v]) => `${k}: ${v}`).join(', ') : '',
+                variant: item.variant || (item.selectedOptions ? Object.entries(item.selectedOptions).map(([k, v]) => `${k}: ${v}`).join(', ') : ''),
+                variantId: item.variantId || undefined,
                 selectedOptions: item.selectedOptions || {},
                 selectedAddOns: item.selectedAddOns || [],
                 addOnsTotal,
