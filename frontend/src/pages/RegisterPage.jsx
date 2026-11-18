@@ -88,11 +88,17 @@ const RegisterPage = () => {
       localStorage.setItem('signupName', formData.name);
       localStorage.setItem('signupRole', formData.role);
       
+      // Store dev verification code if in development mode
+      if (result.devCode) {
+        localStorage.setItem('devVerificationCode', result.devCode);
+        localStorage.setItem('devVerificationExpiresAt', result.devExpiresAt || '');
+      }
+
       // Show development mode message if applicable
       if (result.devMode) {
         console.log('Development mode: OTP logged to backend console');
       }
-      
+
       // Redirect directly to Email Verification / Enter Verification Code page
       navigate('/verify-email', { state: { message: "We've sent a verification code to your email. Enter the code below to verify your account." } });
     } else {

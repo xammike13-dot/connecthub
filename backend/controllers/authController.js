@@ -120,10 +120,45 @@ const handleLoginSuccess = async (user, password, req, res) => {
 // @access  Public
 export const register = async (req, res, next) => {
   try {
-    const { name, email, phone, password, role } = req.body;
+    const { name, phone, password, role } = req.body;
+    const email = typeof req.body.email === 'string'
+      ? req.body.email.trim().toLowerCase()
+      : '';
+
+    if (!name?.trim() || !email || !phone?.trim() || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name, email, phone, and password are required',
+      });
+    }
+
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid email address',
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters',
+      });
+    }
+
+    const allowedRoles = ['customer', 'landlord', 'business', 'rider'];
+    if (role && !allowedRoles.includes(role)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid registration role',
+      });
+    }
 
     // Check if user exists
-    const userExists = await User.findOne({ email });
+    const userExists = await User.findOne({
+      email: { $regex: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+      isDeleted: { $ne: true },
+    });
     if (userExists) {
       return res.status(400).json({
         success: false,
@@ -132,22 +167,35 @@ export const register = async (req, res, next) => {
     }
 
     // Create user with verification fields (pending/unverified state)
-    const user = await User.create({
-      name,
-      email,
-      phone,
-      password,
-      role: role || 'customer',
-      emailVerified: false,
-      isActive: false, // Account is not active until email is verified
-      setupCompleted: false,
-      onboardingCompleted: false,
-    });
+    let user;
+    try {
+      user = await User.create({
+        name: name.trim(),
+        email,
+        phone: phone.trim(),
+        password,
+        role: role || 'customer',
+        emailVerified: false,
+        isActive: false, // Account is not active until email is verified
+        accountActive: false,
+        isVerified: false,
+        setupCompleted: false,
+        onboardingCompleted: false,
+      });
 
-    // Create wallet for the user (for all roles)
-    await Wallet.create({
-      user: user._id,
-    });
+      // Create wallet for the user (for all roles)
+      await Wallet.create({
+        user: user._id,
+      });
+    } catch (error) {
+      if (error.code === 11000) {
+        return res.status(409).json({
+          success: false,
+          message: 'User already exists with this email',
+        });
+      }
+      throw error;
+    }
 
     // Generate email verification code
     const code = generateVerificationCode();
@@ -177,9 +225,23 @@ export const register = async (req, res, next) => {
     // Registration sends only a verification email; welcome email follows verification.
     const emailResult = await sendVerificationEmail(user.email, code, { stage: 'registration' });
 
-    if (!emailResult.success) {
+    // In development mode, if Brevo is not configured, still allow registration
+    // but return devMode so the frontend can show the verification code from server logs.
+    if (!emailResult.success && !emailResult.devMode) {
       console.error('[REGISTER] Failed to send verification email:', emailResult.error);
-      // Don't fail registration if email fails - user can resend
+      await VerificationToken.deleteMany({ userId: user._id });
+      await Wallet.deleteMany({ user: user._id });
+      await User.deleteOne({ _id: user._id });
+      return res.status(502).json({
+        success: false,
+        message: 'We could not deliver the verification email. Please check the email address and try again.',
+        emailDeliveryError: emailResult.error,
+      });
+    }
+
+    if (emailResult.devMode) {
+      console.log('[REGISTER DEV MODE] Brevo not configured. Verification code logged below:');
+      console.log(`[REGISTER DEV MODE] User: ${user.email} | Code: ${code} | Expires: ${expiresAt.toISOString()}`);
     }
 
     // Do NOT create token or auto-login
@@ -193,7 +255,11 @@ export const register = async (req, res, next) => {
         email: user.email,
         role: user.role,
       },
-      devMode: emailResult.devMode,
+      devMode: emailResult.devMode || !!process.env.NODE_ENV && process.env.NODE_ENV === 'development',
+      ...(emailResult.devMode && {
+        devCode: code,
+        devExpiresAt: expiresAt,
+      }),
     });
   } catch (error) {
     console.error('[REGISTER ERROR]', error);
@@ -209,7 +275,10 @@ export const register = async (req, res, next) => {
 // @access  Public
 export const login = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const email = typeof req.body.email === 'string'
+      ? req.body.email.trim().toLowerCase()
+      : '';
+    const { password } = req.body;
 
     // Validate email & password
     if (!email || !password) {

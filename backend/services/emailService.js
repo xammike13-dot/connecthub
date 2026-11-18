@@ -18,13 +18,13 @@ import axios from 'axios';
 
 const BREVO_API_URL = 'https://api.brevo.com/v3';
 
-const getBrevoApiKey = () => process.env.BREVO_API_KEY;
-const getBrevoSenderEmail = () => process.env.BREVO_SENDER_EMAIL;
-const getBrevoSenderName = () => process.env.BREVO_SENDER_NAME;
+const getBrevoApiKey = () => process.env.BREVO_API_KEY?.trim();
+const getBrevoSenderEmail = () => process.env.BREVO_SENDER_EMAIL?.trim();
+const getBrevoSenderName = () => process.env.BREVO_SENDER_NAME?.trim();
 
 const isBrevoConfigured = () => {
   const apiKey = getBrevoApiKey();
-  return apiKey && apiKey !== 'your-brevo-api-key-here' && apiKey.length > 10;
+  return Boolean(apiKey && apiKey !== 'your-brevo-api-key-here' && apiKey.length > 10);
 };
 
 const maskRecipient = (email) => {
@@ -42,6 +42,14 @@ const sendEmail = async (to, subject, htmlContent, textContent = '', { emailType
   const senderName = getBrevoSenderName() || 'Olafasta';
   const recipient = maskRecipient(to);
   const sentAt = new Date().toISOString();
+
+  if (!to || !/^\S+@\S+\.\S+$/.test(String(to).trim())) {
+    return { success: false, error: 'A valid recipient email is required' };
+  }
+
+  if (!/^\S+@\S+\.\S+$/.test(senderEmail)) {
+    return { success: false, error: 'BREVO_SENDER_EMAIL is not a valid email address' };
+  }
 
   if (!isBrevoConfigured()) {
     console.warn('[EMAIL] Brevo is not configured; no email was sent.', {

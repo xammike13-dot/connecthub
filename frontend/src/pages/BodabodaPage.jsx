@@ -144,7 +144,7 @@ const BodabodaPage = () => {
           navigator.geolocation.getCurrentPosition(
             ({ coords }) => resolve({ latitude: coords.latitude, longitude: coords.longitude }),
             () => resolve(null),
-            { enableHighAccuracy: true, maximumAge: 15000, timeout: 8000 }
+            { enableHighAccuracy: true, maximumAge: 0, timeout: 8000 }
           );
         });
       }
@@ -166,7 +166,12 @@ const BodabodaPage = () => {
         throw new Error('Rider search returned an invalid response.');
       }
       if (requestId === riderFetchSequence.current) {
-        setNearbyRiders(response.data.data);
+        const sortedRiders = [...response.data.data].sort((a, b) => {
+          const distanceA = Number.isFinite(Number(a.distance)) ? Number(a.distance) : Number.POSITIVE_INFINITY;
+          const distanceB = Number.isFinite(Number(b.distance)) ? Number(b.distance) : Number.POSITIVE_INFINITY;
+          return distanceA - distanceB;
+        });
+        setNearbyRiders(sortedRiders);
         setRidersLoaded(true);
       }
     } catch (error) {

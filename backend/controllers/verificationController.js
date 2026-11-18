@@ -21,7 +21,9 @@ const MAX_RESEND_ATTEMPTS_PER_DAY = 5;
 // @access  Public
 export const sendEmailVerificationCode = async (req, res) => {
   try {
-    const { email } = req.body;
+    const email = typeof req.body.email === 'string'
+      ? req.body.email.trim().toLowerCase()
+      : '';
 
     if (!email) {
       return res.status(400).json({
@@ -31,7 +33,9 @@ export const sendEmailVerificationCode = async (req, res) => {
     }
 
     // Find user by email
-    const user = await User.findOne({ email });
+    const user = await User.findOne({
+      email: { $regex: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+    });
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -82,14 +86,28 @@ export const sendEmailVerificationCode = async (req, res) => {
     const code = generateVerificationCode();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
-    // Delete any existing unused email verification tokens for this user
+    // Send first. The code is only stored and replaces old codes after Brevo accepts delivery.
+    const emailResult = await sendVerificationEmail(user.email, code, { stage: 'resend' });
+    // In development mode, if Brevo is not configured, still store the code and return devMode
+    if (!emailResult.success && !emailResult.devMode) {
+      return res.status(502).json({
+        success: false,
+        message: 'Failed to send verification email',
+        emailDeliveryError: emailResult.error,
+      });
+    }
+
+    if (emailResult.devMode) {
+      console.log('[SEND EMAIL DEV MODE] Brevo not configured. Verification code logged below:');
+      console.log(`[SEND EMAIL DEV MODE] User: ${user.email} | Code: ${code} | Expires: ${expiresAt.toISOString()}`);
+    }
+
     await VerificationToken.deleteMany({
       userId: user._id,
       type: 'email',
       used: false,
     });
 
-    // Create new verification token
     await VerificationToken.create({
       userId: user._id,
       type: 'email',
@@ -97,21 +115,11 @@ export const sendEmailVerificationCode = async (req, res) => {
       expiresAt,
     });
 
-    // Update resend tracking and clear any legacy plaintext OTP.
     user.emailVerificationExpire = expiresAt;
     user.emailVerificationLastResend = new Date();
     user.emailVerificationResendAttempts = resendAttemptsToday + 1;
     await user.save();
     await User.updateOne({ _id: user._id }, { $unset: { emailVerificationToken: 1 } });
-
-    // Send email
-    const emailResult = await sendVerificationEmail(user.email, code, { stage: 'resend' });
-    if (!emailResult.success) {
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to send verification email',
-      });
-    }
 
     res.status(200).json({
       success: true,
@@ -132,7 +140,10 @@ export const sendEmailVerificationCode = async (req, res) => {
 // @access  Public
 export const verifyEmailCode = async (req, res) => {
   try {
-    const { email, code } = req.body;
+    const email = typeof req.body.email === 'string'
+      ? req.body.email.trim().toLowerCase()
+      : '';
+    const code = typeof req.body.code === 'string' ? req.body.code.trim() : '';
 
     if (!email || !code) {
       return res.status(400).json({
@@ -141,8 +152,17 @@ export const verifyEmailCode = async (req, res) => {
       });
     }
 
+    if (!/^\d{6}$/.test(code)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Verification code must be 6 digits',
+      });
+    }
+
     // Find user
-    const user = await User.findOne({ email });
+    const user = await User.findOne({
+      email: { $regex: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+    });
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -161,40 +181,10 @@ export const verifyEmailCode = async (req, res) => {
 
     // Check if email is already verified
     if (user.emailVerified) {
-      // Generate token and log user in
-      const token = generateToken(user._id);
-      
-      // Track session
-      const userAgent = req.headers['user-agent'] || '';
-      const ip = req.ip || req.connection.remoteAddress;
-      let device = 'Unknown';
-      let browser = 'Unknown';
-      if (userAgent.includes('Mobile')) device = 'Mobile';
-      else if (userAgent.includes('Tablet')) device = 'Tablet';
-      else device = 'Desktop';
-      if (userAgent.includes('Chrome')) browser = 'Chrome';
-      else if (userAgent.includes('Firefox')) browser = 'Firefox';
-      else if (userAgent.includes('Safari')) browser = 'Safari';
-      else if (userAgent.includes('Edge')) browser = 'Edge';
-
-      await User.findByIdAndUpdate(user._id, {
-        $push: {
-          sessions: {
-            token,
-            device,
-            browser,
-            ip,
-            loginTime: new Date(),
-            lastActive: new Date(),
-          }
-        }
-      });
-
       return res.status(200).json({
         success: true,
         message: 'Email is already verified',
         alreadyVerified: true,
-        token,
         user: {
           id: user._id,
           name: user.name,
@@ -253,6 +243,8 @@ export const verifyEmailCode = async (req, res) => {
 
     // Update user verification status and activate account
     user.emailVerified = true;
+    user.isVerified = true;
+    user.accountActive = true;
     user.isActive = true; // Activate the account
     user.emailVerificationExpire = undefined;
     user.emailVerificationAttempts = 0;

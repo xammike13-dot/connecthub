@@ -68,7 +68,7 @@ export const rideAPI = {
   getMyRides: (params) => api.get('/rides/rider/my-rides', { params }),
   getAvailableRides: (params) => api.get('/rides/rider/available', { params }),
   getCustomerRides: (params) => api.get('/rides/customer/my-rides', { params }),
-  getNearbyRiders: (params) => api.get('/rides/nearby-riders', { params }),
+  getNearbyRiders: (params) => api.get('/rider/nearby', { params }),
   updateLocation: (rideId, data) => api.post(`/rides/${rideId}/location`, data),
   completeRide: (id, data) => api.put(`/rides/${id}/status`, { status: 'completed', ...data }),
 

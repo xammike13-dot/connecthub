@@ -697,6 +697,7 @@ export const getNearbyRiders = asyncHandler(async (req, res) => {
 
   const allRiders = await User.find({
     role: 'rider',
+    emailVerified: true,
     isActive: { $ne: false },
     isDeleted: { $ne: true },
     $or: [
