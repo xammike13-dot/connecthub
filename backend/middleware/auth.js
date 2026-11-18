@@ -27,6 +27,14 @@ export const protect = async (req, res, next) => {
       });
     }
 
+    if (!user.emailVerified) {
+      return res.status(403).json({
+        success: false,
+        message: 'Please verify your email before accessing this resource.',
+        requiresVerification: true,
+      });
+    }
+
     if (!user.isActive) {
       return res.status(401).json({
         success: false,

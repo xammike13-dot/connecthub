@@ -66,7 +66,6 @@ const userSchema = new mongoose.Schema(
       default: '',
     },
     // Email verification fields
-    emailVerificationToken: String,
     emailVerificationExpire: Date,
     emailVerificationAttempts: {
       type: Number,

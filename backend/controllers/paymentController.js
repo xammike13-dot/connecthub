@@ -23,6 +23,11 @@ import { asyncHandler } from '../middleware/error.js';
 import { ResponseError } from '../middleware/error.js';
 import { createPaymentNotification, createNotification } from './notificationController.js';
 import { deductOrderInventory } from './orderController.js';
+import {
+  emitRideRequestToRider,
+  getRideRequestTimeoutDate,
+  isRiderAvailableForPickup,
+} from '../services/rideAssignmentService.js';
 
 const normalizeEntityType = (type) => {
   const lower = String(type || '').toLowerCase();
@@ -30,6 +35,148 @@ const normalizeEntityType = (type) => {
   if (lower === 'rental') return 'rental';
   if (lower === 'ride' || lower === 'riderequest') return 'ride';
   return lower;
+};
+
+const createPaidRideRequest = async (transaction, pendingRideData, req) => {
+  const existingRide = await RideRequest.findOne({ transaction: transaction._id });
+  if (existingRide) {
+    const assignedRiderId = existingRide.rider || null;
+    if (
+      transaction.relatedEntity?.toString() !== existingRide._id.toString() ||
+      transaction.provider?.toString() !== assignedRiderId?.toString()
+    ) {
+      transaction.relatedEntity = existingRide._id;
+      transaction.provider = assignedRiderId;
+      await transaction.save();
+    }
+    return existingRide;
+  }
+
+  const selectedRiderId = pendingRideData.selectedRiderId;
+  const riderIsAvailable = selectedRiderId
+    ? await isRiderAvailableForPickup(selectedRiderId, pendingRideData.pickupLocation)
+    : false;
+  const assignedRiderId = riderIsAvailable ? selectedRiderId : null;
+  const formatCoordinates = (location) => {
+    if (Array.isArray(location?.coordinates)) return location.coordinates;
+    if (Array.isArray(location?.coordinates?.coordinates)) return location.coordinates.coordinates;
+    return [];
+  };
+  const pickupLocation = pendingRideData.pickupLocation || {};
+  const dropoffLocation = pendingRideData.dropoffLocation || {};
+
+  let rideRequest;
+  try {
+    rideRequest = await RideRequest.create({
+      customer: transaction.customer._id || transaction.customer,
+      pickupLocation: {
+        name: pickupLocation.name || pickupLocation.address || 'Pickup Location',
+        address: pickupLocation.address || pickupLocation.name || 'Pickup Location',
+        landmark: pickupLocation.landmark,
+        coordinates: formatCoordinates(pickupLocation),
+      },
+      dropoffLocation: {
+        name: dropoffLocation.name || dropoffLocation.address || 'Dropoff Location',
+        address: dropoffLocation.address || dropoffLocation.name || 'Dropoff Location',
+        landmark: dropoffLocation.landmark,
+        coordinates: formatCoordinates(dropoffLocation),
+      },
+      estimatedDistance: pendingRideData.estimatedDistance,
+      rideType: pendingRideData.rideType || 'bodaboda',
+      passengers: 1,
+      status: assignedRiderId ? 'waiting_rider' : 'no_rider_available',
+      responseExpiresAt: assignedRiderId ? getRideRequestTimeoutDate() : undefined,
+      paymentStatus: 'paid',
+      paymentMethod: 'mpesa',
+      transaction: transaction._id,
+      fare: pendingRideData.fareBreakdown,
+      escrowStatus: 'held',
+      fundsReleased: false,
+      ...(assignedRiderId && { rider: assignedRiderId }),
+    });
+  } catch (error) {
+    if (error.code !== 11000) throw error;
+    const duplicateRide = await RideRequest.findOne({ transaction: transaction._id });
+    if (!duplicateRide) throw error;
+    transaction.relatedEntity = duplicateRide._id;
+    transaction.provider = duplicateRide.rider || null;
+    await transaction.save();
+    return duplicateRide;
+  }
+
+  transaction.relatedEntity = rideRequest._id;
+  transaction.provider = assignedRiderId;
+  await transaction.save();
+
+  const io = req.app.get('io');
+  const customerId = transaction.customer._id || transaction.customer;
+  if (assignedRiderId) {
+    emitRideRequestToRider(io, rideRequest, transaction.customer);
+    try {
+      await createNotification(
+        assignedRiderId,
+        'ride_request',
+        'New Ride Request',
+        `You have a new paid ride request. Pickup: ${rideRequest.pickupLocation?.address || 'selected location'}.`,
+        { rideId: rideRequest._id },
+        `/rider/rides/${rideRequest._id}`,
+        '/rider/rides',
+        req,
+        'rider'
+      );
+    } catch (error) {
+      console.error('[Rider ride request notification failed]', error);
+    }
+  } else {
+    io?.to(`user_${customerId}`).emit('ride_rider_unavailable', {
+      rideId: rideRequest._id,
+      status: rideRequest.status,
+      message: 'Your selected rider is no longer available. Choose another rider; your payment is already confirmed.',
+    });
+    try {
+      await createNotification(
+        customerId,
+        'ride_no_rider_available',
+        'Rider Unavailable',
+        'Your selected rider is no longer available. Choose another available rider; you do not need to pay again.',
+        { rideId: rideRequest._id },
+        `/customer/rides/${rideRequest._id}`,
+        '/customer/rides',
+        req
+      );
+    } catch (error) {
+      console.error('[Customer rider unavailable notification failed]', error);
+    }
+  }
+
+  io?.to(`user_${customerId}`).emit('payment_confirmed', {
+    transactionRef: transaction.transactionRef,
+    status: 'paid',
+    paymentStatus: 'paid',
+    rideId: rideRequest._id,
+    customerId,
+    amount: transaction.amount.totalAmount,
+    mpesaReceipt: transaction.mpesaReceiptNumber,
+  });
+
+  try {
+    await createNotification(
+      transaction.customer._id || transaction.customer,
+      'ride_payment_confirmed',
+      assignedRiderId ? 'Payment Confirmed - Waiting for Rider' : 'Payment Confirmed - Choose Another Rider',
+      assignedRiderId
+        ? `Your payment of KSh ${transaction.amount.totalAmount} is confirmed. Your selected rider has been notified.`
+        : 'Your payment is confirmed, but the selected rider is unavailable. Choose another available rider without paying again.',
+      { rideId: rideRequest._id, transactionId: transaction._id },
+      `/customer/rides/${rideRequest._id}`,
+      '/customer/rides',
+      req
+    );
+  } catch (error) {
+    console.error('[Customer ride payment notification failed]', error);
+  }
+
+  return rideRequest;
 };
 
 /**
@@ -557,12 +704,7 @@ export const initiateMpesaPaymentWithRider = asyncHandler(async (req, res) => {
   }
 
   const riderProfile = rider.riderProfile || {};
-  const riderIsOnline =
-    (riderProfile.isOnline === true || riderProfile.status === 'online') &&
-    riderProfile.status !== 'offline' &&
-    riderProfile.status !== 'busy' &&
-    riderProfile.status !== 'on_trip';
-  if (rider.isActive === false || rider.isDeleted === true || !riderIsOnline) {
+  if (!(await isRiderAvailableForPickup(riderId, effectivePickup))) {
     throw new ResponseError('Selected rider is no longer available. Please choose another rider.', 409);
   }
   const pickupArea = normalizeArea(effectivePickup);
@@ -591,16 +733,20 @@ export const initiateMpesaPaymentWithRider = asyncHandler(async (req, res) => {
 
   const storedPickup = {
     name: fareBreakdown.pickup,
-    address: typeof effectivePickup === 'string' ? effectivePickup : (effectivePickup.address || effectivePickup.name || fareBreakdown.pickup),
-    landmark: effectivePickup?.landmark,
-    coordinates: formatCoordinates(effectivePickup),
+    address: typeof pickupLocation === 'string'
+      ? pickupLocation
+      : (pickupLocation?.address || pickupLocation?.name || fareBreakdown.pickup),
+    landmark: pickupLocation?.landmark,
+    coordinates: formatCoordinates(pickupLocation || effectivePickup),
   };
 
   const storedDropoff = {
     name: fareBreakdown.destination,
-    address: typeof effectiveDestination === 'string' ? effectiveDestination : (effectiveDestination.address || effectiveDestination.name || fareBreakdown.destination),
-    landmark: effectiveDestination?.landmark,
-    coordinates: formatCoordinates(effectiveDestination),
+    address: typeof dropoffLocation === 'string'
+      ? dropoffLocation
+      : (dropoffLocation?.address || dropoffLocation?.name || fareBreakdown.destination),
+    landmark: dropoffLocation?.landmark,
+    coordinates: formatCoordinates(dropoffLocation || effectiveDestination),
   };
 
   const transactionPayload = {
@@ -806,6 +952,7 @@ export const initiateMpesaPayment = asyncHandler(async (req, res) => {
     pickup,
     destination,
     phoneNumber,
+    riderId,
     rideType = 'bodaboda'
   } = req.body;
 
@@ -825,6 +972,13 @@ export const initiateMpesaPayment = asyncHandler(async (req, res) => {
 
   if (!phoneNumber) {
     throw new ResponseError('M-Pesa phone number is required', 400);
+  }
+
+  if (!riderId) {
+    throw new ResponseError('Select an available rider before starting payment', 400);
+  }
+  if (!(await isRiderAvailableForPickup(riderId, effectivePickup))) {
+    throw new ResponseError('Selected rider is no longer available. Please choose another rider.', 409);
   }
 
   // Calculate fixed fare independently on the server using Africa/Nairobi time
@@ -847,23 +1001,27 @@ export const initiateMpesaPayment = asyncHandler(async (req, res) => {
 
   const storedPickup = {
     name: fareBreakdown.pickup,
-    address: typeof effectivePickup === 'string' ? effectivePickup : (effectivePickup.address || effectivePickup.name || fareBreakdown.pickup),
-    landmark: effectivePickup?.landmark,
-    coordinates: formatCoordinates(effectivePickup),
+    address: typeof pickupLocation === 'string'
+      ? pickupLocation
+      : (pickupLocation?.address || pickupLocation?.name || fareBreakdown.pickup),
+    landmark: pickupLocation?.landmark,
+    coordinates: formatCoordinates(pickupLocation || effectivePickup),
   };
 
   const storedDropoff = {
     name: fareBreakdown.destination,
-    address: typeof effectiveDestination === 'string' ? effectiveDestination : (effectiveDestination.address || effectiveDestination.name || fareBreakdown.destination),
-    landmark: effectiveDestination?.landmark,
-    coordinates: formatCoordinates(effectiveDestination),
+    address: typeof dropoffLocation === 'string'
+      ? dropoffLocation
+      : (dropoffLocation?.address || dropoffLocation?.name || fareBreakdown.destination),
+    landmark: dropoffLocation?.landmark,
+    coordinates: formatCoordinates(dropoffLocation || effectiveDestination),
   };
 
   const transaction = await Transaction.create({
     transactionRef,
     type: 'ride',
     customer: customerId,
-    provider: null,
+    provider: riderId,
     status: 'pending',
     amount: {
       baseAmount: fareBreakdown.baseFare,
@@ -891,6 +1049,7 @@ export const initiateMpesaPayment = asyncHandler(async (req, res) => {
       dropoffLocation: storedDropoff,
       estimatedDistance: 0,
       rideType,
+      selectedRiderId: riderId,
       fareBreakdown,
     },
   });
@@ -970,7 +1129,15 @@ export const verifyMpesaPayment = asyncHandler(async (req, res) => {
     throw new ResponseError('Transaction not found', 404);
   }
 
+  if (transaction.customer._id.toString() !== req.user._id.toString()) {
+    throw new ResponseError('You are not authorized to verify this payment', 403);
+  }
+
   if (transaction.status === 'paid') {
+    let rideRequest = await RideRequest.findOne({ transaction: transaction._id });
+    if (!rideRequest && transaction.pendingRideData) {
+      rideRequest = await createPaidRideRequest(transaction, transaction.pendingRideData, req);
+    }
     return res.status(200).json({
       success: true,
       data: {
@@ -979,6 +1146,7 @@ export const verifyMpesaPayment = asyncHandler(async (req, res) => {
         amount: transaction.amount.totalAmount,
         paidAt: transaction.paidAt,
         mpesaReceipt: transaction.mpesaReceiptNumber,
+        ...(rideRequest && { rideRequest }),
       },
     });
   }
@@ -1042,135 +1210,7 @@ export const verifyMpesaPayment = asyncHandler(async (req, res) => {
 
     const pendingRideData = transaction.pendingRideData;
     if (pendingRideData && transaction.type !== 'order' && transaction.type !== 'rental') {
-      const selectedRiderId = pendingRideData.selectedRiderId;
-
-      const formatCoordinates = (loc) => {
-        if (!loc) return [];
-        if (Array.isArray(loc.coordinates)) {
-          return loc.coordinates;
-        }
-        if (loc.coordinates && Array.isArray(loc.coordinates.coordinates)) {
-          return loc.coordinates.coordinates;
-        }
-        return [];
-      };
-
-      const formattedPickup = {
-        name: pendingRideData.pickupLocation?.name || pendingRideData.pickupLocation?.address || 'Pickup Location',
-        address: pendingRideData.pickupLocation?.address || pendingRideData.pickupLocation?.name || 'Pickup Location',
-        landmark: pendingRideData.pickupLocation?.landmark,
-        coordinates: formatCoordinates(pendingRideData.pickupLocation),
-      };
-
-      const formattedDropoff = {
-        name: pendingRideData.dropoffLocation?.name || pendingRideData.dropoffLocation?.address || 'Dropoff Location',
-        address: pendingRideData.dropoffLocation?.address || pendingRideData.dropoffLocation?.name || 'Dropoff Location',
-        landmark: pendingRideData.dropoffLocation?.landmark,
-        coordinates: formatCoordinates(pendingRideData.dropoffLocation),
-      };
-
-      const ridePayload = {
-        customer: transaction.customer._id,
-        pickupLocation: formattedPickup,
-        dropoffLocation: formattedDropoff,
-        estimatedDistance: pendingRideData.estimatedDistance,
-        rideType: pendingRideData.rideType || 'bodaboda',
-        passengers: 1,
-        status: 'waiting_rider',
-        paymentStatus: 'paid',
-        paymentMethod: 'mpesa',
-        transaction: transaction._id,
-        fare: pendingRideData.fareBreakdown,
-        escrowStatus: 'held',
-        fundsReleased: false,
-        ...(selectedRiderId && { rider: selectedRiderId }),
-      };
-
-      const existingRide = await RideRequest.findOne({ transaction: transaction._id });
-      if (existingRide) {
-        return res.status(200).json({
-          success: true,
-          data: {
-            transactionRef,
-            status: 'SUCCESS',
-            amount: transaction.amount.totalAmount,
-            paidAt: transaction.paidAt,
-            mpesaReceipt: transaction.mpesaReceiptNumber,
-            rideRequest: existingRide,
-          },
-        });
-      }
-
-      const rideRequest = await RideRequest.create(ridePayload);
-
-      if (transaction.provider && transaction.providerReceives > 0) {
-        await creditPendingEscrow(transaction.provider, transaction.providerReceives, 'ride_payment');
-      }
-
-      transaction.relatedEntity = rideRequest._id;
-      await transaction.save();
-
-      const io = req.app.get('io');
-      if (io && selectedRiderId) {
-        io.to(`rider_${selectedRiderId}`).emit('ride_request', {
-          rideId: rideRequest._id,
-          customer: transaction.customer,
-          pickupLocation: rideRequest.pickupLocation,
-          dropoffLocation: rideRequest.dropoffLocation,
-          estimatedDistance: rideRequest.estimatedDistance,
-          fare: {
-            totalFare: rideRequest.fare.totalFare,
-            riderReceives: rideRequest.fare.riderReceives,
-            platformFee: rideRequest.fare.platformFee || 0,
-            baseFare: rideRequest.fare.baseFare,
-            nightSurcharge: rideRequest.fare.nightSurcharge || 0,
-            fareType: rideRequest.fare.fareType || (rideRequest.fare.isNightRate ? 'night' : 'day'),
-            isFixedFare: true,
-          },
-          isFixedFare: true,
-          fareType: rideRequest.fare.fareType || (rideRequest.fare.isNightRate ? 'night' : 'day'),
-          isNightRate: rideRequest.fare.fareType === 'night' || !!rideRequest.fare.isNightRate,
-        });
-
-        try {
-          await createNotification(
-            selectedRiderId,
-            'ride_request',
-            'New Ride Request',
-            `You have a new ride request from ${transaction.customer?.name || 'a customer'}. Pickup: ${rideRequest.pickupLocation?.address || 'selected location'}. You will receive KSh ${rideRequest.fare.riderReceives}.`,
-            { rideId: rideRequest._id, customerId: transaction.customer._id },
-            `/rider/rides/${rideRequest._id}`,
-            '/rider/rides',
-            req,
-            'rider'
-          );
-        } catch (err) {
-          console.error('[Rider ride request notification failed]', err);
-        }
-      } else if (io) {
-        io.emit('new_ride_request', {
-          rideId: rideRequest._id,
-          pickupLocation: rideRequest.pickupLocation,
-          dropoffLocation: rideRequest.dropoffLocation,
-          estimatedDistance: rideRequest.estimatedDistance,
-          fare: rideRequest.fare,
-        });
-      }
-
-      try {
-        await createNotification(
-          transaction.customer._id,
-          'ride_payment_confirmed',
-          'Payment Confirmed - Waiting for Rider',
-          `Your payment of KSh ${transaction.amount.totalAmount} has been confirmed. We've notified your selected rider and are waiting for their response.`,
-          { rideId: rideRequest._id, transactionId: transaction._id },
-          `/customer/rides/${rideRequest._id}`,
-          '/customer/rides',
-        req
-      );
-      } catch (err) {
-        console.error('[Customer ride payment notification failed]', err);
-      }
+      const rideRequest = await createPaidRideRequest(transaction, pendingRideData, req);
 
       return res.status(200).json({
         success: true,
@@ -1324,164 +1364,7 @@ export const mpesaCallback = asyncHandler(async (req, res) => {
 
     const pendingRideData = transaction.pendingRideData;
     if (pendingRideData && transaction.type !== 'order') {
-      const existingRide = await RideRequest.findOne({ transaction: transaction._id });
-      if (existingRide) {
-        return res.status(200).json({
-          success: true,
-          message: 'Payment processed successfully',
-          data: {
-            transactionRef: transaction.transactionRef,
-            status: 'SUCCESS',
-            amount: transaction.amount.totalAmount,
-            paidAt: transaction.paidAt,
-            mpesaReceipt: transaction.mpesaReceiptNumber,
-            rideRequest: existingRide,
-          },
-        });
-      }
-
-      const selectedRiderId = pendingRideData.selectedRiderId;
-
-      const formatCoordinates = (loc) => {
-        if (!loc) return [];
-        if (Array.isArray(loc.coordinates)) {
-          return loc.coordinates;
-        }
-        if (loc.coordinates && Array.isArray(loc.coordinates.coordinates)) {
-          return loc.coordinates.coordinates;
-        }
-        return [];
-      };
-
-      const formattedPickup = {
-        name: pendingRideData.pickupLocation?.name || pendingRideData.pickupLocation?.address || 'Pickup Location',
-        address: pendingRideData.pickupLocation?.address || pendingRideData.pickupLocation?.name || 'Pickup Location',
-        landmark: pendingRideData.pickupLocation?.landmark,
-        coordinates: formatCoordinates(pendingRideData.pickupLocation),
-      };
-
-      const formattedDropoff = {
-        name: pendingRideData.dropoffLocation?.name || pendingRideData.dropoffLocation?.address || 'Dropoff Location',
-        address: pendingRideData.dropoffLocation?.address || pendingRideData.dropoffLocation?.name || 'Dropoff Location',
-        landmark: pendingRideData.dropoffLocation?.landmark,
-        coordinates: formatCoordinates(pendingRideData.dropoffLocation),
-      };
-
-      const ridePayload = {
-        customer: transaction.customer._id,
-        pickupLocation: formattedPickup,
-        dropoffLocation: formattedDropoff,
-        estimatedDistance: pendingRideData.estimatedDistance,
-        rideType: pendingRideData.rideType || 'bodaboda',
-        passengers: 1,
-        status: 'waiting_rider',
-        paymentStatus: 'paid',
-        paymentMethod: 'mpesa',
-        transaction: transaction._id,
-        fare: pendingRideData.fareBreakdown,
-        escrowStatus: 'held',
-        fundsReleased: false,
-        ...(selectedRiderId && { rider: selectedRiderId }),
-      };
-
-      const rideRequest = await RideRequest.create(ridePayload);
-
-      if (transaction.provider && transaction.providerReceives > 0) {
-        await creditPendingEscrow(transaction.provider, transaction.providerReceives, 'ride_payment');
-      }
-
-      transaction.relatedEntity = rideRequest._id;
-      await transaction.save();
-
-      const io = req.app.get('io');
-      if (io) {
-        if (selectedRiderId) {
-          io.to(`rider_${selectedRiderId}`).emit('ride_request', {
-            rideId: rideRequest._id,
-            customer: transaction.customer,
-            pickupLocation: rideRequest.pickupLocation,
-            dropoffLocation: rideRequest.dropoffLocation,
-            estimatedDistance: rideRequest.estimatedDistance,
-            fare: {
-              totalFare: rideRequest.fare.totalFare,
-              riderReceives: rideRequest.fare.riderReceives,
-              platformFee: rideRequest.fare.platformFee || 0,
-              baseFare: rideRequest.fare.baseFare,
-              nightSurcharge: rideRequest.fare.nightSurcharge || 0,
-              fareType: rideRequest.fare.fareType || (rideRequest.fare.isNightRate ? 'night' : 'day'),
-              isFixedFare: true,
-            },
-            isFixedFare: true,
-            fareType: rideRequest.fare.fareType || (rideRequest.fare.isNightRate ? 'night' : 'day'),
-            isNightRate: rideRequest.fare.fareType === 'night' || !!rideRequest.fare.isNightRate,
-          });
-
-          try {
-            await createNotification(
-              selectedRiderId,
-              'ride_request',
-              'New Ride Request',
-              `You have a new ride request from ${transaction.customer?.name || 'a customer'}. Pickup: ${rideRequest.pickupLocation?.address || 'selected location'}. You will receive KSh ${rideRequest.fare.riderReceives}.`,
-            { rideId: rideRequest._id, customerId: transaction.customer._id },
-            `/rider/rides/${rideRequest._id}`,
-            '/rider/rides',
-            req
-          );
-          } catch (err) {
-            console.error('[Selected rider notification failed]', err);
-          }
-        } else {
-          io.emit('new_ride_request', {
-            rideId: rideRequest._id,
-            pickupLocation: rideRequest.pickupLocation,
-            dropoffLocation: rideRequest.dropoffLocation,
-            estimatedDistance: rideRequest.estimatedDistance,
-            fare: rideRequest.fare,
-            riderReceives: rideRequest.fare.riderReceives,
-          });
-        }
-
-        if (transaction.customer?._id) {
-          io.to(`user_${transaction.customer._id}`).emit('payment_confirmed', {
-            transactionRef: transaction.transactionRef,
-            status: 'paid',
-            paymentStatus: 'paid',
-            rideId: rideRequest._id,
-            customerId: transaction.customer._id,
-            amount: transaction.amount.totalAmount,
-            mpesaReceipt: mpesaReceiptNumber,
-          });
-        }
-      }
-
-      if (transaction.type === 'order' && transaction.customer?._id) {
-        const io = req.app.get('io');
-        if (io) {
-          io.to(`user_${transaction.customer._id}`).emit('payment_confirmed', {
-            transactionRef: transaction.transactionRef,
-            status: 'paid',
-            paymentStatus: 'paid',
-            customerId: transaction.customer._id,
-            amount: transaction.amount.totalAmount,
-            mpesaReceipt: mpesaReceiptNumber,
-          });
-        }
-      }
-
-      try {
-        await createNotification(
-          transaction.customer._id,
-          'ride_payment_confirmed',
-          'Payment Confirmed - Rider Notified',
-          `Your payment of KSh ${transaction.amount.totalAmount} has been confirmed. Your selected rider has been notified.`,
-          { rideId: rideRequest._id, transactionId: transaction._id },
-          `/customer/rides/${rideRequest._id}`,
-          '/customer/rides',
-          req
-        );
-      } catch (err) {
-        console.error('[Customer ride notification failed]', err);
-      }
+      await createPaidRideRequest(transaction, pendingRideData, req);
     }
 
     try {
@@ -1543,14 +1426,22 @@ export const checkPaymentStatus = asyncHandler(async (req, res) => {
   console.log('[STATUS ENDPOINT] Request received for transactionRef:', transactionRef);
 
   const transaction = await Transaction.findOne({ transactionRef })
-    .populate('customer', 'firstName lastName email phone')
+    .populate('customer', 'name firstName lastName email phone avatar')
     .populate('provider', 'firstName lastName email phone');
 
   if (!transaction) {
     throw new ResponseError('Transaction not found', 404);
   }
 
+  if (transaction.customer._id.toString() !== req.user._id.toString()) {
+    throw new ResponseError('You are not authorized to verify this payment', 403);
+  }
+
   if (transaction.status === 'completed' || transaction.status === 'paid') {
+    let rideRequest = await RideRequest.findOne({ transaction: transaction._id });
+    if (!rideRequest && transaction.pendingRideData) {
+      rideRequest = await createPaidRideRequest(transaction, transaction.pendingRideData, req);
+    }
     return res.status(200).json({
       success: true,
       data: {
@@ -1561,6 +1452,7 @@ export const checkPaymentStatus = asyncHandler(async (req, res) => {
         paidAt: transaction.paidAt,
         completedAt: transaction.completedAt,
         mpesaReceipt: transaction.mpesaReceiptNumber,
+        ...(rideRequest && { rideRequest }),
       },
     });
   }
@@ -1583,6 +1475,10 @@ export const checkPaymentStatus = asyncHandler(async (req, res) => {
 
   const freshTransaction = await Transaction.findById(transaction._id);
   if (freshTransaction && (freshTransaction.status === 'paid' || freshTransaction.status === 'completed')) {
+    let rideRequest = await RideRequest.findOne({ transaction: freshTransaction._id });
+    if (!rideRequest && freshTransaction.pendingRideData) {
+      rideRequest = await createPaidRideRequest(freshTransaction, freshTransaction.pendingRideData, req);
+    }
     return res.status(200).json({
       success: true,
       data: {
@@ -1593,6 +1489,7 @@ export const checkPaymentStatus = asyncHandler(async (req, res) => {
         paidAt: freshTransaction.paidAt,
         completedAt: freshTransaction.completedAt,
         mpesaReceipt: freshTransaction.mpesaReceiptNumber,
+        ...(rideRequest && { rideRequest }),
       },
     });
   }
@@ -1605,8 +1502,13 @@ export const checkPaymentStatus = asyncHandler(async (req, res) => {
     transaction.mpesaReceiptNumber = darajaResponse.data?.mpesaReceiptNumber || transaction.mpesaReceiptNumber;
     await transaction.save();
 
-    if (transaction.provider && transaction.providerReceives > 0) {
+    if (transaction.type !== 'ride' && transaction.provider && transaction.providerReceives > 0) {
       await creditPendingEscrow(transaction.provider, transaction.providerReceives, 'payment_status_poll');
+    }
+
+    let rideRequest = null;
+    if (transaction.type === 'ride' && transaction.pendingRideData) {
+      rideRequest = await createPaidRideRequest(transaction, transaction.pendingRideData, req);
     }
 
     const customerNavTarget = transaction.type === 'order' ? '/customer/orders' :
@@ -1628,6 +1530,7 @@ export const checkPaymentStatus = asyncHandler(async (req, res) => {
         paymentStatus: 'paid',
         amount: transaction.amount.totalAmount,
         paidAt: transaction.paidAt,
+        ...(rideRequest && { rideRequest }),
       },
     });
   } else {

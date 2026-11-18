@@ -11,6 +11,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { cleanupOldNotifications } from './controllers/notificationController.js';
 import { startRentReminderJob } from './jobs/rentReminderJob.js';
+import { startRideRequestTimeoutJob } from './jobs/rideRequestTimeoutJob.js';
 
 // Fix __dirname for ES modules - MUST be before dotenv.config()
 const __filename = fileURLToPath(import.meta.url);
@@ -343,6 +344,7 @@ const startServer = async () => {
 
     // Start scheduled jobs after successful DB connection
     startRentReminderJob();
+    startRideRequestTimeoutJob();
 
     // Scheduled cleanup job - run every hour
     const CLEANUP_INTERVAL = 60 * 60 * 1000; // 1 hour in milliseconds

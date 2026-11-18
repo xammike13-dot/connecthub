@@ -7,6 +7,7 @@ import {
   getRide,
   acceptRide,
   declineRide,
+  reassignRide,
   updateRideStatus,
   confirmRideCompletion,
   updateRiderLocation,
@@ -31,6 +32,7 @@ router.use(protect);
 // router.post('/', authorize('customer'), createRideRequest);
 router.get('/customer/my-rides', authorize('customer'), getCustomerRides);
 router.delete('/:rideId/cancel', cancelRide);
+router.post('/:rideId/reassign', authorize('customer'), reassignRide);
 router.put('/:rideId/archive', authorize('customer'), archiveRide);
 
 // Rider routes

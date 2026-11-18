@@ -59,6 +59,7 @@ export const rideAPI = {
   getById: (id) => api.get(`/rides/${id}`),
   accept: (id) => api.post(`/rides/${id}/accept`),
   decline: (id, data) => api.post(`/rides/${id}/decline`, data), // Added data parameter for reason
+  reassign: (id, riderId) => api.post(`/rides/${id}/reassign`, { riderId }),
   updateStatus: (id, status) => api.put(`/rides/${id}/status`, { status }),
   confirmCompletion: (id) => api.put(`/rides/${id}/confirm-completion`),
   cancel: (id) => api.delete(`/rides/${id}/cancel`),

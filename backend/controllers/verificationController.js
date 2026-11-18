@@ -3,6 +3,7 @@ import User from '../models/User.js';
 import VerificationToken from '../models/VerificationToken.js';
 import { sendVerificationEmail, sendWelcomeEmail } from '../services/emailService.js';
 import { generateVerificationCode } from '../utils/phoneService.js';
+import { hashEmailVerificationCode } from '../utils/emailVerification.js';
 
 // Generate JWT Token
 const generateToken = (id) => {
@@ -22,10 +23,7 @@ export const sendEmailVerificationCode = async (req, res) => {
   try {
     const { email } = req.body;
 
-    console.log('[SEND EMAIL VERIFICATION] Received request for email:', email);
-
     if (!email) {
-      console.log('[SEND EMAIL VERIFICATION] Validation failed - email is required');
       return res.status(400).json({
         success: false,
         message: 'Email is required',
@@ -95,19 +93,19 @@ export const sendEmailVerificationCode = async (req, res) => {
     await VerificationToken.create({
       userId: user._id,
       type: 'email',
-      token: code,
+      token: hashEmailVerificationCode(user._id, code),
       expiresAt,
     });
 
-    // Update user with verification token and resend tracking
-    user.emailVerificationToken = code;
+    // Update resend tracking and clear any legacy plaintext OTP.
     user.emailVerificationExpire = expiresAt;
     user.emailVerificationLastResend = new Date();
     user.emailVerificationResendAttempts = resendAttemptsToday + 1;
     await user.save();
+    await User.updateOne({ _id: user._id }, { $unset: { emailVerificationToken: 1 } });
 
     // Send email
-    const emailResult = await sendVerificationEmail(email, code);
+    const emailResult = await sendVerificationEmail(user.email, code, { stage: 'resend' });
     if (!emailResult.success) {
       return res.status(500).json({
         success: false,
@@ -136,10 +134,7 @@ export const verifyEmailCode = async (req, res) => {
   try {
     const { email, code } = req.body;
 
-    console.log('[VERIFY EMAIL] Received request:', { email, code: code ? `${code.length} digits` : undefined });
-
     if (!email || !code) {
-      console.log('[VERIFY EMAIL] Validation failed - missing:', { hasEmail: !!email, hasCode: !!code });
       return res.status(400).json({
         success: false,
         message: 'Email and code are required',
@@ -216,7 +211,7 @@ export const verifyEmailCode = async (req, res) => {
     const verificationToken = await VerificationToken.findOne({
       userId: user._id,
       type: 'email',
-      token: code,
+      token: hashEmailVerificationCode(user._id, code),
       used: false,
       expiresAt: { $gt: new Date() },
     });
@@ -259,15 +254,15 @@ export const verifyEmailCode = async (req, res) => {
     // Update user verification status and activate account
     user.emailVerified = true;
     user.isActive = true; // Activate the account
-    user.emailVerificationToken = undefined;
     user.emailVerificationExpire = undefined;
     user.emailVerificationAttempts = 0;
     user.emailVerificationLockoutUntil = undefined;
     user.emailVerificationLastResend = null;
     await user.save();
+    await User.updateOne({ _id: user._id }, { $unset: { emailVerificationToken: 1 } });
 
     // Send welcome email
-    await sendWelcomeEmail(user.email, user.name, user.role);
+    await sendWelcomeEmail(user.email, user.name, user.role, { stage: 'post-verification' });
 
     // Generate JWT token and log user in
     const token = generateToken(user._id);

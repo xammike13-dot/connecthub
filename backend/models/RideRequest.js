@@ -144,6 +144,7 @@ const rideRequestSchema = new mongoose.Schema(
     paymentId: String,
     mpesaReceiptNumber: String,
     acceptedAt: Date,
+    responseExpiresAt: Date,
     startedAt: Date,
     notes: String,
     riderNotes: String,

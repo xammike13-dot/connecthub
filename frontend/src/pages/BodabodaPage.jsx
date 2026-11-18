@@ -70,6 +70,7 @@ const BodabodaPage = () => {
   // Flow & data states
   const [bookingStep, setBookingStep] = useState(BOOKING_STEP.LOCATION);
   const [nearbyRiders, setNearbyRiders] = useState([]);
+  const [pickupCoordinates, setPickupCoordinates] = useState(null);
   const [loadingRiders, setLoadingRiders] = useState(false);
   const [ridersLoaded, setRidersLoaded] = useState(false);
   const [selectedRider, setSelectedRider] = useState(null);
@@ -88,6 +89,7 @@ const BodabodaPage = () => {
   const [riderDeclinedMessage, setRiderDeclinedMessage] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
   const riderFetchSequence = useRef(0);
+  const pickupCoordinatesRef = useRef(null);
 
   // Pre-fill phone number when user profile loads
   useEffect(() => {
@@ -125,6 +127,9 @@ const BodabodaPage = () => {
     return isDestinationValidForPickup(selectedPickup, selectedDestination);
   }, [selectedPickup, selectedDestination]);
 
+  const rideAlreadyPaid = rideRequest?.paymentStatus === 'paid' &&
+    ['declined', 'no_rider_available'].includes(rideRequest?.status);
+
   // Fetch available riders for selected pickup location
   const fetchAvailableRiders = useCallback(async (pickup) => {
     if (!pickup) return;
@@ -133,8 +138,25 @@ const BodabodaPage = () => {
     try {
       setLoadingRiders(true);
       setRidersLoaded(false);
+      let coordinates = pickupCoordinatesRef.current;
+      if (navigator.geolocation) {
+        coordinates = await new Promise((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            ({ coords }) => resolve({ latitude: coords.latitude, longitude: coords.longitude }),
+            () => resolve(null),
+            { enableHighAccuracy: true, maximumAge: 15000, timeout: 8000 }
+          );
+        });
+      }
+      if (requestId !== riderFetchSequence.current) return;
+      pickupCoordinatesRef.current = coordinates;
+      setPickupCoordinates(coordinates);
       const response = await riderAPI.getNearbyRiders({
         pickup: pickup,
+        ...(coordinates && {
+          latitude: coordinates.latitude,
+          longitude: coordinates.longitude,
+        }),
       });
 
       if (!response.data.success) {
@@ -165,11 +187,19 @@ const BodabodaPage = () => {
     }
   }, [selectedPickup, selectedDestination, isRouteSupported, fetchAvailableRiders]);
 
+  useEffect(() => {
+    if (bookingStep !== BOOKING_STEP.RIDER_SELECTION || !selectedPickup) return undefined;
+    const refreshInterval = setInterval(() => fetchAvailableRiders(selectedPickup), 15000);
+    return () => clearInterval(refreshInterval);
+  }, [bookingStep, selectedPickup, fetchAvailableRiders]);
+
   // Handler for selecting a pickup
   const handleSelectPickup = (pickupId) => {
     riderFetchSequence.current += 1;
     setLoadingRiders(false);
     setSelectedPickup(pickupId);
+    pickupCoordinatesRef.current = null;
+    setPickupCoordinates(null);
     setSelectedRider(null);
     setNearbyRiders([]);
     setRidersLoaded(false);
@@ -248,13 +278,13 @@ const BodabodaPage = () => {
       return;
     }
 
-    if (!mpesaPhone || !mpesaPhone.trim()) {
+    if (!rideAlreadyPaid && (!mpesaPhone || !mpesaPhone.trim())) {
       setPaymentError('Please enter your M-Pesa phone number.');
       return;
     }
 
     const cleanedPhone = formatKenyanPhone(mpesaPhone);
-    if (!/^254[17]\d{8}$/.test(cleanedPhone)) {
+    if (!rideAlreadyPaid && !/^254[17]\d{8}$/.test(cleanedPhone)) {
       setPaymentError('Enter a valid Kenyan M-Pesa number (e.g. 0712345678 or 0112345678).');
       return;
     }
@@ -262,6 +292,19 @@ const BodabodaPage = () => {
     try {
       setActionLoading(true);
       setPaymentError(null);
+      if (rideAlreadyPaid) {
+        const response = await rideAPI.reassign(
+          rideRequest._id,
+          selectedRider._id || selectedRider.id
+        );
+        setRideRequest(response.data.data);
+        setRideStatus('waiting_rider');
+        setRiderDeclinedMessage(null);
+        setBookingStep(BOOKING_STEP.WAITING_ACCEPTANCE);
+        addToast(`Ride request sent to ${selectedRider.name}. No additional payment was taken.`, 'success');
+        return;
+      }
+
       setPaymentStatus(PAYMENT_STATUS.INITIATING);
       setShowPaymentModal(true);
 
@@ -271,6 +314,9 @@ const BodabodaPage = () => {
         pickupLocation: {
           name: selectedPickup,
           address: selectedPickup,
+          ...(pickupCoordinates && {
+            coordinates: [pickupCoordinates.longitude, pickupCoordinates.latitude],
+          }),
         },
         dropoffLocation: {
           name: selectedDestination,
@@ -292,8 +338,9 @@ const BodabodaPage = () => {
       }
     } catch (err) {
       console.error('[handleStartPayment] Error:', err);
-      setPaymentStatus(PAYMENT_STATUS.FAILED);
+      if (!rideAlreadyPaid) setPaymentStatus(PAYMENT_STATUS.FAILED);
       setPaymentError(err.response?.data?.message || err.message || 'Payment initiation failed.');
+      if (rideAlreadyPaid) fetchAvailableRiders(selectedPickup);
     } finally {
       setActionLoading(false);
     }
@@ -317,8 +364,15 @@ const BodabodaPage = () => {
             if (createdRide) {
               setRideRequest(createdRide);
             }
-            setBookingStep(BOOKING_STEP.WAITING_ACCEPTANCE);
-            addToast('M-Pesa payment confirmed! Rider has been notified.', 'success');
+            if (createdRide?.status === 'no_rider_available') {
+              setSelectedRider(null);
+              setRiderDeclinedMessage('Your selected rider is unavailable. Choose another available rider; your payment is already confirmed.');
+              setBookingStep(BOOKING_STEP.RIDER_SELECTION);
+              addToast('Payment confirmed, but the selected rider is unavailable. Choose another rider without paying again.', 'info');
+            } else {
+              setBookingStep(BOOKING_STEP.WAITING_ACCEPTANCE);
+              addToast('M-Pesa payment confirmed! Rider has been notified.', 'success');
+            }
           } else if (status === 'FAILED' || status === 'CANCELLED') {
             clearInterval(interval);
             setPaymentStatus(PAYMENT_STATUS.FAILED);
@@ -376,9 +430,21 @@ const BodabodaPage = () => {
 
     const handleRideDeclined = (data) => {
       console.log('[BodabodaPage] Ride declined:', data);
+      if (data?.rideId !== rideRequest?._id) return;
       setRiderDeclinedMessage(data.reason ? `Rider declined: "${data.reason}". Please choose another rider.` : 'The selected rider declined your request. Please choose another rider.');
+      setRideRequest((previous) => previous ? { ...previous, status: 'declined' } : previous);
       setBookingStep(BOOKING_STEP.RIDER_SELECTION);
       setSelectedRider(null);
+      fetchAvailableRiders(selectedPickup);
+    };
+
+    const handleRiderUnavailable = (data) => {
+      if (data?.rideId !== rideRequest?._id) return;
+      setRiderDeclinedMessage(data.message || 'Your selected rider is unavailable. Choose another rider without paying again.');
+      setRideRequest((previous) => previous ? { ...previous, status: 'no_rider_available' } : previous);
+      setBookingStep(BOOKING_STEP.RIDER_SELECTION);
+      setSelectedRider(null);
+      fetchAvailableRiders(selectedPickup);
     };
 
     const handleRideStatusUpdate = (data) => {
@@ -389,14 +455,18 @@ const BodabodaPage = () => {
 
     socket.on('ride_accepted', handleRideAccepted);
     socket.on('ride_declined', handleRideDeclined);
+    socket.on('ride_rider_unavailable', handleRiderUnavailable);
+    socket.on('ride_request_expired', handleRiderUnavailable);
     socket.on('ride_status_update', handleRideStatusUpdate);
 
     return () => {
       socket.off('ride_accepted', handleRideAccepted);
       socket.off('ride_declined', handleRideDeclined);
+      socket.off('ride_rider_unavailable', handleRiderUnavailable);
+      socket.off('ride_request_expired', handleRiderUnavailable);
       socket.off('ride_status_update', handleRideStatusUpdate);
     };
-  }, [socket, rideRequest?._id, selectedRider, addToast]);
+  }, [socket, rideRequest?._id, selectedRider, selectedPickup, addToast, fetchAvailableRiders]);
 
   // Customer confirms ride arrival/completion
   const handleConfirmCompletion = async () => {
@@ -770,7 +840,9 @@ const BodabodaPage = () => {
                       Available Boda Riders
                     </h2>
                     <p className="text-xs text-slate-400 mt-0.5">
-                      Select a verified rider in your pickup area
+                      {pickupCoordinates
+                        ? 'Sorted by live distance from your GPS pickup'
+                        : 'Select a verified rider in your pickup area; GPS distance is unavailable'}
                     </p>
                   </div>
                   <Button
@@ -849,7 +921,9 @@ const BodabodaPage = () => {
                             </div>
                             <p className="text-[11px] text-slate-400 truncate mt-1">
                               🏍️ {rider.motorcycle?.brand || rider.vehicleType || 'Boda Boda'}
-                              {rider.motorcycle?.plateNumber ? ` (${rider.motorcycle.plateNumber})` : ''}
+                              {(rider.registrationNumber || rider.motorcycle?.plateNumber)
+                                ? ` (${rider.registrationNumber || rider.motorcycle.plateNumber})`
+                                : ''}
                             </p>
                             <p className="text-[10px] text-emerald-400 mt-1">Online · Available</p>
                           </div>
@@ -865,10 +939,14 @@ const BodabodaPage = () => {
                         <div className="flex items-center justify-between text-[11px] text-slate-400 mb-3">
                           <span>
                             {rider.distance !== null && rider.distance !== undefined && Number.isFinite(Number(rider.distance))
-                              ? `${rider.distance} km from pickup`
-                              : `Pickup area: ${selectedPickup}`}
+                              ? `${rider.distance} km away`
+                              : 'Distance unavailable'}
                           </span>
-                          <span className="capitalize">{farePreview?.fareType} rate</span>
+                          <span>
+                            {rider.estimatedArrival !== null && rider.estimatedArrival !== undefined
+                              ? `~${rider.estimatedArrival} min away`
+                              : 'ETA unavailable'}
+                          </span>
                         </div>
 
                         <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
@@ -907,7 +985,7 @@ const BodabodaPage = () => {
                 <div className="flex items-center justify-between pb-4 border-b border-slate-700">
                   <h2 className="text-lg font-bold text-white flex items-center gap-2">
                     <CheckCircle className="text-emerald-400" size={20} />
-                    Review Booking & Pay
+                    {rideAlreadyPaid ? 'Confirm New Rider' : 'Review Booking & Pay'}
                   </h2>
                   <Button
                     variant="outline"
@@ -980,9 +1058,11 @@ const BodabodaPage = () => {
                 <div className="py-4 border-b border-slate-700 flex items-center justify-between">
                   <div>
                     <span className="text-xs text-slate-400 uppercase font-bold tracking-wider">
-                      Amount to Pay
+                      {rideAlreadyPaid ? 'Already Paid' : 'Amount to Pay'}
                     </span>
-                    <p className="text-xs text-slate-500">M-Pesa STK Push direct</p>
+                    <p className="text-xs text-slate-500">
+                      {rideAlreadyPaid ? 'No additional payment required' : 'M-Pesa STK Push direct'}
+                    </p>
                   </div>
                   <span className="text-3xl font-black text-[#FF5E00]">
                     KSh {farePreview?.totalFare}
@@ -990,7 +1070,7 @@ const BodabodaPage = () => {
                 </div>
 
                 {/* M-Pesa Phone Input */}
-                <div className="pt-4 space-y-3">
+                {!rideAlreadyPaid && <div className="pt-4 space-y-3">
                   <label className="block text-xs font-bold uppercase text-slate-300 tracking-wider">
                     M-Pesa Phone Number
                   </label>
@@ -1009,7 +1089,7 @@ const BodabodaPage = () => {
                     <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-center gap-2">
                       <AlertCircle size={14} className="flex-shrink-0" />
                       <span>{paymentError}</span>
-                    </div>
+                    </div>}
                   )}
 
                   <Button
@@ -1032,7 +1112,9 @@ const BodabodaPage = () => {
                     ) : (
                       <Phone className="w-5 h-5 mr-2" />
                     )}
-                    Pay KSh {farePreview?.totalFare} & Book
+                    {rideAlreadyPaid
+                      ? 'Send Paid Request to Selected Rider'
+                      : `Pay KSh ${farePreview?.totalFare} & Book`}
                   </Button>
                 </div>
               </div>

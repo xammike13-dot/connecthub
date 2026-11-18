@@ -27,20 +27,27 @@ const isBrevoConfigured = () => {
   return apiKey && apiKey !== 'your-brevo-api-key-here' && apiKey.length > 10;
 };
 
+const maskRecipient = (email) => {
+  const [localPart, domain] = String(email).split('@');
+  if (!domain) return '***';
+  return `${localPart.slice(0, 1)}***@${domain}`;
+};
+
 /**
  * Send an email using Brevo Transactional Email API
  */
-const sendEmail = async (to, subject, htmlContent, textContent = '') => {
+const sendEmail = async (to, subject, htmlContent, textContent = '', { emailType, stage } = {}) => {
   const apiKey = getBrevoApiKey();
   const senderEmail = getBrevoSenderEmail() || 'noreply@olafasta.com';
   const senderName = getBrevoSenderName() || 'Olafasta';
+  const recipient = maskRecipient(to);
+  const sentAt = new Date().toISOString();
 
   if (!isBrevoConfigured()) {
-    console.log('[EMAIL] Brevo not configured. Email would have been sent:');
-    console.log('[EMAIL] To:', to);
-    console.log('[EMAIL] Subject:', subject);
-    console.log('[EMAIL] Content:', htmlContent.substring(0, 200) + '...');
-    return { success: true, devMode: true };
+    console.warn('[EMAIL] Brevo is not configured; no email was sent.', {
+      emailType, recipient, stage, sentAt,
+    });
+    return { success: false, devMode: true, error: 'Brevo is not configured' };
   }
 
   const requestBody = {
@@ -50,13 +57,6 @@ const sendEmail = async (to, subject, htmlContent, textContent = '') => {
     htmlContent,
     textContent: textContent || undefined,
   };
-
-  console.log('[EMAIL] ===== BREVO EMAIL REQUEST =====');
-  console.log('[EMAIL] Brevo URL:', `${BREVO_API_URL}/smtp/email`);
-  console.log('[EMAIL] Sender Email:', senderEmail);
-  console.log('[EMAIL] Recipient:', to);
-  console.log('[EMAIL] Subject:', subject);
-  console.log('[EMAIL] API Key Present:', !!apiKey);
 
   try {
     const response = await axios.post(
@@ -72,26 +72,44 @@ const sendEmail = async (to, subject, htmlContent, textContent = '') => {
       }
     );
 
-    console.log('[EMAIL] Response Status:', response.status);
     if (response.status === 201 || response.status === 200) {
-      console.log('[EMAIL] Email sent successfully to:', to);
+      console.info('[EMAIL] Accepted by Brevo; delivery not yet confirmed.', {
+        emailType,
+        recipient,
+        stage,
+        messageId: response.data?.messageId,
+        status: response.status,
+        sentAt,
+      });
       return { success: true, messageId: response.data?.messageId, status: response.status };
     } else {
-      console.error('[EMAIL] Unexpected response status:', response.status);
+      console.error('[EMAIL] Brevo returned an unexpected response.', {
+        emailType, recipient, stage, status: response.status, sentAt,
+      });
       return { success: false, error: `Unexpected status code: ${response.status}`, status: response.status };
     }
   } catch (error) {
-    console.error('[EMAIL] ===== BREVO REQUEST FAILED =====');
-    console.error('[EMAIL] Error Message:', error.message);
     if (error.response) {
       const brevoError = error.response.data;
       const errorMessage = brevoError.message || `Brevo error code: ${brevoError.code}` || 'Unknown Brevo error';
-      console.error('[EMAIL] Brevo Error:', errorMessage);
+      console.error('[EMAIL] Brevo request failed.', {
+        emailType,
+        recipient,
+        stage,
+        status: error.response.status,
+        sentAt,
+        errorResponse: brevoError,
+      });
       return { success: false, error: errorMessage, code: brevoError.code, status: error.response.status };
     } else if (error.request) {
-      console.error('[EMAIL] No response received from Brevo');
+      console.error('[EMAIL] No response received from Brevo.', {
+        emailType, recipient, stage, sentAt, error: error.message,
+      });
       return { success: false, error: 'No response from Brevo API. Check network connection.' };
     } else {
+      console.error('[EMAIL] Email request could not be prepared.', {
+        emailType, recipient, stage, sentAt, error: error.message,
+      });
       return { success: false, error: error.message };
     }
   }
@@ -123,21 +141,24 @@ const emailWrapper = (bodyHtml) => `
 /**
  * Send email verification code
  */
-export const sendVerificationEmail = async (email, code) => {
-  console.log('[EMAIL SERVICE] sendVerificationEmail called with:', { email, codeLength: code?.length, code });
+export const sendVerificationEmail = async (email, code, { stage = 'verification' } = {}) => {
 
   const htmlContent = emailWrapper(`
     <h2 style="color: #0f172a; margin-top: 0; font-size: 22px; font-weight: 700;">Verify Your Email 🔐</h2>
-    <p style="color: #475569; line-height: 1.7;">Habari! You're almost in. Enter the code below to verify your Olafasta account and start enjoying fasta fasta service:</p>
+    <p style="color: #475569; line-height: 1.7;">You're almost in. Enter this six-digit code in the Olafasta app to verify your email address:</p>
     <div style="background: #fff7f0; border: 2px solid #FF5E00; border-radius: 10px; padding: 24px; text-align: center; margin: 24px 0;">
       <span style="font-size: 38px; font-weight: 900; color: #FF5E00; letter-spacing: 10px;">${code}</span>
     </div>
     <p style="color: #64748b; line-height: 1.7; font-size: 14px;">This code expires in <strong>15 minutes</strong>. If you didn't create an Olafasta account, ignore this email.</p>
+    <p style="color: #64748b; line-height: 1.7; font-size: 14px;"><strong>Security:</strong> Never share this verification code with anyone, including Olafasta support.</p>
   `);
 
-  const textContent = `Olafasta Email Verification\n\nYour verification code is: ${code}\n\nExpires in 15 minutes. Visit https://olafasta.com\nSupport: +254 748 459757`;
+  const textContent = `Verify your Olafasta account\n\nYour six-digit verification code is: ${code}\n\nEnter this code in the Olafasta app to verify your email address. It expires in 15 minutes.\n\nNever share this code with anyone, including Olafasta support. If you did not create an Olafasta account, ignore this email.`;
 
-  return sendEmail(email, '🔐 Verify your Olafasta account', htmlContent, textContent);
+  return sendEmail(email, 'Verify your Olafasta account', htmlContent, textContent, {
+    emailType: 'VERIFICATION',
+    stage,
+  });
 };
 
 /**
@@ -179,7 +200,7 @@ export const sendPasswordResetConfirmation = async (email) => {
 /**
  * Send welcome email after verification
  */
-export const sendWelcomeEmail = async (email, name, role) => {
+export const sendWelcomeEmail = async (email, name, role, { stage = 'post-verification' } = {}) => {
   const roleLabels = {
     customer: 'Comrade',
     landlord: 'Landlord',
@@ -206,7 +227,10 @@ export const sendWelcomeEmail = async (email, name, role) => {
 
   const textContent = `Welcome to Olafasta, ${name}!\n\nYou've joined as a ${roleLabels[role] || role}. Fasta fasta — everything you need is right here.\n\nVisit: ${process.env.FRONTEND_URL || 'https://olafasta.com'}\nSupport: +254 748 459757`;
 
-  return sendEmail(email, `🎉 Welcome to Olafasta, ${name}!`, htmlContent, textContent);
+  return sendEmail(email, `🎉 Welcome to Olafasta, ${name}!`, htmlContent, textContent, {
+    emailType: 'WELCOME',
+    stage,
+  });
 };
 
 export default {

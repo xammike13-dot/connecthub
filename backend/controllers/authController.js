@@ -4,9 +4,9 @@ import Wallet from '../models/Wallet.js';
 import VerificationToken from '../models/VerificationToken.js';
 import SystemLog from '../models/SystemLog.js';
 import { generateVerificationCode } from '../utils/phoneService.js';
+import { hashEmailVerificationCode } from '../utils/emailVerification.js';
 import { 
   sendVerificationEmail, 
-  sendWelcomeEmail,
   sendPasswordResetEmail,
   sendPasswordResetConfirmation
 } from '../services/emailService.js';
@@ -20,29 +20,15 @@ const generateToken = (id) => {
 
 // Helper function to handle successful login
 const handleLoginSuccess = async (user, password, req, res) => {
-  console.log('[PASSWORD FIELD EXISTS]', !!user?.password);
-  console.log('[USER ACTIVE]', user?.isActive);
-  console.log('[USER DELETED]', user?.isDeleted);
-  console.log('[PASSWORD HASH]', user?.password);
-  console.log('[PASSWORD PROVIDED]', password);
-
   // Check password
   const isMatch = await user.matchPassword(password);
-  console.log('[PASSWORD MATCH]', isMatch);
-  console.log('[BCRYPT COMPARE DETAILS]', {
-    plainPassword: password,
-    storedHash: user.password,
-    match: isMatch
-  });
   
   if (!isMatch) {
-    console.log('[LOGIN FAILED] Password mismatch for email:', user.email);
-
     // Log auth failure
     SystemLog.create({
       type: 'auth_failure',
-      message: `Failed login attempt (password mismatch) for email: ${user.email}`,
-      details: { email: user.email, ip: req.ip || req.connection.remoteAddress },
+      message: 'Failed login attempt (password mismatch)',
+      details: { ip: req.ip || req.connection.remoteAddress },
       user: user._id
     }).catch(e => console.error('Failed to log SystemLog auth mismatch:', e.message));
 
@@ -54,13 +40,11 @@ const handleLoginSuccess = async (user, password, req, res) => {
 
   // Check email verification status - users must verify email before logging in
   if (!user.emailVerified) {
-    console.log('[LOGIN FAILED] Email not verified for:', user.email);
-
     // Log email unverified
     SystemLog.create({
       type: 'auth_failure',
-      message: `Failed login attempt (email unverified) for email: ${user.email}`,
-      details: { email: user.email, ip: req.ip || req.connection.remoteAddress },
+      message: 'Failed login attempt (email unverified)',
+      details: { ip: req.ip || req.connection.remoteAddress },
       user: user._id
     }).catch(e => console.error('Failed to log SystemLog email unverified:', e.message));
 
@@ -167,7 +151,6 @@ export const register = async (req, res, next) => {
 
     // Generate email verification code
     const code = generateVerificationCode();
-    console.log('[REGISTER] Generated verification code for', email, ':', code);
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
     // Delete any existing unused email verification tokens for this user
@@ -181,17 +164,18 @@ export const register = async (req, res, next) => {
     await VerificationToken.create({
       userId: user._id,
       type: 'email',
-      token: code,
+      token: hashEmailVerificationCode(user._id, code),
       expiresAt,
     });
 
-    // Update user with verification token info
-    user.emailVerificationToken = code;
-    user.emailVerificationExpire = expiresAt;
-    await user.save();
+    // Keep only the expiry on the user; remove any legacy plaintext OTP.
+    await User.updateOne(
+      { _id: user._id },
+      { $set: { emailVerificationExpire: expiresAt }, $unset: { emailVerificationToken: 1 } }
+    );
 
-    // Send verification email using Brevo
-    const emailResult = await sendVerificationEmail(email, code);
+    // Registration sends only a verification email; welcome email follows verification.
+    const emailResult = await sendVerificationEmail(user.email, code, { stage: 'registration' });
 
     if (!emailResult.success) {
       console.error('[REGISTER] Failed to send verification email:', emailResult.error);
@@ -227,11 +211,8 @@ export const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    console.log('[LOGIN REQUEST]', req.body);
-
     // Validate email & password
     if (!email || !password) {
-      console.log('[LOGIN VALIDATION FAILED] Missing email or password');
       return res.status(400).json({
         success: false,
         message: 'Please provide email and password',
@@ -240,31 +221,23 @@ export const login = async (req, res, next) => {
 
     // Check for user (case-insensitive due to schema lowercase: true)
     const user = await User.findOne({ email }).select('+password');
-    console.log('[USER FOUND]', !!user);
-    console.log('[USER EMAIL]', user?.email);
-    console.log('[SEARCH EMAIL]', email);
     
     // Fallback to case-insensitive search if exact match fails
     if (!user) {
-      console.log('[EXACT MATCH FAILED, TRYING CASE-INSENSITIVE]');
       const caseInsensitiveUser = await User.findOne({ 
         email: { $regex: new RegExp(`^${email}$`, 'i') } 
       }).select('+password');
-      console.log('[CASE-INSENSITIVE USER FOUND]', !!caseInsensitiveUser);
       if (caseInsensitiveUser) {
-        console.log('[FOUND EMAIL]', caseInsensitiveUser.email);
         return handleLoginSuccess(caseInsensitiveUser, password, req, res);
       }
     }
     
     if (!user) {
-      console.log('[LOGIN FAILED] User not found for email:', email);
-
       // Log auth failure (non-existent user)
       SystemLog.create({
         type: 'auth_failure',
-        message: `Failed login attempt (user not found) for email: ${email}`,
-        details: { email, ip: req.ip || req.headers['x-forwarded-for'] || null }
+        message: 'Failed login attempt (user not found)',
+        details: { ip: req.ip || req.headers['x-forwarded-for'] || null }
       }).catch(e => console.error('Failed to log SystemLog auth mismatch:', e.message));
 
       return res.status(401).json({

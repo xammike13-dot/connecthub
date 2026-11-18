@@ -672,18 +672,44 @@ export const getNearbyRiders = asyncHandler(async (req, res) => {
     latitude !== null &&
     longitude !== undefined &&
     longitude !== null &&
-    !isNaN(parseFloat(latitude)) &&
-    !isNaN(parseFloat(longitude));
+    Number.isFinite(Number(latitude)) &&
+    Number.isFinite(Number(longitude)) &&
+    Number(latitude) >= -90 &&
+    Number(latitude) <= 90 &&
+    Number(longitude) >= -180 &&
+    Number(longitude) <= 180;
 
   const lat = hasCoords ? parseFloat(latitude) : null;
   const lng = hasCoords ? parseFloat(longitude) : null;
-  const maxSearchRadiusKm = parseFloat(maxDistance) / 1000;
+  const radiusSetting = Number(process.env.RIDER_SEARCH_RADIUS_METERS);
+  const configuredRadius = Number.isFinite(radiusSetting) && radiusSetting > 0
+    ? radiusSetting
+    : 10000;
+  const requestedRadius = Number(maxDistance);
+  const maxSearchRadiusKm = Math.min(
+    Number.isFinite(requestedRadius) && requestedRadius > 0 ? requestedRadius : configuredRadius,
+    configuredRadius
+  ) / 1000;
+
+  if ((latitude !== undefined || longitude !== undefined) && !hasCoords) {
+    throw new ResponseError('Valid pickup latitude and longitude are required', 400);
+  }
 
   const allRiders = await User.find({
     role: 'rider',
     isActive: { $ne: false },
     isDeleted: { $ne: true },
+    $or: [
+      { 'riderProfile.isOnline': true },
+      { 'riderProfile.status': 'online' },
+    ],
+  }).select('name avatar profilePhoto riderProfile');
+
+  const activeRideRiderIds = await RideRequest.distinct('rider', {
+    status: { $in: ['accepted', 'in_progress', 'awaiting_customer_confirmation'] },
+    rider: { $ne: null },
   });
+  const activeRideRiderSet = new Set(activeRideRiderIds.map((id) => id.toString()));
 
   const haversineKm = (lat1, lon1, lat2, lon2) => {
     const R = 6371;
@@ -702,6 +728,8 @@ export const getNearbyRiders = asyncHandler(async (req, res) => {
 
   for (const rider of allRiders) {
     const profile = rider.riderProfile || {};
+
+    if (activeRideRiderSet.has(rider._id.toString())) continue;
 
     // Exclude riders marked offline, busy, or already on a trip.
     const isOnline =
@@ -725,6 +753,7 @@ export const getNearbyRiders = asyncHandler(async (req, res) => {
     // Handle distance if coordinates exist
     const riderLoc = profile.currentLocation;
     let distance = null;
+    let sortDistance = null;
     let rLat = null;
     let rLng = null;
 
@@ -745,9 +774,16 @@ export const getNearbyRiders = asyncHandler(async (req, res) => {
           if (calcDist > Math.min(maxSearchRadiusKm, riderRadiusKm)) {
             continue;
           }
+          sortDistance = calcDist;
           distance = parseFloat(calcDist.toFixed(1));
         }
       }
+    }
+
+    if (hasCoords && distance === null) continue;
+
+    if (normPickup && workingAreas.length > 0 && !matchesWorkingArea) {
+      continue;
     }
 
     if (!hasCoords && normPickup && !matchesWorkingArea) {
@@ -760,38 +796,40 @@ export const getNearbyRiders = asyncHandler(async (req, res) => {
       name: rider.name,
       riderName: rider.name,
       avatar: profile.profilePhoto || rider.avatar || '',
-      profilePhoto: profile.profilePhoto || rider.avatar || '',
+      profilePhoto: profile.profilePhoto || rider.profilePhoto || rider.avatar || '',
       rating: parseFloat(profile.rating || 5.0),
       totalTrips: parseInt(profile.totalRides || 0, 10),
       vehicleType: profile.motorcycle?.brand || profile.vehicleType || 'Motorcycle',
       motorcycleType: profile.motorcycle?.brand || profile.vehicleType || 'Motorcycle',
       motorcycle: profile.motorcycle,
+      registrationNumber: profile.motorcycle?.plateNumber || profile.vehicleNumber || '',
       lat: rLat,
       lng: rLng,
       latitude: rLat,
       longitude: rLng,
       distance,
-      estimatedArrival: distance ? Math.max(1, Math.round(distance * 3)) : 5,
+      sortDistance,
+      estimatedArrival: distance === null ? null : Math.max(1, Math.round(distance * 3)),
+      availabilityStatus: 'available',
       isOnline: true,
       workingAreas,
       matchesWorkingArea,
     });
   }
 
-  // Sort riders: matching working area first, then by distance (if available), then by rating
+  // Distance is the primary sort key whenever the passenger supplied a GPS pickup.
   availableRiders.sort((a, b) => {
-    if (a.matchesWorkingArea !== b.matchesWorkingArea) {
-      return a.matchesWorkingArea ? -1 : 1;
+    if (a.sortDistance !== null && b.sortDistance !== null) {
+      return a.sortDistance - b.sortDistance || b.rating - a.rating;
     }
-    if (a.distance !== null && b.distance !== null) {
-      return a.distance - b.distance;
-    }
+    if (a.sortDistance !== null) return -1;
+    if (b.sortDistance !== null) return 1;
     return b.rating - a.rating;
   });
 
   res.status(200).json({
     success: true,
-    data: availableRiders,
+    data: availableRiders.map(({ sortDistance, ...rider }) => rider),
     count: availableRiders.length,
   });
 });

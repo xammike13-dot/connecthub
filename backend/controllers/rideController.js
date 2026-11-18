@@ -14,6 +14,11 @@ import { formatDistance, distanceToKm } from '../utils/distanceFormatter.js';
 import { asyncHandler, ResponseError } from '../middleware/error.js';
 import { createRideNotification } from './notificationController.js';
 import { releaseEscrow } from '../utils/walletService.js';
+import {
+  emitRideRequestToRider,
+  getRideRequestTimeoutDate,
+  isRiderAvailableForPickup,
+} from '../services/rideAssignmentService.js';
 
 /**
  * Determine if current time is night rate (Africa/Nairobi)
@@ -110,6 +115,9 @@ export const createRideRequest = asyncHandler(async (req, res) => {
   if (!pickupLocation || !dropoffLocation) {
     throw new ResponseError('Pickup and dropoff locations are required', 400);
   }
+  if (!riderId) {
+    throw new ResponseError('Select an available rider before requesting a ride', 400);
+  }
 
   // Calculate fixed fare using centralized fare calculator
   let fareBreakdown;
@@ -144,14 +152,8 @@ export const createRideRequest = asyncHandler(async (req, res) => {
     throw new ResponseError('Ride already exists for this payment transaction', 409);
   }
 
-  if (riderId) {
-    const rider = await User.findById(riderId);
-    if (!rider) {
-      throw new ResponseError('Selected rider not found', 404);
-    }
-    if (rider.role !== 'rider') {
-      throw new ResponseError('Selected user is not a rider', 400);
-    }
+  if (!(await isRiderAvailableForPickup(riderId, pickupLocation))) {
+    throw new ResponseError('Selected rider is no longer available. Please choose another rider.', 409);
   }
 
   // Debug logging
@@ -193,6 +195,7 @@ export const createRideRequest = asyncHandler(async (req, res) => {
     passengers,
     specialRequests,
     status: 'waiting_rider', // Payment confirmed, waiting for rider to accept
+    responseExpiresAt: getRideRequestTimeoutDate(),
     paymentStatus: 'paid', // Payment is already confirmed
     // Fare object with all required fields from centralized fixed fare calculator
     fare: {
@@ -213,7 +216,7 @@ export const createRideRequest = asyncHandler(async (req, res) => {
     },
     escrowStatus: 'held',
     fundsReleased: false,
-    ...(riderId && { rider: riderId }),
+    rider: riderId,
   };
 
   console.log('[rideController] Ride Payload Fare:', JSON.stringify(ridePayload.fare, null, 2));
@@ -250,27 +253,7 @@ export const createRideRequest = asyncHandler(async (req, res) => {
     transaction: rideRequest.transaction
   });
 
-  // Emit Socket.io event to notify specific rider or all riders
-  const io = req.app.get('io');
-  if (io) {
-    if (riderId) {
-      // Notify specific rider
-      io.to(`rider_${riderId}`).emit('ride_request', {
-        rideId: rideRequest._id,
-        pickupLocation: rideRequest.pickupLocation,
-        fare: rideRequest.fare,
-        customer: customerId,
-      });
-    } else {
-      // Notify all riders in riders room
-      io.to('riders').emit('ride_request', {
-        rideId: rideRequest._id,
-        pickupLocation: rideRequest.pickupLocation,
-        fare: rideRequest.fare,
-        customer: customerId,
-      });
-    }
-  }
+  emitRideRequestToRider(req.app.get('io'), rideRequest, req.user);
 
   // Create notification for customer
   try {
@@ -302,7 +285,7 @@ export const getAvailableRides = asyncHandler(async (req, res) => {
       { rider: null },  // Rides with null rider
     ],
   })
-    .populate('customer', 'name phone avatar riderProfile')
+    .populate('customer', 'name avatar profilePhoto')
     .sort('-createdAt')
     .limit(50);
 
@@ -327,7 +310,7 @@ export const getCustomerRides = asyncHandler(async (req, res) => {
   const skip = (page - 1) * limit;
 
   const rides = await RideRequest.find(query)
-    .populate('rider', 'name phone avatar riderProfile')
+    .populate('rider', 'name avatar profilePhoto riderProfile.vehicleType riderProfile.vehicleNumber riderProfile.rating riderProfile.motorcycle')
     .sort('-createdAt')
     .skip(skip)
     .limit(parseInt(limit));
@@ -358,7 +341,7 @@ export const getRiderRides = asyncHandler(async (req, res) => {
   const skip = (page - 1) * limit;
 
   const rides = await RideRequest.find(query)
-    .populate('customer', 'name phone avatar')
+    .populate('customer', 'name avatar profilePhoto')
     .sort('-createdAt')
     .skip(skip)
     .limit(parseInt(limit));
@@ -383,9 +366,7 @@ export const getRide = asyncHandler(async (req, res) => {
   const { rideId } = req.params;
   const userId = req.user._id;
 
-  const ride = await RideRequest.findById(rideId)
-    .populate('customer', 'name email phone avatar address')
-    .populate('rider', 'name email phone avatar riderProfile');
+  const ride = await RideRequest.findById(rideId);
 
   if (!ride) {
     throw new ResponseError('Ride not found', 404);
@@ -399,6 +380,15 @@ export const getRide = asyncHandler(async (req, res) => {
   ) {
     throw new ResponseError('Not authorized to view this ride', 403);
   }
+
+  const isActiveRide = ['accepted', 'in_progress', 'awaiting_customer_confirmation'].includes(ride.status);
+  await ride.populate('customer', isActiveRide ? 'name phone avatar profilePhoto' : 'name avatar profilePhoto');
+  await ride.populate(
+    'rider',
+    isActiveRide
+      ? 'name phone avatar profilePhoto riderProfile.vehicleType riderProfile.vehicleNumber riderProfile.rating riderProfile.motorcycle'
+      : 'name avatar profilePhoto riderProfile.vehicleType riderProfile.vehicleNumber riderProfile.rating riderProfile.motorcycle'
+  );
 
   res.status(200).json({
     success: true,
@@ -440,18 +430,26 @@ export const acceptRide = asyncHandler(async (req, res) => {
     createdAt: ride.createdAt
   });
 
-  // Allow acceptance if:
-  // 1. Ride is not assigned to any rider (legacy workflow)
-  // 2. Ride is assigned to this rider (payment-first workflow)
-  // 3. Ride is assigned to this rider (current rider matches)
-  if (ride.rider && ride.rider.toString() !== riderId.toString()) {
-    throw new ResponseError('Ride already accepted by another rider', 400);
+  if (!ride.rider || ride.rider.toString() !== riderId.toString()) {
+    throw new ResponseError('This ride request was not assigned to you', 403);
   }
 
   // STEP 1: Get the rider from the database
   const rider = await User.findById(riderId);
   if (!rider) {
     throw new ResponseError('Rider not found', 404);
+  }
+  if (!(await isRiderAvailableForPickup(riderId, ride.pickupLocation))) {
+    throw new ResponseError('You are no longer available to accept this ride', 409);
+  }
+
+  const claimedRide = await RideRequest.findOneAndUpdate(
+    { _id: rideId, rider: riderId, status: 'waiting_rider' },
+    { $set: { status: 'accepted', acceptedAt: new Date() }, $unset: { responseExpiresAt: 1 } },
+    { new: true }
+  );
+  if (!claimedRide) {
+    throw new ResponseError('Ride is no longer available', 409);
   }
 
   // STEP 2: Handle ride acceptance and maintain fixed fare integrity
@@ -464,8 +462,8 @@ export const acceptRide = asyncHandler(async (req, res) => {
   });
 
   ride.rider = riderId;
-  ride.status = 'accepted';
-  ride.acceptedAt = new Date();
+  ride.status = claimedRide.status;
+  ride.acceptedAt = claimedRide.acceptedAt;
 
   // If the ride does not have a fare yet (legacy), compute fixed fare or fallback
   if (!ride.fare || !ride.fare.totalFare) {
@@ -631,8 +629,8 @@ export const confirmRideCompletion = asyncHandler(async (req, res) => {
   });
 
   const ride = await RideRequest.findById(rideId)
-    .populate('customer', 'name email phone')
-    .populate('rider')
+    .populate('customer', 'name phone avatar')
+    .populate('rider', 'name phone avatar profilePhoto riderProfile.vehicleType riderProfile.vehicleNumber riderProfile.rating riderProfile.motorcycle')
     .populate('transaction');
 
   console.log("==== RIDE FOUND ====");
@@ -1107,14 +1105,14 @@ export const declineRide = asyncHandler(async (req, res) => {
   }
 
   const ride = await RideRequest.findById(rideId)
-    .populate('customer', 'name email phone');
+    .populate('customer', 'name phone avatar');
 
   if (!ride) {
     throw new ResponseError('Ride not found', 404);
   }
 
-  if (ride.rider && ride.rider.toString() !== riderId) {
-    throw new ResponseError('This ride has already been assigned to another rider', 400);
+  if (ride.status !== 'waiting_rider' || !ride.rider || ride.rider.toString() !== riderId.toString()) {
+    throw new ResponseError('This ride request is no longer assigned to you', 409);
   }
 
   console.log('[RIDE STATUS TRANSITION]', {
@@ -1126,11 +1124,26 @@ export const declineRide = asyncHandler(async (req, res) => {
   });
 
   // Update ride status to 'declined' (not 'cancelled')
-  ride.status = 'declined';
-  ride.cancelledBy = riderId;
-  ride.cancelledAt = new Date();
-  ride.cancellationReason = reason; // Store the actual reason provided
-  await ride.save();
+  const declinedRide = await RideRequest.findOneAndUpdate(
+    { _id: rideId, rider: riderId, status: 'waiting_rider' },
+    {
+      $set: {
+        status: 'declined',
+        cancelledBy: riderId,
+        cancelledAt: new Date(),
+        cancellationReason: reason,
+      },
+      $unset: { responseExpiresAt: 1 },
+    },
+    { new: true }
+  );
+  if (!declinedRide) {
+    throw new ResponseError('This ride request is no longer available', 409);
+  }
+  ride.status = declinedRide.status;
+  ride.cancelledBy = declinedRide.cancelledBy;
+  ride.cancelledAt = declinedRide.cancelledAt;
+  ride.cancellationReason = declinedRide.cancellationReason;
 
   console.log('[RIDE DECLINED]', {
     rideId: ride._id,
@@ -1168,5 +1181,75 @@ export const declineRide = asyncHandler(async (req, res) => {
     success: true,
     message: 'Ride declined successfully',
     data: ride,
+  });
+});
+
+export const reassignRide = asyncHandler(async (req, res) => {
+  if (req.user.role !== 'customer') {
+    throw new ResponseError('Only customers can reassign a ride request', 403);
+  }
+
+  const { rideId } = req.params;
+  const { riderId } = req.body;
+  if (!riderId) {
+    throw new ResponseError('A rider must be selected', 400);
+  }
+
+  const ride = await RideRequest.findOne({
+    _id: rideId,
+    customer: req.user._id,
+    paymentStatus: 'paid',
+    status: { $in: ['declined', 'no_rider_available'] },
+  });
+  if (!ride) {
+    throw new ResponseError('This paid ride cannot be reassigned', 409);
+  }
+  if (!(await isRiderAvailableForPickup(riderId, ride.pickupLocation))) {
+    throw new ResponseError('Selected rider is no longer available. Please choose another rider.', 409);
+  }
+
+  const reassignedRide = await RideRequest.findOneAndUpdate(
+    {
+      _id: rideId,
+      customer: req.user._id,
+      paymentStatus: 'paid',
+      status: { $in: ['declined', 'no_rider_available'] },
+    },
+    {
+      $set: {
+        rider: riderId,
+        status: 'waiting_rider',
+        responseExpiresAt: getRideRequestTimeoutDate(),
+      },
+      $unset: { cancelledBy: 1, cancelledAt: 1, cancellationReason: 1 },
+    },
+    { new: true }
+  );
+  if (!reassignedRide) {
+    throw new ResponseError('Ride was updated by another request. Refresh and try again.', 409);
+  }
+
+  if (reassignedRide.transaction) {
+    await Transaction.findByIdAndUpdate(reassignedRide.transaction, { provider: riderId });
+  }
+
+  emitRideRequestToRider(req.app.get('io'), reassignedRide, req.user);
+  try {
+    await createRideNotification(
+      riderId,
+      reassignedRide,
+      'waiting_rider',
+      'rider',
+      req,
+      'A passenger has selected you for a paid ride request.'
+    );
+  } catch (error) {
+    console.error('[Selected rider reassignment notification failed]', error);
+  }
+
+  res.status(200).json({
+    success: true,
+    message: 'Ride request sent to the selected rider',
+    data: reassignedRide,
   });
 });
