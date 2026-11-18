@@ -83,12 +83,17 @@ const ShopPage = () => {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [viewedProducts, setViewedProducts] = useState(new Set());
+  const [selectedBusiness, setSelectedBusiness] = useState(null);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const category = params.get('category');
     if (category) {
       setSelectedCategory(category);
+    }
+    const business = params.get('business');
+    if (business) {
+      setSelectedBusiness(business);
     }
   }, [location.search]);
 
@@ -120,6 +125,7 @@ const ShopPage = () => {
         category: selectedCategory !== 'all' ? selectedCategory : undefined,
         subcategory: selectedSubcategory || undefined,
         search: searchQuery || undefined,
+        business: selectedBusiness || undefined,
         sort: sortBy,
         minPrice: priceRange.min > 0 ? priceRange.min : undefined,
         maxPrice: priceRange.max < 1000000 ? priceRange.max : undefined,

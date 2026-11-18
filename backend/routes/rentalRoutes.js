@@ -48,27 +48,25 @@ router.post(
 );
 
 /**
- * PROTECTED ROUTES
- */
-router.use(protect);
-
-/**
  * LANDLORD ROUTES
  */
 router.get(
   '/my-rentals',
+  protect,
   authorize('landlord', 'caretaker'),
   getMyRentals
 );
 
 router.post(
   '/',
+  protect,
   authorize('landlord', 'caretaker'),
   createRental
 );
 
 router.put(
   '/:rentalId',
+  protect,
   authorize('landlord', 'caretaker'),
   validateObjectId('rentalId'),
   updateRental
@@ -76,6 +74,7 @@ router.put(
 
 router.delete(
   '/:rentalId',
+  protect,
   authorize('landlord', 'caretaker'),
   validateObjectId('rentalId'),
   deleteRental
@@ -83,6 +82,7 @@ router.delete(
 
 router.patch(
   '/:rentalId/toggle-availability',
+  protect,
   authorize('landlord', 'caretaker'),
   validateObjectId('rentalId'),
   toggleAvailability

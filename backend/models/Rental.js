@@ -37,6 +37,32 @@ const rentalSchema = new mongoose.Schema(
       min: 0,
     },
 
+    rentalPeriod: {
+      type: String,
+      enum: ['month', 'night', 'semester', 'year', 'day'],
+      default: 'month',
+    },
+
+    bedrooms: {
+      type: Number,
+      min: 0,
+    },
+
+    bathrooms: {
+      type: Number,
+      min: 0,
+    },
+
+    caretaker: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+
+    specifications: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
+
     location: {
       type: String,
       required: true,
@@ -180,5 +206,17 @@ const rentalSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+rentalSchema.pre('validate', function(next) {
+  if (this.images && Array.isArray(this.images)) {
+    this.images = this.images.map((img) => {
+      if (typeof img === 'string') {
+        return { url: img, publicId: null };
+      }
+      return img;
+    });
+  }
+  next();
+});
 
 export default mongoose.model('Rental', rentalSchema);

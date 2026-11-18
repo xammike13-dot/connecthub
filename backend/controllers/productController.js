@@ -228,107 +228,160 @@ export const getProduct = asyncHandler(async (req, res) => {
 
 /**
  * Get related products by category, brand, and price range
- * Uses a single ranked query with proper skip/limit pagination so
- * infinite scrolling never returns duplicates across pages.
+ * Uses indexed category query first, prioritizing same subcategory and price proximity,
+ * with graceful fallback to broader active products if category has insufficient items.
+ * Supports page-based pagination and structured pagination metadata for infinite scrolling.
  */
 export const getRelatedProducts = asyncHandler(async (req, res) => {
   const { productId } = req.params;
-  const { page = 1, limit = 12 } = req.query;
+  const {
+    page = 1,
+    limit = 12,
+    category: queryCategory,
+    excludeId: customExcludeId,
+  } = req.query;
 
-  const product = await Product.findById(productId).select('category subcategory brand price');
+  const product = await Product.findById(productId).select('category categorySlug subcategory brand price specifications');
 
   if (!product) {
     throw new ResponseError('Product not found', 404);
   }
 
-  const pageNum = Math.max(1, parseInt(page));
-  const limitNum = Math.max(1, parseInt(limit));
+  const pageNum = Math.max(1, parseInt(page) || 1);
+  const limitNum = Math.max(1, parseInt(limit) || 12);
   const skip = (pageNum - 1) * limitNum;
 
-  // Build a single ranked query that excludes the current product.
-  // We use an aggregation with $addFields to compute a relevance score,
-  // then sort by score descending and apply skip/limit.
-  const matchStage = {
-    _id: { $ne: product._id },
-    isActive: true,
+  const excludeId = customExcludeId || product._id;
+  const targetCategory = queryCategory || product.category;
+  const targetSlug = product.categorySlug || (targetCategory ? targetCategory.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : '');
+
+  // 1. Primary: Query products belonging to the same category using indexed fields
+  const categoryFilter = {
+    _id: { $ne: excludeId },
+    isActive: { $ne: false },
+    $or: [
+      { category: targetCategory },
+      ...(targetSlug ? [{ categorySlug: targetSlug }] : []),
+    ],
   };
 
-  const scored = [
-    // Priority 1: same category AND same subcategory (score 4)
-    { category: product.category, subcategory: product.subcategory, score: 4 },
-    // Priority 2: same category (score 3)
-    { category: product.category, score: 3 },
-    // Priority 3: similar price range +/- 50% (score 2)
-    { price: { $gte: product.price * 0.5, $lte: product.price * 1.5 }, score: 2 },
-  ];
+  const categoryTotal = await Product.countDocuments(categoryFilter);
 
-  // Use aggregation with $facet to get both results and total count
-  const [result] = await Product.aggregate([
-    { $match: matchStage },
-    // Compute relevance score from the scored conditions
-    {
-      $addFields: {
-        relevanceScore: {
-          $let: {
-            vars: {
-              sameCatAndSub: {
-                $and: [
-                  { $eq: ['$category', product.category] },
-                  { $eq: ['$subcategory', product.subcategory] },
-                ],
-              },
-              sameCat: { $eq: ['$category', product.category] },
-              similarPrice: {
-                $and: [
-                  { $gte: ['$price', product.price * 0.5] },
-                  { $lte: ['$price', product.price * 1.5] },
-                ],
-              },
-            },
-            in: {
-              $switch: {
-                branches: [
-                  { case: '$$sameCatAndSub', then: 4 },
-                  { case: '$$sameCat', then: 3 },
-                  { case: '$$similarPrice', then: 2 },
-                ],
-                default: 1,
-              },
+  let populated = [];
+
+  if (categoryTotal > 0 && skip < categoryTotal) {
+    // Score within category: prioritize same subcategory and price proximity (+/- 40%)
+    const branches = [];
+    if (product.subcategory) {
+      branches.push({
+        case: { $eq: ['$subcategory', product.subcategory] },
+        then: 5,
+      });
+    }
+    if (product.price) {
+      branches.push({
+        case: {
+          $and: [
+            { $gte: ['$price', product.price * 0.6] },
+            { $lte: ['$price', product.price * 1.4] },
+          ],
+        },
+        then: 3,
+      });
+    }
+
+    const pipeline = [
+      { $match: categoryFilter },
+    ];
+
+    if (branches.length > 0) {
+      pipeline.push({
+        $addFields: {
+          relevanceScore: {
+            $switch: {
+              branches,
+              default: 1,
             },
           },
         },
-      },
-    },
-    { $sort: { relevanceScore: -1, createdAt: -1 } },
-    {
-      $facet: {
-        metadata: [{ $count: 'total' }],
-        data: [{ $skip: skip }, { $limit: limitNum }],
-      },
-    },
-  ]);
+      });
+      pipeline.push({ $sort: { relevanceScore: -1, createdAt: -1 } });
+    } else {
+      pipeline.push({ $sort: { createdAt: -1 } });
+    }
 
-  const relatedIds = (result?.data || []).map((p) => p._id);
-  const total = result?.metadata?.[0]?.total || 0;
+    pipeline.push({ $skip: skip });
+    pipeline.push({ $limit: limitNum });
 
-  // Populate business field after aggregation
-  const populated = await Product.find({ _id: { $in: relatedIds } })
-    .populate('business', 'name businessProfile avatar')
-    .lean();
+    const catResults = await Product.aggregate(pipeline);
+    const catIds = catResults.map((p) => p._id);
 
-  // Re-sort populated results to match the aggregation order
-  const idOrderMap = new Map(relatedIds.map((id, idx) => [id.toString(), idx]));
-  populated.sort((a, b) => idOrderMap.get(a._id.toString()) - idOrderMap.get(b._id.toString()));
+    const populatedCat = await Product.find({ _id: { $in: catIds } })
+      .populate('business', 'name email phone businessProfile avatar')
+      .lean();
+
+    const idMap = new Map(catIds.map((id, idx) => [id.toString(), idx]));
+    populatedCat.sort((a, b) => idMap.get(a._id.toString()) - idMap.get(b._id.toString()));
+    populated.push(...populatedCat);
+  }
+
+  // 2. Fallback: If insufficient products in the same category, supplement with additional active products
+  let fallbackTotal = 0;
+  if (populated.length < limitNum) {
+    const needed = limitNum - populated.length;
+    const existingIds = [excludeId, ...populated.map((p) => p._id)];
+
+    const fallbackFilter = {
+      _id: { $nin: existingIds },
+      isActive: { $ne: false },
+      ...(categoryTotal > 0 ? {
+        $and: [
+          { category: { $ne: targetCategory } },
+          ...(targetSlug ? [{ categorySlug: { $ne: targetSlug } }] : []),
+        ],
+      } : {}),
+    };
+
+    fallbackTotal = await Product.countDocuments(fallbackFilter);
+    const fallbackSkip = Math.max(0, skip - categoryTotal);
+
+    if (fallbackSkip < fallbackTotal) {
+      const fallbackProducts = await Product.find(fallbackFilter)
+        .populate('business', 'name email phone businessProfile avatar')
+        .sort({ createdAt: -1 })
+        .skip(fallbackSkip)
+        .limit(needed)
+        .lean();
+
+      populated.push(...fallbackProducts);
+    }
+  } else {
+    const fallbackFilter = {
+      _id: { $ne: excludeId },
+      isActive: { $ne: false },
+      $and: [
+        { category: { $ne: targetCategory } },
+        ...(targetSlug ? [{ categorySlug: { $ne: targetSlug } }] : []),
+      ],
+    };
+    fallbackTotal = await Product.countDocuments(fallbackFilter);
+  }
+
+  const grandTotal = categoryTotal + fallbackTotal;
+  const hasMore = (skip + populated.length) < grandTotal;
+  const nextPage = hasMore ? pageNum + 1 : null;
 
   res.status(200).json({
     success: true,
     data: populated,
     pagination: {
-      total,
-      pages: Math.ceil(total / limitNum),
+      total: grandTotal,
+      categoryTotal,
+      pages: Math.ceil(grandTotal / limitNum),
       currentPage: pageNum,
       perPage: limitNum,
-      hasMore: skip + populated.length < total,
+      hasMore,
+      nextPage,
     },
   });
 });

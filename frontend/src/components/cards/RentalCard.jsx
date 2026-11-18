@@ -57,6 +57,8 @@ const RentalCard = ({
     setShowGallery(true);
   };
 
+  const rentalId = _id || rental.id;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -64,7 +66,7 @@ const RentalCard = ({
       viewport={{ once: true }}
       className="group bg-white rounded-xl overflow-hidden border border-neutral-200 shadow-md hover:border-blue-400 hover:shadow-xl transition-all duration-300"
     >
-      <Link to={`/rentals/detail/${_id}`} className="block">
+      <Link to={`/rentals/detail/${rentalId}`} className="block">
       {/* Image */}
       <div className="relative aspect-[4/3] overflow-hidden bg-neutral-100">
         <OptimizedImage
@@ -73,7 +75,6 @@ const RentalCard = ({
           priority={priority}
           aspectRatioClass="aspect-[4/3]"
           className="transition-all duration-500 group-hover:scale-105 cursor-pointer"
-          onClick={(e) => { e.preventDefault(); if (hasMultiplePhotos) handleOpenGallery(0); }}
         />
 
         {/* Gallery Button Overlay */}

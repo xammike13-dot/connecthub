@@ -19,17 +19,14 @@ const router = express.Router();
 // Public routes
 router.get('/', getProducts);
 
-// Protected routes - define BEFORE public routes with dynamic params
-router.use(protect);
+// Specific protected routes (defined before dynamic params to avoid conflict)
+router.get('/my-products', protect, authorize('business', 'assistant'), getMyProducts);
+router.post('/', protect, authorize('business', 'assistant'), createProduct);
+router.patch('/:productId/stock', protect, authorize('business', 'assistant'), updateProductStock);
+router.put('/:productId', protect, authorize('business', 'assistant'), updateProduct);
+router.delete('/:productId', protect, authorize('business', 'assistant'), deleteProduct);
 
-// Business and Assistant routes - use specific paths that don't conflict with ID patterns
-router.get('/my-products', authorize('business', 'assistant'), getMyProducts);
-router.post('/', authorize('business', 'assistant'), createProduct);
-router.patch('/:productId/stock', authorize('business', 'assistant'), updateProductStock);
-router.put('/:productId', authorize('business', 'assistant'), updateProduct);
-router.delete('/:productId', authorize('business', 'assistant'), deleteProduct);
-
-// Public routes with dynamic params (after protected routes)
+// Public routes with dynamic params
 router.get('/:productId/related', validateObjectId('productId'), getRelatedProducts);
 router.get('/:productId', validateObjectId('productId'), getProduct);
 router.get('/business/:businessId', validateObjectId('businessId'), getBusinessProducts);

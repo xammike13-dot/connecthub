@@ -99,10 +99,12 @@ export default function ProductCard({
     ? `relative w-full min-w-0 bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 group flex flex-col ${className}`
     : `relative flex-shrink-0 min-w-[160px] w-[160px] md:min-w-[190px] md:w-[190px] bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 snap-start group flex flex-col ${className}`;
 
+  const productId = _id || product.id;
+
   return (
     <>
       <Link
-        to={`/product/${_id}`}
+        to={`/product/${productId}`}
         className={containerClasses}
       >
       {/* ── 1. Image Area (1:1 aspect ratio, badges & wishlist button) ── */}

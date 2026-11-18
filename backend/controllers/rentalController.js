@@ -216,7 +216,8 @@ export const trackRentalView = asyncHandler(async (req, res) => {
  */
 export const getRental = asyncHandler(async (req, res) => {
   const rental = await Rental.findById(req.params.rentalId)
-    .populate('landlord', 'name email phone avatar');
+    .populate('landlord', 'name email phone avatar landlordProfile')
+    .populate('caretaker', 'name email phone avatar caretakerProfile');
 
   if (!rental) {
     throw new ResponseError('Rental not found', 404);

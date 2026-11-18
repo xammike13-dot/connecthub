@@ -51,11 +51,12 @@ const ProductCard = ({ product, isGrid = true, className = '' }) => {
     }
   };
 
+  const productId = _id || product.id;
+
   return (
     <>
       <Link
-        to={`/product/${_id}`}
-        onClick={(e) => { if (hasOptions) { e.preventDefault(); setModalOpen(true); } }}
+        to={`/product/${productId}`}
         className={`group relative flex flex-col bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-md hover:border-orange-200 transition-all duration-200 ${className}`}
       >
         {/* Image Area */}
