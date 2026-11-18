@@ -158,7 +158,7 @@ const ShopPage = () => {
 
   useEffect(() => {
     fetchProducts(1, false);
-  }, [selectedCategory, selectedSubcategory, sortBy, searchQuery, priceRange]);
+  }, [selectedCategory, selectedSubcategory, sortBy, searchQuery, priceRange, selectedBusiness]);
 
   const { socket } = useSocket();
   useEffect(() => {

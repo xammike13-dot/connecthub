@@ -13,22 +13,20 @@ const normalizeVendors = (rawList, categorySlug) => {
 
   return rawList.map((vendor, idx) => ({
     _id: vendor._id || `vendor-${categorySlug}-${idx}`,
-    name: vendor.businessName || vendor.name || 'Campus Kitchen',
-    avatar: vendor.avatar || '🍲',
+    name: vendor.businessName || vendor.name || 'Campus Vendor',
+    avatar: typeof vendor.avatar === 'string' && /^(https?:\/\/|\/|data:image\/|blob:)/i.test(vendor.avatar)
+      ? vendor.avatar
+      : null,
     banner: vendor.banner || null,
-    badge: vendor.badge || (idx === 0 ? 'Top Rated' : 'Campus Verified'),
+    badge: vendor.badge || null,
     isOpen: vendor.isOpen !== false,
-    rating: vendor.rating || 4.8,
-    reviewCount: vendor.reviewCount || 45 + idx * 12,
-    deliveryTime: vendor.deliveryTime || '15-25 min',
-    deliveryFee: vendor.deliveryFee ?? 0,
-    location: vendor.location || vendor.campusLocation || 'Stage, Opposite Gate B',
-    phone: vendor.phone || '0700000000',
-    popularDishes: vendor.popularDishes || [
-      { name: 'Special Campus Combo', price: 150, emoji: '🍛' },
-      { name: 'Daily Saver Meal', price: 100, emoji: '🍲' },
-      { name: 'Chilled Refreshment 500ml', price: 60, emoji: '🥤' },
-    ],
+    rating: Number(vendor.rating) || 0,
+    reviewCount: Number(vendor.reviewCount) || 0,
+    deliveryTime: vendor.deliveryTime || null,
+    deliveryFee: vendor.deliveryFee ?? null,
+    location: vendor.location || vendor.campusLocation || null,
+    phone: vendor.phone || null,
+    popularDishes: Array.isArray(vendor.popularDishes) ? vendor.popularDishes : [],
   }));
 };
 
@@ -59,13 +57,26 @@ export const useVendorsByCategory = (categorySlug) => {
         const businessMap = new Map();
         rawProducts.forEach((product) => {
           if (product.business?._id && !businessMap.has(product.business._id)) {
+            const businessProfile = product.business.businessProfile || {};
             businessMap.set(product.business._id, {
               _id: product.business._id,
-              name: product.business.name || product.vendorName,
-              avatar: product.business.avatar || '🏪',
-              rating: product.rating || 4.8,
-              reviewCount: product.reviewCount || 24,
-              location: product.business.businessProfile?.address || 'Campus Center',
+              name: businessProfile.businessName || product.business.name || product.vendorName || 'Campus Vendor',
+              avatar:
+                businessProfile.businessLogo ||
+                product.business.businessLogo ||
+                product.business.avatar ||
+                null,
+              rating: businessProfile.rating || product.rating || 0,
+              reviewCount: product.numReviews || product.reviewCount || 0,
+              isOpen: businessProfile.operatingHours?.isOpenNow !== false,
+              deliveryTime: product.deliveryTime || null,
+              deliveryFee: product.deliveryFee ?? null,
+              location:
+                businessProfile.campusLocation ||
+                businessProfile.businessLocation ||
+                businessProfile.businessAddress ||
+                null,
+              phone: businessProfile.businessContact || product.business.phone || null,
               popularDishes: [
                 { name: product.name, price: product.price, emoji: product.emoji || '🍽️' },
               ],
