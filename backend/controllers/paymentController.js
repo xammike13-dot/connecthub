@@ -2,7 +2,13 @@ import { getIO } from '../utils/socket.js';
 import { v4 as uuidv4 } from 'uuid';
 import mpesaService from '../services/mpesaService.js';
 import { calculatePayment, calculateShoppingPayment, calculateRentalPayment } from '../utils/paymentCalculator.js';
-import { calculateFare, calculateFareWithRiderRate, isNightRate } from '../utils/rideFareCalculator.js';
+import {
+  calculateFixedFare,
+  calculateFare,
+  calculateFareWithRiderRate,
+  isNightRate,
+  isNightRateInNairobi,
+} from '../utils/rideFareCalculator.js';
 import { creditPendingEscrow, releaseEscrow } from '../utils/walletService.js';
 import Transaction from '../models/Transaction.js';
 import Wallet from '../models/Wallet.js';
@@ -466,62 +472,61 @@ const isNightTime = () => {
 };
 
 /**
- * STEP 1: Calculate fare estimate for ride booking
+ * STEP 1: Calculate fixed fare estimate for ride booking
  */
 export const calculateRideFareEstimate = asyncHandler(async (req, res) => {
-  const { pickupLocation, dropoffLocation } = req.body;
+  const { pickupLocation, dropoffLocation, pickup, destination } = req.body;
 
-  console.log('[calculateRideFareEstimate] Request:', { pickupLocation, dropoffLocation });
+  const effectivePickup = pickup || pickupLocation;
+  const effectiveDestination = destination || dropoffLocation;
 
-  if (!pickupLocation || !dropoffLocation) {
+  console.log('[calculateRideFareEstimate] Request:', { effectivePickup, effectiveDestination });
+
+  if (!effectivePickup || !effectiveDestination) {
     throw new ResponseError('Pickup and dropoff locations are required', 400);
   }
 
-  if (!pickupLocation.coordinates || !Array.isArray(pickupLocation.coordinates.coordinates) || pickupLocation.coordinates.coordinates.length !== 2) {
-    throw new ResponseError('Invalid pickup location coordinates', 400);
+  try {
+    const fareBreakdown = calculateFixedFare(effectivePickup, effectiveDestination);
+    console.log('[calculateRideFareEstimate] Fixed fare calculated:', fareBreakdown);
+
+    res.status(200).json({
+      success: true,
+      data: fareBreakdown,
+    });
+  } catch (err) {
+    throw new ResponseError(err.message || 'Invalid or unsupported route combination', 400);
   }
-
-  if (!dropoffLocation.coordinates || !Array.isArray(dropoffLocation.coordinates.coordinates) || dropoffLocation.coordinates.coordinates.length !== 2) {
-    throw new ResponseError('Invalid dropoff location coordinates', 400);
-  }
-
-  const distanceInMeters = await getRoutingDistance(pickupLocation, dropoffLocation);
-  const fareBreakdown = calculateFare(distanceInMeters, 60);
-
-  console.log('[calculateRideFareEstimate] Fare calculated:', fareBreakdown);
-
-  res.status(200).json({
-    success: true,
-    data: {
-      distanceInMeters: Math.round(distanceInMeters),
-      distanceInKm: Math.round(distanceInMeters / 1000 * 100) / 100,
-      ...fareBreakdown,
-    },
-  });
 });
 
 /**
  * Initiate M-Pesa STK Push with specific rider
+ * Backend enforces authoritative fixed fare calculation (client fares are ignored).
  */
 export const initiateMpesaPaymentWithRider = asyncHandler(async (req, res) => {
   const customerId = req.user._id;
   const {
     pickupLocation,
     dropoffLocation,
+    pickup,
+    destination,
     phoneNumber,
     riderId,
     rideType = 'bodaboda'
   } = req.body;
 
+  const effectivePickup = pickup || pickupLocation;
+  const effectiveDestination = destination || dropoffLocation;
+
   console.log('[initiateMpesaPaymentWithRider] Starting payment flow:', {
     customerId,
-    pickupLocation: pickupLocation?.address || pickupLocation?.name,
-    dropoffLocation: dropoffLocation?.address || dropoffLocation?.name,
+    effectivePickup,
+    effectiveDestination,
     phoneNumber,
     riderId,
   });
 
-  if (!pickupLocation || !dropoffLocation) {
+  if (!effectivePickup || !effectiveDestination) {
     throw new ResponseError('Pickup and dropoff locations are required', 400);
   }
 
@@ -533,14 +538,6 @@ export const initiateMpesaPaymentWithRider = asyncHandler(async (req, res) => {
     throw new ResponseError('Selected rider ID is required', 400);
   }
 
-  if (!pickupLocation.coordinates || !Array.isArray(pickupLocation.coordinates.coordinates) || pickupLocation.coordinates.coordinates.length !== 2) {
-    throw new ResponseError('Invalid pickup location coordinates', 400);
-  }
-
-  if (!dropoffLocation.coordinates || !Array.isArray(dropoffLocation.coordinates.coordinates) || dropoffLocation.coordinates.coordinates.length !== 2) {
-    throw new ResponseError('Invalid dropoff location coordinates', 400);
-  }
-
   const rider = await User.findById(riderId);
   if (!rider) {
     throw new ResponseError('Selected rider not found', 404);
@@ -550,23 +547,37 @@ export const initiateMpesaPaymentWithRider = asyncHandler(async (req, res) => {
     throw new ResponseError('Selected user is not a rider', 400);
   }
 
-  const dayRate = rider.riderProfile?.dayRatePerKm;
-  const nightRate = rider.riderProfile?.nightRatePerKm;
-
-  if (!dayRate || !nightRate || isNaN(dayRate) || isNaN(nightRate) || dayRate <= 0 || nightRate <= 0) {
-    throw new ResponseError('Rider has not configured day/night rates', 400);
+  // Calculate fixed fare independently on the server using Africa/Nairobi time
+  let fareBreakdown;
+  try {
+    fareBreakdown = calculateFixedFare(effectivePickup, effectiveDestination);
+  } catch (err) {
+    throw new ResponseError(err.message || 'Invalid or unsupported route combination', 400);
   }
 
-  const distanceInMeters = await getRoutingDistance(pickupLocation, dropoffLocation);
-  const distanceInKm = Math.round(distanceInMeters / 1000 * 100) / 100;
-
-  const isNight = isNightTime();
-  console.log('[initiateMpesaPaymentWithRider] Time check:', { hour: new Date().getHours(), isNight });
-
-  const fareBreakdown = calculateFareWithRiderRate(distanceInMeters, dayRate, nightRate);
   const totalAmount = fareBreakdown.totalFare;
-
   const transactionRef = `TXN-${uuidv4().slice(0, 8).toUpperCase()}`;
+
+  const formatCoordinates = (loc) => {
+    if (!loc) return [];
+    if (Array.isArray(loc.coordinates)) return loc.coordinates;
+    if (loc.coordinates && Array.isArray(loc.coordinates.coordinates)) return loc.coordinates.coordinates;
+    return [];
+  };
+
+  const storedPickup = {
+    name: fareBreakdown.pickup,
+    address: typeof effectivePickup === 'string' ? effectivePickup : (effectivePickup.address || effectivePickup.name || fareBreakdown.pickup),
+    landmark: effectivePickup?.landmark,
+    coordinates: formatCoordinates(effectivePickup),
+  };
+
+  const storedDropoff = {
+    name: fareBreakdown.destination,
+    address: typeof effectiveDestination === 'string' ? effectiveDestination : (effectiveDestination.address || effectiveDestination.name || fareBreakdown.destination),
+    landmark: effectiveDestination?.landmark,
+    coordinates: formatCoordinates(effectiveDestination),
+  };
 
   const transactionPayload = {
     transactionRef,
@@ -578,44 +589,33 @@ export const initiateMpesaPaymentWithRider = asyncHandler(async (req, res) => {
     amount: {
       baseAmount: fareBreakdown.baseFare,
       deliveryFee: 0,
-      platformFee: fareBreakdown.platformFee,
-      customerShare: fareBreakdown.customerShare,
-      providerShare: fareBreakdown.riderShare,
-      customerPays: fareBreakdown.customerPays,
-      providerReceives: fareBreakdown.riderReceives,
-      platformReceives: fareBreakdown.platformFee,
+      platformFee: fareBreakdown.platformFee || 0,
+      customerShare: fareBreakdown.customerShare || 0,
+      providerShare: fareBreakdown.riderShare || 0,
+      customerPays: totalAmount,
+      providerReceives: fareBreakdown.riderReceives || totalAmount,
+      platformReceives: fareBreakdown.platformFee || 0,
       totalAmount: totalAmount,
     },
     commission: {
-      totalCommission: fareBreakdown.platformFee,
-      customerShare: fareBreakdown.customerShare,
-      providerShare: fareBreakdown.riderShare,
-      providerReceives: fareBreakdown.riderReceives,
+      totalCommission: fareBreakdown.platformFee || 0,
+      customerShare: fareBreakdown.customerShare || 0,
+      providerShare: fareBreakdown.riderShare || 0,
+      providerReceives: fareBreakdown.riderReceives || totalAmount,
     },
     customerPaid: totalAmount,
-    providerReceives: fareBreakdown.riderReceives,
+    providerReceives: fareBreakdown.riderReceives || totalAmount,
     relatedEntity: null,
     relatedEntityType: 'RideRequest',
     pendingRideData: {
-      pickupLocation,
-      dropoffLocation,
-      estimatedDistance: distanceInKm,
+      pickupLocation: storedPickup,
+      dropoffLocation: storedDropoff,
+      estimatedDistance: 0,
       rideType,
       selectedRiderId: riderId,
       fareBreakdown: {
-        baseFare: fareBreakdown.baseFare,
-        totalFare: fareBreakdown.totalFare,
-        platformFee: fareBreakdown.platformFee,
-        customerShare: fareBreakdown.customerShare,
-        riderShare: fareBreakdown.riderShare,
-        riderReceives: fareBreakdown.riderReceives,
-        ratePerKm: fareBreakdown.ratePerKm,
-        distanceInKm: fareBreakdown.distanceInKm,
-        appliedRule: fareBreakdown.appliedRule,
-        riderId: riderId,
-        riderDayRate: dayRate,
-        riderNightRate: nightRate,
-        isNightRate: isNight,
+        ...fareBreakdown,
+        riderId,
       },
     },
   };
@@ -629,7 +629,8 @@ export const initiateMpesaPaymentWithRider = asyncHandler(async (req, res) => {
     throw new ResponseError('Customer not found', 404);
   }
 
-  const stkPhone = phoneNumber || customer.phone;
+  const rawPhone = phoneNumber || customer.phone;
+  const stkPhone = normalizeKenyanPhone(rawPhone) || rawPhone;
 
   console.log('[initiateMpesaPaymentWithRider] Initiating STK Push to:', stkPhone, 'Amount:', totalAmount);
 
@@ -778,18 +779,23 @@ export const initiateMpesaPayment = asyncHandler(async (req, res) => {
   const {
     pickupLocation,
     dropoffLocation,
+    pickup,
+    destination,
     phoneNumber,
     rideType = 'bodaboda'
   } = req.body;
 
+  const effectivePickup = pickup || pickupLocation;
+  const effectiveDestination = destination || dropoffLocation;
+
   console.log('[initiateMpesaPayment] Starting payment flow:', {
     customerId,
-    pickupLocation: pickupLocation?.address || pickupLocation?.name,
-    dropoffLocation: dropoffLocation?.address || dropoffLocation?.name,
+    effectivePickup,
+    effectiveDestination,
     phoneNumber,
   });
 
-  if (!pickupLocation || !dropoffLocation) {
+  if (!effectivePickup || !effectiveDestination) {
     throw new ResponseError('Pickup and dropoff locations are required', 400);
   }
 
@@ -797,24 +803,37 @@ export const initiateMpesaPayment = asyncHandler(async (req, res) => {
     throw new ResponseError('M-Pesa phone number is required', 400);
   }
 
-  if (!pickupLocation.coordinates || !Array.isArray(pickupLocation.coordinates.coordinates) || pickupLocation.coordinates.coordinates.length !== 2) {
-    throw new ResponseError('Invalid pickup location coordinates', 400);
+  // Calculate fixed fare independently on the server using Africa/Nairobi time
+  let fareBreakdown;
+  try {
+    fareBreakdown = calculateFixedFare(effectivePickup, effectiveDestination);
+  } catch (err) {
+    throw new ResponseError(err.message || 'Invalid or unsupported route combination', 400);
   }
 
-  if (!dropoffLocation.coordinates || !Array.isArray(dropoffLocation.coordinates.coordinates) || dropoffLocation.coordinates.coordinates.length !== 2) {
-    throw new ResponseError('Invalid dropoff location coordinates', 400);
-  }
-
-  const distanceInMeters = await getRoutingDistance(pickupLocation, dropoffLocation);
-  const distanceInKm = Math.round(distanceInMeters / 1000 * 100) / 100;
-
-  const isNight = isNightTime();
-  console.log('[initiateMpesaPayment] Time check:', { hour: new Date().getHours(), isNight });
-
-  const fareBreakdown = calculateFare(distanceInMeters, 60);
   const totalAmount = fareBreakdown.totalFare;
-
   const transactionRef = `TXN-${uuidv4().slice(0, 8).toUpperCase()}`;
+
+  const formatCoordinates = (loc) => {
+    if (!loc) return [];
+    if (Array.isArray(loc.coordinates)) return loc.coordinates;
+    if (loc.coordinates && Array.isArray(loc.coordinates.coordinates)) return loc.coordinates.coordinates;
+    return [];
+  };
+
+  const storedPickup = {
+    name: fareBreakdown.pickup,
+    address: typeof effectivePickup === 'string' ? effectivePickup : (effectivePickup.address || effectivePickup.name || fareBreakdown.pickup),
+    landmark: effectivePickup?.landmark,
+    coordinates: formatCoordinates(effectivePickup),
+  };
+
+  const storedDropoff = {
+    name: fareBreakdown.destination,
+    address: typeof effectiveDestination === 'string' ? effectiveDestination : (effectiveDestination.address || effectiveDestination.name || fareBreakdown.destination),
+    landmark: effectiveDestination?.landmark,
+    coordinates: formatCoordinates(effectiveDestination),
+  };
 
   const transaction = await Transaction.create({
     transactionRef,
@@ -825,40 +844,30 @@ export const initiateMpesaPayment = asyncHandler(async (req, res) => {
     amount: {
       baseAmount: fareBreakdown.baseFare,
       deliveryFee: 0,
-      platformFee: fareBreakdown.platformFee,
-      customerShare: fareBreakdown.customerShare,
-      providerShare: fareBreakdown.riderShare,
-      customerPays: fareBreakdown.customerPays,
-      providerReceives: fareBreakdown.riderReceives,
-      platformReceives: fareBreakdown.platformFee,
+      platformFee: fareBreakdown.platformFee || 0,
+      customerShare: fareBreakdown.customerShare || 0,
+      providerShare: fareBreakdown.riderShare || 0,
+      customerPays: totalAmount,
+      providerReceives: fareBreakdown.riderReceives || totalAmount,
+      platformReceives: fareBreakdown.platformFee || 0,
       totalAmount: totalAmount,
     },
     commission: {
-      totalCommission: fareBreakdown.platformFee,
-      customerShare: fareBreakdown.customerShare,
-      providerShare: fareBreakdown.riderShare,
-      providerReceives: fareBreakdown.riderReceives,
+      totalCommission: fareBreakdown.platformFee || 0,
+      customerShare: fareBreakdown.customerShare || 0,
+      providerShare: fareBreakdown.riderShare || 0,
+      providerReceives: fareBreakdown.riderReceives || totalAmount,
     },
     customerPaid: totalAmount,
-    providerReceives: fareBreakdown.riderReceives,
+    providerReceives: fareBreakdown.riderReceives || totalAmount,
     relatedEntity: null,
     relatedEntityType: 'RideRequest',
     pendingRideData: {
-      pickupLocation,
-      dropoffLocation,
-      estimatedDistance: distanceInKm,
+      pickupLocation: storedPickup,
+      dropoffLocation: storedDropoff,
+      estimatedDistance: 0,
       rideType,
-      fareBreakdown: {
-        baseFare: fareBreakdown.baseFare,
-        totalFare: fareBreakdown.totalFare,
-        platformFee: fareBreakdown.platformFee,
-        customerShare: fareBreakdown.customerShare,
-        riderShare: fareBreakdown.riderShare,
-        riderReceives: fareBreakdown.riderReceives,
-        ratePerKm: fareBreakdown.ratePerKm,
-        distanceInKm: fareBreakdown.distanceInKm,
-        appliedRule: fareBreakdown.appliedRule,
-      },
+      fareBreakdown,
     },
   });
 
@@ -1088,10 +1097,15 @@ export const verifyMpesaPayment = asyncHandler(async (req, res) => {
           fare: {
             totalFare: rideRequest.fare.totalFare,
             riderReceives: rideRequest.fare.riderReceives,
-            platformFee: rideRequest.fare.platformFee,
+            platformFee: rideRequest.fare.platformFee || 0,
+            baseFare: rideRequest.fare.baseFare,
+            nightSurcharge: rideRequest.fare.nightSurcharge || 0,
+            fareType: rideRequest.fare.fareType || (rideRequest.fare.isNightRate ? 'night' : 'day'),
+            isFixedFare: true,
           },
-          yourRate: rideRequest.fare.ratePerKm,
-          isNightRate: rideRequest.fare.isNightRate,
+          isFixedFare: true,
+          fareType: rideRequest.fare.fareType || (rideRequest.fare.isNightRate ? 'night' : 'day'),
+          isNightRate: rideRequest.fare.fareType === 'night' || !!rideRequest.fare.isNightRate,
         });
 
         try {
@@ -1367,10 +1381,15 @@ export const mpesaCallback = asyncHandler(async (req, res) => {
             fare: {
               totalFare: rideRequest.fare.totalFare,
               riderReceives: rideRequest.fare.riderReceives,
-              platformFee: rideRequest.fare.platformFee,
+              platformFee: rideRequest.fare.platformFee || 0,
+              baseFare: rideRequest.fare.baseFare,
+              nightSurcharge: rideRequest.fare.nightSurcharge || 0,
+              fareType: rideRequest.fare.fareType || (rideRequest.fare.isNightRate ? 'night' : 'day'),
+              isFixedFare: true,
             },
-            yourRate: rideRequest.fare.ratePerKm,
-            isNightRate: rideRequest.fare.isNightRate,
+            isFixedFare: true,
+            fareType: rideRequest.fare.fareType || (rideRequest.fare.isNightRate ? 'night' : 'day'),
+            isNightRate: rideRequest.fare.fareType === 'night' || !!rideRequest.fare.isNightRate,
           });
 
           try {

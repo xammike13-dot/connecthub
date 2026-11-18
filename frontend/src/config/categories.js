@@ -106,7 +106,7 @@ export const OLA_CATEGORIES = [
     iconName: 'Bike',
     description: 'Campus rider rides, parcel delivery, market runs & instant logistics',
     subcategories: ['Campus Rides', 'Hostel Deliveries', 'Market Courier', 'Late Night Pickup'],
-    route: '/c/boda',
+    route: '/transport',
     accentColor: '#FF5E00',
     lightBg: 'bg-orange-50',
     borderColor: 'border-orange-200',

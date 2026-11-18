@@ -24,11 +24,13 @@ import {
   X,
   Check,
   AlertTriangle,
+  Sun,
+  Moon,
+  ShieldCheck,
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import Button from '../components/ui/Button';
 import { rideAPI, riderAPI, notificationAPI } from '../services/api';
-import LeafletMap from '../components/maps/LeafletMap';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -580,185 +582,183 @@ const RiderDashboard = () => {
             {(() => {
               if (!activeRide) return null;
 
-              const pickupLat = activeRide?.pickupLocation?.coordinates?.[1];
-              const pickupLng = activeRide?.pickupLocation?.coordinates?.[0];
-              const dropoffLat = activeRide?.dropoffLocation?.coordinates?.[1];
-              const dropoffLng = activeRide?.dropoffLocation?.coordinates?.[0];
-
-              const hasCoords =
-                pickupLat !== undefined && pickupLat !== null && !isNaN(pickupLat) &&
-                pickupLng !== undefined && pickupLng !== null && !isNaN(pickupLng) &&
-                dropoffLat !== undefined && dropoffLat !== null && !isNaN(dropoffLat) &&
-                dropoffLng !== undefined && dropoffLng !== null && !isNaN(dropoffLng);
-
-              const mapCenter = hasCoords ? [pickupLat, pickupLng] : [-1.2921, 36.8219];
-
-              const pickupLoc = hasCoords ? {
-                lat: pickupLat,
-                lng: pickupLng,
-                address: activeRide?.pickupLocation?.name || activeRide?.pickupLocation?.address || 'Pickup Location'
-              } : null;
-
-              const dropoffLoc = hasCoords ? {
-                lat: dropoffLat,
-                lng: dropoffLng,
-                address: activeRide?.dropoffLocation?.name || activeRide?.dropoffLocation?.address || 'Dropoff Location'
-              } : null;
-
-              const routeCoords = hasCoords ? [
-                [pickupLat, pickupLng],
-                [dropoffLat, dropoffLng]
-              ] : [];
-
-              const validRiderLoc = riderLocation ? {
-                lat: riderLocation.lat,
-                lng: riderLocation.lng,
-                address: 'My Location'
-              } : null;
+              const isNightFare = activeRide.fare?.fareType === 'night';
+              const pickupDisplay = activeRide.pickupLocation?.name || activeRide.pickupLocation?.address || activeRide.fare?.pickupArea || 'Pickup Location';
+              const dropoffDisplay = activeRide.dropoffLocation?.name || activeRide.dropoffLocation?.address || activeRide.fare?.destinationArea || 'Destination';
+              const fareAmount = activeRide.fare?.riderReceives || activeRide.fare?.totalFare || activeRide.estimatedPrice || 0;
 
               return (
-                <div className="bg-white border-2 border-blue-300 rounded-xl p-4 shadow-sm flex flex-col justify-between">
+                <div className="bg-white border-2 border-primary-500 rounded-2xl p-4 shadow-md flex flex-col justify-between">
                   <div>
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-black uppercase rounded-md border border-blue-200">
-                        <Bike className="w-3 h-3" />
-                        Current Trip
+                    <div className="flex justify-between items-start mb-3">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-primary-100 text-primary-900 text-xs font-black uppercase rounded-lg border border-primary-200">
+                        <Bike className="w-3.5 h-3.5" />
+                        Current Assigned Trip
                       </span>
                       <span className="text-xs font-bold text-neutral-400">
                         #{activeRide._id?.slice(-6).toUpperCase()}
                       </span>
                     </div>
 
-                    <p className="text-sm font-bold text-neutral-800 line-clamp-1">
-                      Route: {activeRide.pickupLocation?.name || activeRide.pickupLocation?.address} → {activeRide.dropoffLocation?.name || activeRide.dropoffLocation?.address}
-                    </p>
+                    {/* Fixed Route Banner */}
+                    <div className="bg-neutral-50 rounded-xl p-3 border border-neutral-200 mb-3 space-y-2">
+                      <div className="flex items-start gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 mt-1 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-semibold text-neutral-500 uppercase">Pickup Location</p>
+                          <p className="text-sm font-bold text-neutral-900 truncate">{pickupDisplay}</p>
+                        </div>
+                      </div>
+                      <div className="border-l-2 border-dashed border-neutral-300 ml-1 pl-3 py-0.5" />
+                      <div className="flex items-start gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full bg-red-500 mt-1 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-semibold text-neutral-500 uppercase">Destination Area</p>
+                          <p className="text-sm font-bold text-neutral-900 truncate">{dropoffDisplay}</p>
+                        </div>
+                      </div>
+                    </div>
 
-                    <div className="mt-2.5 space-y-1 bg-neutral-50 p-2 rounded-lg border border-neutral-100 text-xs">
-                      <p><span className="font-bold">Customer:</span> {activeRide.customer?.name || 'Passenger'}</p>
-                      <p><span className="font-bold">Fare:</span> {formatCurrency(activeRide.fare?.totalFare || activeRide.estimatedPrice || 0)}</p>
-                      <p><span className="font-bold">Status:</span> <span className="font-extrabold capitalize text-blue-600">{activeRide.status}</span></p>
+                    {/* Fixed Fare & Status Badge */}
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5">
+                        <p className="text-[11px] font-bold text-emerald-800">Fixed Fare Payout</p>
+                        <p className="text-lg font-black text-emerald-700">{formatCurrency(fareAmount)}</p>
+                      </div>
+                      <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-2.5 flex flex-col justify-between">
+                        <p className="text-[11px] font-bold text-neutral-600">Fare Type</p>
+                        <span className={`inline-flex items-center gap-1 text-xs font-black ${isNightFare ? 'text-indigo-700' : 'text-amber-700'}`}>
+                          {isNightFare ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
+                          {isNightFare ? 'Night Rate (+KSh 20)' : 'Daytime Rate'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Passenger & Status Details */}
+                    <div className="space-y-1 bg-neutral-50 p-2.5 rounded-xl border border-neutral-100 text-xs text-neutral-700 mb-2">
+                      <p><span className="font-bold text-neutral-900">Passenger:</span> {activeRide.customer?.name || 'Customer'}</p>
+                      {activeRide.customer?.phone && (
+                        <p><span className="font-bold text-neutral-900">Phone:</span> {activeRide.customer?.phone}</p>
+                      )}
+                      <p><span className="font-bold text-neutral-900">Trip Status:</span> <span className="font-extrabold capitalize text-primary-600">{activeRide.status?.replace(/_/g, ' ')}</span></p>
                     </div>
 
                     {activeRide.status === 'accepted' && (
-                      <p className="text-[11px] text-amber-600 font-bold bg-amber-50 p-1.5 rounded-lg border border-amber-100 mt-2">
-                        Rider Accepted. Pickup pending. Navigate to customer to start trip.
+                      <p className="text-xs text-amber-700 font-bold bg-amber-50 p-2 rounded-lg border border-amber-200">
+                        Rider Accepted. Head to the pickup location to meet passenger.
                       </p>
                     )}
                     {activeRide.status === 'in_progress' && (
-                      <p className="text-[11px] text-blue-600 font-bold bg-blue-50 p-1.5 rounded-lg border border-blue-100 mt-2">
-                        On Trip. Drive safely to destination.
+                      <p className="text-xs text-blue-700 font-bold bg-blue-50 p-2 rounded-lg border border-blue-200">
+                        Trip In Progress. Ride safely to the destination area.
                       </p>
                     )}
                     {activeRide.status === 'awaiting_customer_confirmation' && (
-                      <p className="text-[11px] text-green-600 font-bold bg-green-50 p-1.5 rounded-lg border border-green-100 mt-2">
-                        Trip completed. Awaiting passenger payment release.
+                      <p className="text-xs text-emerald-700 font-bold bg-emerald-50 p-2 rounded-lg border border-emerald-200">
+                        Arrived at destination. Awaiting passenger confirmation.
                       </p>
                     )}
-
-                    {/* Embedded Active Trip Map */}
-                    <div className="my-3 border rounded-xl overflow-hidden shadow-sm relative" style={{ height: '220px' }}>
-                      <LeafletMap
-                        center={mapCenter}
-                        zoom={13}
-                        pickupLocation={pickupLoc}
-                        dropoffLocation={dropoffLoc}
-                        routeCoordinates={routeCoords}
-                        showUserLocation={!!validRiderLoc}
-                        userLocation={validRiderLoc}
-                        height="100%"
-                      />
-                    </div>
                   </div>
 
                   <div className="mt-4 pt-3 border-t border-neutral-100 flex gap-2 flex-wrap">
-                    <button
-                      onClick={() => {
-                        if (hasCoords) {
-                          const url = `https://www.google.com/maps/dir/?api=1&destination=${dropoffLat},${dropoffLng}&waypoints=${pickupLat},${pickupLng}`;
-                          window.open(url, '_blank');
-                        } else {
-                          handleNavigate(activeRide.pickupLocation?.address, activeRide.pickupLocation?.coordinates);
-                        }
-                      }}
-                      className="px-3 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold text-xs rounded-lg shadow-sm flex items-center gap-1"
-                    >
-                      <Navigation size={12} className="rotate-45" />
-                      Navigate
-                    </button>
+                    {activeRide.status === 'accepted' && (
+                      <button
+                        onClick={() => updateRideStatus('in_progress')}
+                        disabled={rideStatus === 'updating'}
+                        className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-black text-xs rounded-xl shadow-sm transition"
+                      >
+                        Start Trip
+                      </button>
+                    )}
 
-                  {activeRide.status === 'accepted' && (
-                    <button
-                      onClick={() => updateRideStatus('in_progress')}
-                      disabled={rideStatus === 'updating'}
-                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-lg shadow-sm"
-                    >
-                      Start Trip
-                    </button>
-                  )}
+                    {activeRide.status === 'in_progress' && (
+                      <button
+                        onClick={() => updateRideStatus('awaiting_customer_confirmation')}
+                        disabled={rideStatus === 'updating'}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-sm transition"
+                      >
+                        Mark Arrived
+                      </button>
+                    )}
 
-                  {activeRide.status === 'in_progress' && (
-                    <button
-                      onClick={() => updateRideStatus('awaiting_customer_confirmation')}
-                      disabled={rideStatus === 'updating'}
-                      className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white font-extrabold text-xs rounded-lg shadow-sm"
-                    >
-                      Mark Arrived
-                    </button>
-                  )}
-
-                  {activeRide.customer?.phone && (
-                    <button
-                      onClick={() => contactCustomer(activeRide.customer?.phone)}
-                      className="px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold text-xs rounded-lg flex items-center gap-1"
-                    >
-                      <Phone size={11} className="stroke-[2.5]" />
-                      Call
-                    </button>
-                  )}
+                    {activeRide.customer?.phone && (
+                      <button
+                        onClick={() => contactCustomer(activeRide.customer?.phone)}
+                        className="px-3.5 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-bold text-xs rounded-xl flex items-center gap-1.5 transition"
+                      >
+                        <Phone size={13} className="stroke-[2.5]" />
+                        Call Passenger
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );})()}
+              );
+            })()}
 
             {/* 2. Available/Unassigned Ride Requests */}
-            {isOnline && availableRequests.map(ride => (
-              <div key={ride._id} className="bg-white border-2 border-orange-200 rounded-xl p-4 shadow-sm flex flex-col justify-between">
-                <div>
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-orange-100 text-orange-800 text-[10px] font-black uppercase rounded-md border border-orange-200 animate-pulse">
-                      <Bike className="w-3 h-3" />
-                      New Ride Request
-                    </span>
-                    <span className="text-xs font-bold text-neutral-400">
-                      #{ride._id?.slice(-6).toUpperCase()}
-                    </span>
+            {isOnline && availableRequests.map(ride => {
+              const isNightFare = ride.fare?.fareType === 'night';
+              const fareAmount = ride.fare?.totalFare || ride.fare?.riderReceives || ride.estimatedPrice || 0;
+
+              return (
+                <div key={ride._id} className="bg-white border-2 border-orange-300 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex justify-between items-start mb-2.5">
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-orange-100 text-orange-900 text-[10px] font-black uppercase rounded-md border border-orange-200 animate-pulse">
+                        <Bike className="w-3 h-3" />
+                        Fixed-Fare Request
+                      </span>
+                      <span className="text-xs font-bold text-neutral-400">
+                        #{ride._id?.slice(-6).toUpperCase()}
+                      </span>
+                    </div>
+
+                    <div className="bg-neutral-50 rounded-xl p-3 border border-neutral-200 mb-3 space-y-1.5">
+                      <div>
+                        <p className="text-[10px] font-bold text-neutral-500 uppercase">Pickup Location</p>
+                        <p className="text-sm font-black text-neutral-900 truncate">
+                          {ride.pickupLocation?.address || ride.pickupLocation?.name || ride.fare?.pickupArea}
+                        </p>
+                      </div>
+                      <div className="border-t border-neutral-200 pt-1">
+                        <p className="text-[10px] font-bold text-neutral-500 uppercase">Destination Area</p>
+                        <p className="text-sm font-black text-neutral-900 truncate">
+                          {ride.dropoffLocation?.address || ride.dropoffLocation?.name || ride.fare?.destinationArea}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 mb-3">
+                      <div>
+                        <span className="text-[10px] font-bold text-emerald-800 block">Fixed Fare</span>
+                        <span className="text-base font-black text-emerald-700">{formatCurrency(fareAmount)}</span>
+                      </div>
+                      <span className={`inline-flex items-center gap-1 text-[11px] font-extrabold px-2 py-1 rounded-md ${
+                        isNightFare ? 'bg-indigo-100 text-indigo-800' : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        {isNightFare ? <Moon className="w-3 h-3" /> : <Sun className="w-3 h-3" />}
+                        {isNightFare ? 'Night' : 'Day'}
+                      </span>
+                    </div>
                   </div>
 
-                  <p className="text-sm font-bold text-neutral-800 line-clamp-1">
-                    {ride.pickupLocation?.address} → {ride.dropoffLocation?.address}
-                  </p>
-
-                  <div className="mt-2.5 space-y-1 bg-neutral-50 p-2 rounded-lg border border-neutral-100 text-xs">
-                    <p><span className="font-bold">Distance:</span> {ride.estimatedDistance ? `${ride.estimatedDistance.toFixed(1)} km` : 'N/A'}</p>
-                    <p><span className="font-bold">Fare:</span> <span className="text-green-600 font-extrabold">{formatCurrency(ride.fare?.totalFare || ride.estimatedPrice || 0)}</span></p>
+                  <div className="mt-2 pt-3 border-t border-neutral-100 flex gap-2">
+                    <button
+                      onClick={() => acceptRide(ride._id)}
+                      className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-sm transition"
+                    >
+                      Accept Ride
+                    </button>
+                    <button
+                      onClick={() => declineRide(ride._id)}
+                      className="px-3 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold text-xs rounded-xl transition"
+                    >
+                      Decline
+                    </button>
                   </div>
                 </div>
-
-                <div className="mt-4 pt-3 border-t border-neutral-100 flex gap-2">
-                  <button
-                    onClick={() => acceptRide(ride._id)}
-                    className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white font-extrabold text-xs rounded-lg shadow-sm"
-                  >
-                    Accept Ride
-                  </button>
-                  <button
-                    onClick={() => declineRide(ride._id)}
-                    className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs rounded-lg"
-                  >
-                    Decline
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
 
           </div>
         </div>

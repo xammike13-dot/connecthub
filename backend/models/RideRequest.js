@@ -107,6 +107,25 @@ const rideRequestSchema = new mongoose.Schema(
       ratePerKm: Number,
       distanceInKm: Number,
       appliedRule: String,
+      isFixedFare: {
+        type: Boolean,
+        default: true,
+      },
+      fareType: {
+        type: String,
+        enum: ['day', 'night'],
+        default: 'day',
+      },
+      nightSurcharge: {
+        type: Number,
+        default: 0,
+      },
+      currency: {
+        type: String,
+        default: 'KES',
+      },
+      pickupArea: String,
+      destinationArea: String,
       // Rider rate tracking (for audit purposes)
       riderId: mongoose.Schema.Types.ObjectId,
       riderDayRate: Number,

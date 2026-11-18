@@ -1,20 +1,25 @@
 import RideRequest from '../models/RideRequest.js';
 import User from '../models/User.js';
 import Transaction from '../models/Transaction.js';
-import { calculateFare, calculateFareWithDefaultRate, calculateFareWithRiderRate, MINIMUM_FARE } from '../utils/rideFareCalculator.js';
+import {
+  calculateFixedFare,
+  calculateFare,
+  calculateFareWithDefaultRate,
+  calculateFareWithRiderRate,
+  isRouteSupported,
+  normalizeArea,
+  isNightRateInNairobi,
+} from '../utils/rideFareCalculator.js';
 import { formatDistance, distanceToKm } from '../utils/distanceFormatter.js';
 import { asyncHandler, ResponseError } from '../middleware/error.js';
 import { createRideNotification } from './notificationController.js';
 import { releaseEscrow } from '../utils/walletService.js';
 
 /**
- * Determine if current time is night rate
- * Night hours: 8:00 PM (20:00) to 4:59 AM (04:59)
- * Day hours: 5:00 AM (05:00) to 7:59 PM (19:59)
+ * Determine if current time is night rate (Africa/Nairobi)
  */
-const isNightTime = () => {
-  const hour = new Date().getHours();
-  return hour >= 20 || hour < 5;
+const isNightTime = (date = new Date()) => {
+  return isNightRateInNairobi(date);
 };
 
 /**
@@ -106,14 +111,12 @@ export const createRideRequest = asyncHandler(async (req, res) => {
     throw new ResponseError('Pickup and dropoff locations are required', 400);
   }
 
-  // Validate pickup location coordinates
-  if (!pickupLocation.coordinates || !Array.isArray(pickupLocation.coordinates.coordinates) || pickupLocation.coordinates.coordinates.length !== 2) {
-    throw new ResponseError('Invalid pickup location coordinates. Expected GeoJSON Point format', 400);
-  }
-
-  // Validate dropoff location coordinates
-  if (!dropoffLocation.coordinates || !Array.isArray(dropoffLocation.coordinates.coordinates) || dropoffLocation.coordinates.coordinates.length !== 2) {
-    throw new ResponseError('Invalid dropoff location coordinates. Expected GeoJSON Point format', 400);
+  // Calculate fixed fare using centralized fare calculator
+  let fareBreakdown;
+  try {
+    fareBreakdown = calculateFixedFare(pickupLocation, dropoffLocation);
+  } catch (err) {
+    throw new ResponseError(err.message || 'Invalid or unsupported route', 400);
   }
 
   // Validate payment transaction - rides can only be created after payment is confirmed
@@ -141,69 +144,20 @@ export const createRideRequest = asyncHandler(async (req, res) => {
     throw new ResponseError('Ride already exists for this payment transaction', 409);
   }
 
-  // STEP 1: Calculate distance between pickup and dropoff
-  const distanceInMeters = await getRoutingDistance(pickupLocation, dropoffLocation);
-
-  // STEP 2: Determine if night time
-  const isNight = isNightTime();
-  console.log('[rideController] Time check:', { hour: new Date().getHours(), isNight });
-
-  // STEP 3: Calculate fare - use rider's rates if riderId provided, otherwise use default
-  let fareBreakdown;
-  let usedRiderRates = false;
-  let riderDayRate = null;
-  let riderNightRate = null;
-
   if (riderId) {
-    // Fetch the rider's profile to get their rates
     const rider = await User.findById(riderId);
     if (!rider) {
       throw new ResponseError('Selected rider not found', 404);
     }
-
     if (rider.role !== 'rider') {
       throw new ResponseError('Selected user is not a rider', 400);
     }
-
-    // Get rider's configured rates
-    riderDayRate = rider.riderProfile?.dayRatePerKm;
-    riderNightRate = rider.riderProfile?.nightRatePerKm;
-
-    console.log('Loaded Rider Profile', rider.riderProfile);
-    console.log('[rideController] Loaded rider rates:', {
-      riderId,
-      dayRate: riderDayRate,
-      nightRate: riderNightRate
-    });
-
-    if (riderDayRate !== null && riderDayRate !== undefined && !isNaN(riderDayRate) && riderDayRate > 0 &&
-      riderNightRate !== null && riderNightRate !== undefined && !isNaN(riderNightRate) && riderNightRate > 0) {
-      // Use rider's actual rates
-      const selectedRate = isNight ? riderNightRate : riderDayRate;
-      fareBreakdown = calculateFare(distanceInMeters, selectedRate);
-      usedRiderRates = true;
-
-      // Log booking details (exact format per requirements)
-      console.log({
-        riderId,
-        dayRate: riderDayRate,
-        nightRate: riderNightRate,
-        selectedRate,
-        isNight,
-      });
-    } else {
-      console.log('[rideController] Rider has not configured rates, using default rates');
-      fareBreakdown = calculateFareWithDefaultRate(distanceInMeters);
-    }
-  } else {
-    // No rider selected, use default rates for estimate
-    fareBreakdown = calculateFareWithDefaultRate(distanceInMeters);
   }
 
   // Debug logging
-  console.log('[rideController] Computed Fare Breakdown:', fareBreakdown);
+  console.log('[rideController] Fixed Fare Breakdown:', fareBreakdown);
 
-  // STEP 4: Build the ride request with proper fare object
+  // Build the ride request with proper fare object
   const formatCoordinates = (loc) => {
     if (!loc) return [];
     if (Array.isArray(loc.coordinates)) {
@@ -216,15 +170,15 @@ export const createRideRequest = asyncHandler(async (req, res) => {
   };
 
   const formattedPickup = {
-    name: pickupLocation.name || pickupLocation.address || 'Pickup Location',
-    address: pickupLocation.address || pickupLocation.name || 'Pickup Location',
+    name: fareBreakdown.pickup,
+    address: typeof pickupLocation === 'string' ? pickupLocation : (pickupLocation.address || pickupLocation.name || fareBreakdown.pickup),
     landmark: pickupLocation.landmark,
     coordinates: formatCoordinates(pickupLocation),
   };
 
   const formattedDropoff = {
-    name: dropoffLocation.name || dropoffLocation.address || 'Dropoff Location',
-    address: dropoffLocation.address || dropoffLocation.name || 'Dropoff Location',
+    name: fareBreakdown.destination,
+    address: typeof dropoffLocation === 'string' ? dropoffLocation : (dropoffLocation.address || dropoffLocation.name || fareBreakdown.destination),
     landmark: dropoffLocation.landmark,
     coordinates: formatCoordinates(dropoffLocation),
   };
@@ -234,47 +188,46 @@ export const createRideRequest = asyncHandler(async (req, res) => {
     transaction: transactionId, // Link to confirmed payment transaction
     pickupLocation: formattedPickup,
     dropoffLocation: formattedDropoff,
-    estimatedDistance: Math.round(distanceInMeters / 1000 * 100) / 100, // Distance in km
+    estimatedDistance: 0,
     rideType,
     passengers,
     specialRequests,
     status: 'waiting_rider', // Payment confirmed, waiting for rider to accept
     paymentStatus: 'paid', // Payment is already confirmed
-    // Fare object with all required fields from centralized calculator
+    // Fare object with all required fields from centralized fixed fare calculator
     fare: {
       baseFare: fareBreakdown.baseFare,
-      totalFare: fareBreakdown.totalFare,        // What customer pays (baseFare + customerShare)
-      platformFee: fareBreakdown.platformFee,
-      customerShare: fareBreakdown.customerShare,
-      riderShare: fareBreakdown.riderShare,
-      riderReceives: fareBreakdown.riderReceives,
-      // Metadata for debugging and display
-      ratePerKm: fareBreakdown.ratePerKm,
-      distanceInKm: fareBreakdown.distanceInKm,
+      totalFare: fareBreakdown.totalFare,
+      platformFee: fareBreakdown.platformFee || 0,
+      customerShare: fareBreakdown.customerShare || 0,
+      riderShare: fareBreakdown.riderShare || 0,
+      riderReceives: fareBreakdown.riderReceives || fareBreakdown.totalFare,
       appliedRule: fareBreakdown.appliedRule,
-      // Store rider rates info if used
-      ...(usedRiderRates && {
-        riderId,
-        riderDayRate,
-        riderNightRate,
-        isNightRate: isNight,
-      }),
+      isFixedFare: true,
+      fareType: fareBreakdown.fareType,
+      nightSurcharge: fareBreakdown.nightSurcharge,
+      currency: 'KES',
+      pickupArea: fareBreakdown.pickup,
+      destinationArea: fareBreakdown.destination,
+      ...(riderId && { riderId }),
     },
+    escrowStatus: 'held',
+    fundsReleased: false,
+    ...(riderId && { rider: riderId }),
   };
 
   console.log('[rideController] Ride Payload Fare:', JSON.stringify(ridePayload.fare, null, 2));
 
   // Log complete fare calculation details for verification
-  console.log('[rideController] Fare Calculation Verification:', {
-    distance: fareBreakdown.distanceInKm + ' km',
-    isNight,
-    dayRate: riderDayRate || 'N/A (using default)',
-    nightRate: riderNightRate || 'N/A (using default)',
-    selectedRate: fareBreakdown.ratePerKm,
+  console.log('[rideController] Fixed Fare Calculation Details:', {
+    pickup: fareBreakdown.pickup,
+    destination: fareBreakdown.destination,
+    fareType: fareBreakdown.fareType,
     baseFare: fareBreakdown.baseFare,
-    platformFee: fareBreakdown.platformFee,
-    customerPays: fareBreakdown.customerPays,
+    nightSurcharge: fareBreakdown.nightSurcharge,
+    totalFare: fareBreakdown.totalFare,
     riderReceives: fareBreakdown.riderReceives,
+    isFixedFare: fareBreakdown.isFixedFare,
   });
 
   const rideRequest = await RideRequest.create(ridePayload);
@@ -495,32 +448,13 @@ export const acceptRide = asyncHandler(async (req, res) => {
     throw new ResponseError('Ride already accepted by another rider', 400);
   }
 
-  // STEP 1: Get the rider's configured rates from the database
+  // STEP 1: Get the rider from the database
   const rider = await User.findById(riderId);
   if (!rider) {
     throw new ResponseError('Rider not found', 404);
   }
 
-  // STEP 2: Validate that rider has configured rates
-  const dayRate = rider.riderProfile?.dayRatePerKm;
-  const nightRate = rider.riderProfile?.nightRatePerKm;
-
-  if (dayRate === null || dayRate === undefined || isNaN(dayRate) || dayRate <= 0) {
-    throw new ResponseError('Rider has not configured day/night rates.', 400);
-  }
-
-  if (nightRate === null || nightRate === undefined || isNaN(nightRate) || nightRate <= 0) {
-    throw new ResponseError('Rider has not configured day/night rates.', 400);
-  }
-
-  // STEP 3: Recalculate fare using the rider's actual rates
-  // Use the original distance in meters (convert from stored km)
-  const distanceInMeters = Math.round(ride.estimatedDistance * 1000);
-
-  // Calculate fare with rider's rates (day/night determined by current time)
-  const fareBreakdown = calculateFareWithRiderRate(distanceInMeters, dayRate, nightRate);
-
-  // STEP 4: Update the ride with the rider's actual fare
+  // STEP 2: Handle ride acceptance and maintain fixed fare integrity
   console.log('[RIDE STATUS TRANSITION]', {
     previousStatus: ride.status,
     newStatus: 'accepted',
@@ -533,24 +467,27 @@ export const acceptRide = asyncHandler(async (req, res) => {
   ride.status = 'accepted';
   ride.acceptedAt = new Date();
 
-  // Update fare with rider's actual rates
-  ride.fare = {
-    baseFare: fareBreakdown.baseFare,
-    totalFare: fareBreakdown.totalFare,
-    platformFee: fareBreakdown.platformFee,
-    customerShare: fareBreakdown.customerShare,
-    riderShare: fareBreakdown.riderShare,
-    riderReceives: fareBreakdown.riderReceives,
-    ratePerKm: fareBreakdown.ratePerKm,
-    distanceInKm: fareBreakdown.distanceInKm,
-    appliedRule: fareBreakdown.appliedRule,
-    // Store which rider's rates were used
-    riderId: riderId,
-    riderDayRate: dayRate,
-    riderNightRate: nightRate,
-  };
+  // If the ride does not have a fare yet (legacy), compute fixed fare or fallback
+  if (!ride.fare || !ride.fare.totalFare) {
+    const pickupLoc = ride.pickupLocation?.name || ride.pickupLocation?.address || 'Stage';
+    const dropoffLoc = ride.dropoffLocation?.name || ride.dropoffLocation?.address || 'Around Stage';
+    try {
+      const fixedFare = calculateFixedFare(pickupLoc, dropoffLoc);
+      ride.fare = fixedFare;
+    } catch (e) {
+      ride.fare = {
+        baseFare: 40,
+        totalFare: 40,
+        platformFee: 0,
+        customerShare: 0,
+        riderShare: 0,
+        riderReceives: 40,
+        isFixedFare: true,
+      };
+    }
+  }
 
-  console.log('[rideController] Fare recalculated with rider rates:', fareBreakdown);
+  console.log('[rideController] Ride accepted with fixed fare:', ride.fare);
 
   await ride.save();
 
@@ -1058,86 +995,48 @@ export const deleteRideForRider = asyncHandler(async (req, res) => {
 });
 
 /**
- * Calculate ride fare estimate
- * This is the single source of truth for fare calculation
- * Frontend should call this to get accurate fare before booking
+ * Calculate ride fare
+ * Authoritative backend calculation using centralized fixed fare calculator.
  */
 export const calculateRideFare = asyncHandler(async (req, res) => {
-  const { pickupLocation, dropoffLocation, ratePerKm } = req.body;
+  const { pickupLocation, dropoffLocation, pickup, destination } = req.body;
 
-  // Validate required fields
-  if (!pickupLocation || !dropoffLocation) {
-    throw new ResponseError('Pickup and dropoff locations are required', 400);
+  const effectivePickup = pickup || pickupLocation;
+  const effectiveDestination = destination || dropoffLocation;
+
+  if (!effectivePickup || !effectiveDestination) {
+    throw new ResponseError('Pickup and destination locations are required', 400);
   }
 
-  // Validate pickup location coordinates
-  if (!pickupLocation.coordinates || !Array.isArray(pickupLocation.coordinates.coordinates) || pickupLocation.coordinates.coordinates.length !== 2) {
-    throw new ResponseError('Invalid pickup location coordinates. Expected GeoJSON Point format', 400);
+  try {
+    const fareBreakdown = calculateFixedFare(effectivePickup, effectiveDestination);
+    res.status(200).json({
+      success: true,
+      data: fareBreakdown,
+    });
+  } catch (err) {
+    throw new ResponseError(err.message || 'Invalid or unsupported route', 400);
   }
-
-  // Validate dropoff location coordinates
-  if (!dropoffLocation.coordinates || !Array.isArray(dropoffLocation.coordinates.coordinates) || dropoffLocation.coordinates.coordinates.length !== 2) {
-    throw new ResponseError('Invalid dropoff location coordinates. Expected GeoJSON Point format', 400);
-  }
-
-  // Calculate distance using routing API (or Haversine fallback)
-  const distanceInMeters = await getRoutingDistance(pickupLocation, dropoffLocation);
-
-  // Calculate fare using the centralized fare calculator. Fallback to default rates if ratePerKm is not provided.
-  let fareBreakdown;
-  if (ratePerKm !== undefined && ratePerKm !== null && !isNaN(ratePerKm) && ratePerKm > 0) {
-    fareBreakdown = calculateFare(distanceInMeters, ratePerKm);
-  } else {
-    fareBreakdown = calculateFareWithDefaultRate(distanceInMeters);
-  }
-
-  // Format distance for display
-  const formattedDistance = formatDistance(distanceInMeters);
-
-  res.status(200).json({
-    success: true,
-    data: {
-      // Distance info
-      distanceInMeters: Math.round(distanceInMeters),
-      distanceInKm: distanceToKm(distanceInMeters),
-      distanceDisplay: formattedDistance,
-
-      // Fare info
-      ...fareBreakdown,
-
-      // Pickup and dropoff info
-      pickup: pickupLocation.address || pickupLocation.name || 'Pickup location',
-      dropoff: dropoffLocation.address || dropoffLocation.name || 'Dropoff location',
-    },
-  });
 });
 
 /**
- * Calculate fare with a specific rider's rates
- * This is the single source of truth for fare calculation when a rider is selected
+ * Calculate fare with a specific rider
+ * Official fixed fare system applies uniformly across all boda boda rides.
  */
 export const calculateFareWithRider = asyncHandler(async (req, res) => {
-  const { pickupLocation, dropoffLocation, riderId } = req.body;
+  const { pickupLocation, dropoffLocation, pickup, destination, riderId } = req.body;
 
-  // Validate required fields
-  if (!pickupLocation || !dropoffLocation) {
-    throw new ResponseError('Pickup and dropoff locations are required', 400);
+  const effectivePickup = pickup || pickupLocation;
+  const effectiveDestination = destination || dropoffLocation;
+
+  if (!effectivePickup || !effectiveDestination) {
+    throw new ResponseError('Pickup and destination locations are required', 400);
   }
 
   if (!riderId) {
     throw new ResponseError('Rider ID is required', 400);
   }
 
-  // Validate coordinates
-  if (!pickupLocation.coordinates || !Array.isArray(pickupLocation.coordinates.coordinates) || pickupLocation.coordinates.coordinates.length !== 2) {
-    throw new ResponseError('Invalid pickup location coordinates', 400);
-  }
-
-  if (!dropoffLocation.coordinates || !Array.isArray(dropoffLocation.coordinates.coordinates) || dropoffLocation.coordinates.coordinates.length !== 2) {
-    throw new ResponseError('Invalid dropoff location coordinates', 400);
-  }
-
-  // Get rider's profile to get their rates
   const rider = await User.findById(riderId);
   if (!rider) {
     throw new ResponseError('Selected rider not found', 404);
@@ -1147,88 +1046,46 @@ export const calculateFareWithRider = asyncHandler(async (req, res) => {
     throw new ResponseError('Selected user is not a rider', 400);
   }
 
-  // Get rider's configured rates
-  const dayRate = rider.riderProfile?.dayRatePerKm;
-  const nightRate = rider.riderProfile?.nightRatePerKm;
+  try {
+    const fareBreakdown = calculateFixedFare(effectivePickup, effectiveDestination);
+    fareBreakdown.riderId = riderId;
 
-  if (!dayRate || !nightRate || isNaN(dayRate) || isNaN(nightRate) || dayRate <= 0 || nightRate <= 0) {
-    throw new ResponseError('Rider has not configured day/night rates', 400);
+    res.status(200).json({
+      success: true,
+      data: fareBreakdown,
+    });
+  } catch (err) {
+    throw new ResponseError(err.message || 'Invalid or unsupported route', 400);
   }
-
-  // Calculate distance
-  const distanceInMeters = await getRoutingDistance(pickupLocation, dropoffLocation);
-
-  // Calculate fare with rider's rates
-  const fareBreakdown = calculateFareWithRiderRate(distanceInMeters, dayRate, nightRate);
-
-  console.log('[calculateFareWithRider] Fare calculated:', {
-    riderId,
-    dayRate,
-    nightRate,
-    distanceInMeters,
-    fareBreakdown,
-  });
-
-  res.status(200).json({
-    success: true,
-    data: fareBreakdown,
-  });
 });
 
 /**
- * Get fare estimate with default rate
- * Used when rider rate is not yet known (before selecting a rider)
+ * Get fare estimate with official fixed fare
  */
 export const getFareEstimate = asyncHandler(async (req, res) => {
-  const { pickupLocation, dropoffLocation, time } = req.query;
+  const { pickupLocation, dropoffLocation, pickup, destination, time } = req.query;
 
-  if (!pickupLocation || !dropoffLocation) {
-    throw new ResponseError('Pickup and dropoff locations are required', 400);
+  const effectivePickup = pickup || pickupLocation || req.query.pickupAddress;
+  const effectiveDestination = destination || dropoffLocation || req.query.dropoffAddress;
+
+  if (!effectivePickup || !effectiveDestination) {
+    throw new ResponseError('Pickup and destination are required', 400);
   }
 
-  // Parse coordinates from query params
-  const pickup = {
-    address: req.query.pickupAddress,
-    coordinates: {
-      type: 'Point',
-      coordinates: [parseFloat(req.query.pickupLng), parseFloat(req.query.pickupLat)],
-    },
-  };
-
-  const dropoff = {
-    address: req.query.dropoffAddress,
-    coordinates: {
-      type: 'Point',
-      coordinates: [parseFloat(req.query.dropoffLng), parseFloat(req.query.dropoffLat)],
-    },
-  };
-
-  // Calculate distance
-  const distanceInMeters = await getRoutingDistance(pickup, dropoff);
-
-  // Calculate fare with default rate
   const options = {};
   if (time) {
     options.time = new Date(time);
   }
 
-  const fareBreakdown = calculateFareWithDefaultRate(distanceInMeters, options);
-
-  // Format distance for display
-  const formattedDistance = formatDistance(distanceInMeters);
-
-  res.status(200).json({
-    success: true,
-    data: {
-      // Distance info
-      distanceInMeters: Math.round(distanceInMeters),
-      distanceInKm: distanceToKm(distanceInMeters),
-      distanceDisplay: formattedDistance,
-
-      // Fare info
-      ...fareBreakdown,
-    },
-  });
+  try {
+    const fareBreakdown = calculateFixedFare(effectivePickup, effectiveDestination, options);
+    res.status(200).json({
+      success: true,
+      data: fareBreakdown,
+    });
+  } catch (err) {
+    throw new ResponseError(err.message || 'Invalid or unsupported route', 400);
+  }
 });
 
 /**

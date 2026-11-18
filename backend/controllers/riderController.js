@@ -3,6 +3,7 @@ import RideRequest from '../models/RideRequest.js';
 import Wallet from '../models/Wallet.js';
 import { asyncHandler, ResponseError } from '../middleware/error.js';
 import { v2 as cloudinary } from 'cloudinary';
+import { normalizeArea } from '../utils/rideFareCalculator.js';
 
 /**
  * Get rider dashboard statistics
@@ -626,38 +627,46 @@ export const updateRiderGPSLocation = asyncHandler(async (req, res) => {
 
 /**
  * Get nearby riders (for customer ride requests)
+ * Supports both fixed-location booking workflow and optional GPS coordinates.
  * Returns riders who satisfy ALL of the following:
- * - Rider account is active
- * - Rider is online
- * - Rider has enabled location sharing (has currentLocation)
- * - Rider is within the configured radius of the customer
+ * - Rider account is active and not deleted
+ * - Rider is online (profile.isOnline is true or status is not 'offline')
+ * Prioritizes riders registered for the selected pickup corridor area.
  */
 export const getNearbyRiders = asyncHandler(async (req, res) => {
-  const { latitude, longitude, maxDistance = 10000 } = req.query;
+  const { latitude, longitude, maxDistance = 10000, pickup, pickupLocation, pickupArea } = req.query;
 
-  if (!latitude || !longitude) {
-    throw new ResponseError('Latitude and longitude are required', 400);
-  }
+  const rawPickup = pickup || pickupLocation || pickupArea || '';
+  const normPickup = normalizeArea(rawPickup);
 
-  const lat = parseFloat(latitude);
-  const lng = parseFloat(longitude);
+  const hasCoords =
+    latitude !== undefined &&
+    latitude !== null &&
+    longitude !== undefined &&
+    longitude !== null &&
+    !isNaN(parseFloat(latitude)) &&
+    !isNaN(parseFloat(longitude));
 
-  if (isNaN(lat) || isNaN(lng)) {
-    throw new ResponseError('Invalid coordinates provided', 400);
-  }
-
+  const lat = hasCoords ? parseFloat(latitude) : null;
+  const lng = hasCoords ? parseFloat(longitude) : null;
   const maxSearchRadiusKm = parseFloat(maxDistance) / 1000;
 
-  const allRiders = await User.find({ role: 'rider' });
+  const allRiders = await User.find({
+    role: 'rider',
+    isActive: { $ne: false },
+    isDeleted: { $ne: true },
+  });
 
   const haversineKm = (lat1, lon1, lat2, lon2) => {
     const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   };
 
@@ -665,25 +674,44 @@ export const getNearbyRiders = asyncHandler(async (req, res) => {
 
   for (const rider of allRiders) {
     const profile = rider.riderProfile || {};
-    const riderLoc = profile.currentLocation;
 
-    if (!profile.isOnline) continue;
+    // Check online status: isOnline === true OR status is online/busy
+    const isOnline = profile.isOnline === true || profile.status === 'online';
+    if (!isOnline) continue;
 
-    if (!riderLoc || !Array.isArray(riderLoc.coordinates) || riderLoc.coordinates.length < 2) continue;
-
-    let rLng = riderLoc.coordinates[0];
-    let rLat = riderLoc.coordinates[1];
-
-    if (rLng === null || rLat === null || isNaN(rLng) || isNaN(rLat)) continue;
-
-    if (rLng >= -10 && rLng <= 10 && rLat >= 30 && rLat <= 45) {
-      [rLng, rLat] = [rLat, rLng];
+    // Check working area relevance
+    const workingAreas = profile.workingArea?.selectedWorkingAreas || [];
+    let matchesWorkingArea = true;
+    if (normPickup && workingAreas.length > 0) {
+      matchesWorkingArea = workingAreas.some((area) => {
+        const canonical = normalizeArea(area);
+        return canonical === normPickup;
+      });
     }
 
-    if (rider.isActive === false || rider.isDeleted === true) continue;
+    // Handle distance if coordinates exist
+    const riderLoc = profile.currentLocation;
+    let distance = null;
+    let rLat = null;
+    let rLng = null;
 
-    const distance = haversineKm(lat, lng, rLat, rLng);
-    if (isNaN(distance) || distance > maxSearchRadiusKm) continue;
+    if (riderLoc && Array.isArray(riderLoc.coordinates) && riderLoc.coordinates.length >= 2) {
+      rLng = riderLoc.coordinates[0];
+      rLat = riderLoc.coordinates[1];
+      if (rLng >= -10 && rLng <= 10 && rLat >= 30 && rLat <= 45) {
+        [rLng, rLat] = [rLat, rLng];
+      }
+
+      if (hasCoords && rLat !== null && rLng !== null && !isNaN(rLat) && !isNaN(rLng)) {
+        const calcDist = haversineKm(lat, lng, rLat, rLng);
+        if (!isNaN(calcDist)) {
+          if (calcDist > maxSearchRadiusKm && !matchesWorkingArea) {
+            continue; // Exceeds radius and does not match working area
+          }
+          distance = parseFloat(calcDist.toFixed(1));
+        }
+      }
+    }
 
     availableRiders.push({
       _id: rider._id,
@@ -701,13 +729,24 @@ export const getNearbyRiders = asyncHandler(async (req, res) => {
       lng: rLng,
       latitude: rLat,
       longitude: rLng,
-      distance: parseFloat(distance.toFixed(2)),
-      estimatedArrival: Math.max(1, Math.round(distance * 3)),
+      distance,
+      estimatedArrival: distance ? Math.max(1, Math.round(distance * 3)) : 5,
       isOnline: true,
+      workingAreas,
+      matchesWorkingArea,
     });
   }
 
-  availableRiders.sort((a, b) => a.distance - b.distance);
+  // Sort riders: matching working area first, then by distance (if available), then by rating
+  availableRiders.sort((a, b) => {
+    if (a.matchesWorkingArea !== b.matchesWorkingArea) {
+      return a.matchesWorkingArea ? -1 : 1;
+    }
+    if (a.distance !== null && b.distance !== null) {
+      return a.distance - b.distance;
+    }
+    return b.rating - a.rating;
+  });
 
   res.status(200).json({
     success: true,

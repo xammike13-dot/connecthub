@@ -1,266 +1,300 @@
 /**
- * Ride Fare Calculation Service
- * 
- * Centralized service for calculating bodaboda ride fares.
- * All fare calculations MUST use this service.
- * 
- * FARE RULES:
- * 
- * 1. MINIMUM FARE (CONSTANT):
- *    - If distance < 1 km, customer ALWAYS pays KSh 50
- *    - This minimum fare does NOT depend on the rider's configured km rate
- *    - Examples: 0.001 km -> 50, 0.1 km -> 50, 0.3 km -> 50, 0.7 km -> 50, 0.9 km -> 50, 0.999 km -> 50
- * 
- * 2. NORMAL FARE:
- *    - If distance >= 1 km: Base Fare = distance_in_km × rider_rate
- *    - Examples (at 60 KSh/km): 1 km -> 60, 2 km -> 120, 5.5 km -> 330, 10 km -> 600
- *    - Round to nearest whole Kenya Shilling
- * 
- * 3. PLATFORM FEE:
- *    - Platform Fee = 10% of Base Fare
- *    - Customer Share = Platform Fee / 2 (5% of Base Fare)
- *    - Rider Share = Platform Fee / 2 (5% of Base Fare)
- * 
- * 4. FINAL PAYMENT:
- *    - Customer Pays = Base Fare + Customer Share
- *    - Rider Receives = Base Fare - Rider Share
- *    - Platform Receives = Platform Fee
- * 
- * CONSTANTS:
+ * Centralized Fixed Fare Calculator for OLAFasta Boda Boda Rides
+ *
+ * Implements the official fixed-location fare system for campus & local areas:
+ * - Approved Pickup Locations: Stage, Mabs, Cheba, Kesses (or "Around Stage", etc.)
+ * - Approved Destination Areas: Around Stage, Around Mabs, Around Cheba, Around Kesses
+ *
+ * FARE MATRIX (Daytime):
+ * - Stage ↔️ Around Stage:  KSh 40
+ * - Stage ↔️ Around Mabs:   KSh 50
+ * - Stage ↔️ Around Cheba:  KSh 60
+ * - Stage ↔️ Around Kesses: KSh 80
+ * - Mabs ↔️ Around Mabs:    KSh 40
+ * - Cheba ↔️ Around Cheba:  KSh 40
+ * - Kesses ↔️ Around Kesses: KSh 40
+ * - Kesses ↔️ Around Cheba:  KSh 30
+ *
+ * NIGHT SURCHARGE:
+ * - Applies from 8:00 PM to 4:59 AM (Africa/Nairobi timezone)
+ * - Exactly +KSh 20 on all applicable fares (including reverse routes)
  */
 
-/**
- * Minimum fare constant (KSh)
- * Applied when distance < 1 km
- */
-export const MINIMUM_FARE = 25;
+export const APPROVED_PICKUPS = ['Stage', 'Mabs', 'Cheba', 'Kesses'];
+
+export const APPROVED_DESTINATIONS = [
+  'Around Stage',
+  'Around Mabs',
+  'Around Cheba',
+  'Around Kesses',
+];
+
+export const NIGHT_SURCHARGE = 20;
 
 /**
- * Minimum distance threshold in meters (1 km)
+ * Normalizes an area name to one of the 4 canonical area keys:
+ * 'Stage' | 'Mabs' | 'Cheba' | 'Kesses'
+ *
+ * @param {string|object} location - Location string or object with address/name
+ * @returns {string|null} Canonical area or null if unsupported
  */
-export const MINIMUM_DISTANCE_METERS = 1000;
+export const normalizeArea = (location) => {
+  if (!location) return null;
 
-/**
- * Platform fee percentage (10% of base fare)
- */
-export const PLATFORM_FEE_PERCENTAGE = 0.10;
+  let raw = '';
+  if (typeof location === 'string') {
+    raw = location;
+  } else if (typeof location === 'object') {
+    raw = location.address || location.name || location.pickup || location.destination || '';
+  }
 
-/**
- * Default day rate per km (KSh)
- * Used when rider rate is not specified
- */
-export const DEFAULT_DAY_RATE = 60;
+  const cleaned = raw.toLowerCase().trim();
+  if (!cleaned) return null;
 
-/**
- * Default night rate per km (KSh)
- * Used when rider rate is not specified
- */
-export const DEFAULT_NIGHT_RATE = 80;
+  // Check matching patterns
+  if (cleaned.includes('stage')) return 'Stage';
+  if (cleaned.includes('mab')) return 'Mabs';
+  if (cleaned.includes('cheba') || cleaned.includes('chebaiywa')) return 'Cheba';
+  if (cleaned.includes('kesses')) return 'Kesses';
 
-/**
- * Determine if current time is night rate
- * Night hours: 8:00 PM (20:00) to 4:59 AM (04:59)
- * Day hours: 5:00 AM (05:00) to 7:59 PM (19:59)
- * 
- * @param {Date} date - Date to check (defaults to now)
- * @returns {boolean} True if night rate applies
- */
-export const isNightRate = (date = new Date()) => {
-  const hour = date.getHours();
-  // Night: 20:00 (8 PM) to 04:59 (4:59 AM)
-  return hour >= 20 || hour < 5;
+  return null;
 };
 
 /**
- * Calculate complete fare breakdown including platform fees
- * 
- * @param {number} distanceInMeters - Distance in meters (from routing API)
- * @param {number} ratePerKm - Rider's rate per kilometer (KSh/km) - MUST be provided
- * @param {Object} options - Additional options
- * @param {Date} options.time - Time of ride (for day/night determination)
- * @returns {Object} Complete fare breakdown with all details
- * @throws {Error} If ratePerKm is not provided or invalid
+ * Format standard pickup display label
  */
-export const calculateFare = (distanceInMeters, ratePerKm, options = {}) => {
-  // Validate inputs
-  if (distanceInMeters === null || distanceInMeters === undefined || isNaN(distanceInMeters)) {
-    throw new Error('Distance in meters is required and must be a valid number');
+export const formatPickupLabel = (area) => {
+  const canonical = normalizeArea(area);
+  return canonical || area;
+};
+
+/**
+ * Format standard destination display label
+ */
+export const formatDestinationLabel = (area) => {
+  const canonical = normalizeArea(area);
+  if (!canonical) return area;
+  return `Around ${canonical}`;
+};
+
+/**
+ * Creates an unordered canonical key for bidirectional route matching
+ */
+const getRouteKey = (areaA, areaB) => {
+  const canonicalA = normalizeArea(areaA);
+  const canonicalB = normalizeArea(areaB);
+  if (!canonicalA || !canonicalB) return null;
+
+  return [canonicalA, canonicalB].sort().join('<->');
+};
+
+/**
+ * Base daytime fare table keyed by canonical route pairs
+ */
+const BASE_FARE_TABLE = {
+  // Same area routes (KSh 40)
+  'Stage<->Stage': 40,
+  'Mabs<->Mabs': 40,
+  'Cheba<->Cheba': 40,
+  'Kesses<->Kesses': 40,
+
+  // Cross-corridor routes
+  'Mabs<->Stage': 50,
+  'Cheba<->Stage': 60,
+  'Kesses<->Stage': 80,
+  'Cheba<->Kesses': 30,
+};
+
+/**
+ * Check whether a route is defined in the official fare matrix
+ *
+ * @param {string|object} pickup - Pickup location
+ * @param {string|object} destination - Destination area
+ * @returns {boolean} True if route combination is supported
+ */
+export const isRouteSupported = (pickup, destination) => {
+  const routeKey = getRouteKey(pickup, destination);
+  if (!routeKey) return false;
+  return Object.prototype.hasOwnProperty.call(BASE_FARE_TABLE, routeKey);
+};
+
+/**
+ * Determine if night rate applies based on Kenyan local time (Africa/Nairobi)
+ * Night: 8:00 PM (20:00) to 4:59 AM (04:59)
+ * Day: 5:00 AM (05:00) to 7:59 PM (19:59)
+ *
+ * @param {Date} date - Optional date instance (defaults to now)
+ * @returns {boolean}
+ */
+export const isNightRateInNairobi = (date = new Date()) => {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Africa/Nairobi',
+      hour: 'numeric',
+      hourCycle: 'h23',
+    });
+    const hour = parseInt(formatter.format(date), 10);
+    return hour >= 20 || hour < 5;
+  } catch (err) {
+    // Fallback: Africa/Nairobi is UTC+3 with no daylight saving
+    const utcHour = date.getUTCHours();
+    const nairobiHour = (utcHour + 3) % 24;
+    return nairobiHour >= 20 || nairobiHour < 5;
   }
-  
-  if (distanceInMeters < 0 || !isFinite(distanceInMeters)) {
-    throw new Error('Distance must be a non-negative finite number');
+};
+
+/**
+ * Legacy compatibility alias
+ */
+export const isNightRate = isNightRateInNairobi;
+
+/**
+ * Calculate fixed fare for a boda boda ride
+ *
+ * @param {string|object} pickup - Pickup location ('Stage', 'Mabs', etc.)
+ * @param {string|object} destination - Destination area ('Around Cheba', etc.)
+ * @param {Object} options - Optional parameters: { time: Date, isNight: boolean }
+ * @returns {Object} Structured fare breakdown
+ * @throws {Error} If pickup/destination is invalid or route combination is unsupported
+ */
+export const calculateFixedFare = (pickup, destination, options = {}) => {
+  const normPickup = normalizeArea(pickup);
+  const normDestination = normalizeArea(destination);
+
+  if (!normPickup) {
+    throw new Error(
+      `Invalid pickup location "${typeof pickup === 'object' ? JSON.stringify(pickup) : pickup}". Approved pickups: ${APPROVED_PICKUPS.join(', ')}`
+    );
   }
 
-  // Validate that ratePerKm is provided and valid
-  if (ratePerKm === null || ratePerKm === undefined || isNaN(ratePerKm)) {
-    throw new Error('Rider has not configured day/night rates.');
+  if (!normDestination) {
+    throw new Error(
+      `Invalid destination area "${typeof destination === 'object' ? JSON.stringify(destination) : destination}". Approved destinations: ${APPROVED_DESTINATIONS.join(', ')}`
+    );
   }
 
-  if (ratePerKm <= 0) {
-    throw new Error('Rider rate per km must be a positive number');
+  const routeKey = getRouteKey(normPickup, normDestination);
+  const baseFare = BASE_FARE_TABLE[routeKey];
+
+  if (baseFare === undefined) {
+    throw new Error(
+      `Route between ${formatPickupLabel(normPickup)} and ${formatDestinationLabel(normDestination)} is not supported.`
+    );
   }
 
-  // Use the provided rider rate (already determined as day or night rate by caller)
-  const effectiveRate = ratePerKm;
-
-  // Convert distance to kilometers for calculation
-  const distanceInKm = distanceInMeters / 1000;
-
-  // Calculate Base Fare
-  let baseFare;
-  let appliedRule;
-
-  if (distanceInMeters < MINIMUM_DISTANCE_METERS) {
-    // Apply minimum fare
-    baseFare = MINIMUM_FARE;
-    appliedRule = 'minimum_fare';
+  // Determine if night rate applies
+  let isNight = false;
+  if (typeof options.isNight === 'boolean') {
+    isNight = options.isNight;
+  } else if (options.time instanceof Date) {
+    isNight = isNightRateInNairobi(options.time);
   } else {
-    // Calculate based on distance and rate
-    baseFare = Math.round(distanceInKm * effectiveRate);
-    appliedRule = 'distance_rate';
+    isNight = isNightRateInNairobi();
   }
 
-  // Calculate Platform Fee (10% of Base Fare)
-  const platformFee = Math.round(baseFare * PLATFORM_FEE_PERCENTAGE * 100) / 100;
-  
-  // Split platform fee equally between customer and rider
-  const customerShare = Math.round((platformFee / 2) * 100) / 100;
-  const riderShare = Math.round((platformFee / 2) * 100) / 100;
+  const fareType = isNight ? 'night' : 'day';
+  const nightSurcharge = isNight ? NIGHT_SURCHARGE : 0;
+  const totalFare = baseFare + nightSurcharge;
 
-  // Calculate final amounts
-  const customerPays = Math.round((baseFare + customerShare) * 100) / 100;
-  const riderReceives = Math.round((baseFare - riderShare) * 100) / 100;
-
-  // Debug logging - matches the exact format specified in requirements
-  console.log('Fare Calculation', {
-    distanceInKm: Math.round(distanceInKm * 100) / 100,
-    isNight: isNightRate(options.time || new Date()),
-    dayRate: options.dayRate !== undefined ? options.dayRate : null,
-    nightRate: options.nightRate !== undefined ? options.nightRate : null,
-    selectedRate: effectiveRate,
-    baseFare,
-    platformFee,
-    customerPays,
-    riderReceives,
-  });
+  const displayPickup = formatPickupLabel(normPickup);
+  const displayDestination = formatDestinationLabel(normDestination);
 
   return {
-    // Input values
-    distanceInMeters: Math.round(distanceInMeters),
-    distanceInKm: Math.round(distanceInKm * 100) / 100,
-    ratePerKm: effectiveRate,
-    
-    // Fare breakdown
+    pickup: displayPickup,
+    destination: displayDestination,
+    fareType,
     baseFare,
-    distanceFare: appliedRule === 'distance_rate' ? baseFare : 0,
-    minimumFareApplied: appliedRule === 'minimum_fare' ? MINIMUM_FARE : 0,
-    
-    // Platform fee breakdown
-    platformFee,
-    customerShare,
-    riderShare,
-    
-    // Final amounts
-    totalFare: customerPays,  // What customer pays (total)
-    customerPays,             // Same as totalFare
-    riderReceives,            // What rider receives after commission
-    
-    // Applied rule
-    appliedRule,
-    appliedRuleDescription: appliedRule === 'minimum_fare' 
-      ? 'Minimum Fare' 
-      : `${effectiveRate} KSh/km`,
-    
-    // Time info
-    isNightRate: isNightRate(options.time || new Date()),
+    nightSurcharge,
+    totalFare,
+    currency: 'KES',
+    isFixedFare: true,
+
+    // Platform fee & escrow compatibility fields
+    platformFee: 0,
+    customerShare: 0,
+    riderShare: 0,
+    customerPays: totalFare,
+    riderReceives: totalFare,
+    appliedRule: isNight ? 'fixed_fare_night' : 'fixed_fare_day',
+    appliedRuleDescription: `Fixed ${fareType} fare`,
   };
 };
 
 /**
- * Calculate fare with default rate (when rider rate is unknown)
- * This is used for estimate purposes only, not for actual ride creation.
- * 
- * @param {number} distanceInMeters - Distance in meters
- * @param {Object} options - Options (time)
- * @returns {Object} Fare breakdown
+ * Universal calculation adapter supporting both new fixed fare arguments
+ * and legacy arguments (where distance/rate were passed).
  */
-export const calculateFareWithDefaultRate = (distanceInMeters, options = {}) => {
-  const { time = new Date() } = options;
-  
-  // Use default rates based on time of day
-  const rate = isNightRate(time) ? DEFAULT_NIGHT_RATE : DEFAULT_DAY_RATE;
-  
-  return calculateFare(distanceInMeters, rate, options);
+export const calculateFare = (firstArg, secondArg, options = {}) => {
+  // If firstArg and secondArg look like pickup & destination (strings or location objects)
+  const isFixedStyle =
+    (typeof firstArg === 'string' && isNaN(Number(firstArg))) ||
+    (typeof firstArg === 'object' && firstArg !== null && !Array.isArray(firstArg) && (firstArg.address || firstArg.name)) ||
+    (typeof secondArg === 'string' && isNaN(Number(secondArg))) ||
+    (typeof secondArg === 'object' && secondArg !== null && !Array.isArray(secondArg) && (secondArg.address || secondArg.name));
+
+  if (isFixedStyle) {
+    return calculateFixedFare(firstArg, secondArg, options);
+  }
+
+  // Legacy fallback if distance in meters is passed
+  // (Provides graceful fallback if historical distance calculations are triggered)
+  const distanceInMeters = Number(firstArg) || 0;
+  const ratePerKm = Number(secondArg) || 50;
+  const distanceInKm = distanceInMeters / 1000;
+  const isNight = options.time ? isNightRateInNairobi(options.time) : isNightRateInNairobi();
+  const baseFare = Math.max(30, Math.round(distanceInKm * ratePerKm) || 40);
+  const nightSurcharge = isNight ? 20 : 0;
+  const totalFare = baseFare + nightSurcharge;
+
+  return {
+    pickup: options.pickup || 'Pickup',
+    destination: options.destination || 'Destination',
+    fareType: isNight ? 'night' : 'day',
+    baseFare,
+    nightSurcharge,
+    totalFare,
+    currency: 'KES',
+    isFixedFare: false,
+    distanceInMeters,
+    distanceInKm: Math.round(distanceInKm * 10) / 10,
+    platformFee: 0,
+    customerShare: 0,
+    riderShare: 0,
+    customerPays: totalFare,
+    riderReceives: totalFare,
+    appliedRule: 'legacy_distance',
+  };
 };
 
 /**
- * Calculate fare with specific rider's rate
- * 
- * @param {number} distanceInMeters - Distance in meters
- * @param {number} dayRate - Rider's day rate per km
- * @param {number} nightRate - Rider's night rate per km
- * @param {Object} options - Options (time)
- * @returns {Object} Fare breakdown
+ * Legacy compatibility functions
  */
-export const calculateFareWithRiderRate = (distanceInMeters, dayRate, nightRate, options = {}) => {
-  const { time = new Date() } = options;
-  
-  const rate = isNightRate(time) ? nightRate : dayRate;
-  
-  // Pass dayRate and nightRate in options for logging
-  return calculateFare(distanceInMeters, rate, { ...options, dayRate, nightRate });
+export const calculateFareWithRiderRate = (pickupOrDistance, destinationOrDayRate, nightRateOrOptions, options = {}) => {
+  if (
+    typeof pickupOrDistance === 'string' ||
+    (typeof pickupOrDistance === 'object' && pickupOrDistance !== null && (pickupOrDistance.address || pickupOrDistance.name))
+  ) {
+    const opts = typeof nightRateOrOptions === 'object' ? nightRateOrOptions : options;
+    return calculateFixedFare(pickupOrDistance, destinationOrDayRate, opts);
+  }
+
+  const opts = typeof nightRateOrOptions === 'object' ? nightRateOrOptions : options;
+  const rate = isNightRateInNairobi() ? (Number(nightRateOrOptions) || 50) : (Number(destinationOrDayRate) || 40);
+  return calculateFare(pickupOrDistance, rate, opts);
 };
 
-/**
- * Validate fare calculation inputs
- * 
- * @param {Object} fareData - Fare data to validate
- * @returns {Object} Validation result with isValid and errors
- */
+export const calculateFareWithDefaultRate = (pickup, destination, options = {}) => {
+  return calculateFare(pickup, destination, options);
+};
+
 export const validateFareCalculation = (fareData) => {
-  const errors = [];
-
   if (!fareData || typeof fareData !== 'object') {
-    errors.push('Fare data is required');
-    return { isValid: false, errors };
+    return { isValid: false, errors: ['Fare data is required'] };
   }
-
-  const { distanceInMeters, ratePerKm, baseFare, platformFee, customerShare, riderShare, customerPays, riderReceives } = fareData;
-
-  // Validate distance
-  if (distanceInMeters === null || distanceInMeters === undefined || isNaN(distanceInMeters)) {
-    errors.push('Distance in meters is required');
-  } else if (distanceInMeters < 0) {
-    errors.push('Distance cannot be negative');
-  }
-
-  // Validate rate
-  if (ratePerKm !== null && ratePerKm !== undefined && (isNaN(ratePerKm) || ratePerKm < 0)) {
-    errors.push('Rate per km must be a non-negative number');
-  }
-
-  // Validate base fare
-  if (baseFare === null || baseFare === undefined || isNaN(baseFare)) {
-    errors.push('Base fare is required');
-  } else if (baseFare < MINIMUM_FARE) {
-    errors.push(`Base fare cannot be less than minimum fare (KSh ${MINIMUM_FARE})`);
-  }
-
-  // Validate platform fee
-  if (platformFee === null || platformFee === undefined || isNaN(platformFee)) {
-    errors.push('Platform fee is required');
-  }
-
-  // Validate customer pays
-  if (customerPays === null || customerPays === undefined || isNaN(customerPays)) {
-    errors.push('Customer pays amount is required');
-  }
-
-  // Validate rider receives
-  if (riderReceives === null || riderReceives === undefined || isNaN(riderReceives)) {
-    errors.push('Rider receives amount is required');
-  }
-
+  const errors = [];
+  if (!fareData.pickup) errors.push('Pickup location is required');
+  if (!fareData.destination) errors.push('Destination area is required');
+  if (!fareData.totalFare || fareData.totalFare <= 0) errors.push('Valid total fare is required');
   return {
     isValid: errors.length === 0,
     errors,
@@ -268,14 +302,18 @@ export const validateFareCalculation = (fareData) => {
 };
 
 export default {
-  calculateFare,
-  calculateFareWithDefaultRate,
-  calculateFareWithRiderRate,
-  validateFareCalculation,
+  APPROVED_PICKUPS,
+  APPROVED_DESTINATIONS,
+  NIGHT_SURCHARGE,
+  normalizeArea,
+  formatPickupLabel,
+  formatDestinationLabel,
+  isRouteSupported,
+  isNightRateInNairobi,
   isNightRate,
-  MINIMUM_FARE,
-  MINIMUM_DISTANCE_METERS,
-  PLATFORM_FEE_PERCENTAGE,
-  DEFAULT_DAY_RATE,
-  DEFAULT_NIGHT_RATE,
+  calculateFixedFare,
+  calculateFare,
+  calculateFareWithRiderRate,
+  calculateFareWithDefaultRate,
+  validateFareCalculation,
 };
