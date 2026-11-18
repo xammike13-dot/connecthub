@@ -82,80 +82,9 @@ export const useVendorsByCategory = (categorySlug) => {
           }
         });
 
-        const extractedVendors = Array.from(businessMap.values());
-        if (extractedVendors.length > 0) {
-          return normalizeVendors(extractedVendors, categorySlug);
-        }
-
-        // Return curated defaults for campus food micro-economies if none seeded yet
-        const defaultVendors = [
-          {
-            _id: `v-${categorySlug}-1`,
-            name: categorySlug === 'kibanda'
-              ? 'Mama Oliech Local Kitchen'
-              : categorySlug === 'wines'
-                ? 'Chillout Wines & Spirits'
-                : 'Stage Central Fast Bites',
-            avatar: '🍲',
-            badge: 'Bestseller',
-            isOpen: true,
-            rating: 4.9,
-            reviewCount: 142,
-            deliveryTime: '15-20 min',
-            deliveryFee: 0,
-            location: 'Stage, Opposite Gate B',
-            popularDishes: [
-              { name: categorySlug === 'kibanda' ? 'Ugali Beef & Sukuma' : 'Fried Chicken & Chips', price: 180, emoji: '🍗' },
-              { name: categorySlug === 'kibanda' ? 'Chapo Ndengu Special' : 'Loaded Beef Burger', price: 120, emoji: '🍔' },
-              { name: categorySlug === 'kibanda' ? 'Special Githeri Fry' : 'Crispy Seasoned Fries', price: 100, emoji: '🍟' },
-            ],
-          },
-          {
-            _id: `v-${categorySlug}-2`,
-            name: categorySlug === 'kibanda'
-              ? 'Chebarus Express Kibanda'
-              : categorySlug === 'cakes'
-                ? 'Sweet Delights Bakery'
-                : 'Hot Spot Shawarma & Grill',
-            avatar: '🥘',
-            badge: 'Top Rated',
-            isOpen: true,
-            rating: 4.8,
-            reviewCount: 98,
-            deliveryTime: '20-25 min',
-            deliveryFee: 30,
-            location: 'Chebarus Junction',
-            popularDishes: [
-              { name: categorySlug === 'cakes' ? 'Red Velvet Bento Cake' : 'Spicy Chicken Shawarma', price: 250, emoji: '🌯' },
-              { name: categorySlug === 'cakes' ? 'Chocolate Cupcakes (Box of 4)' : 'Smokie Pasua with Kachumbari', price: 100, emoji: '🌭' },
-              { name: categorySlug === 'cakes' ? 'Black Forest Slice' : 'Fresh Passion Juice 500ml', price: 80, emoji: '🥤' },
-            ],
-          },
-          {
-            _id: `v-${categorySlug}-3`,
-            name: categorySlug === 'wines'
-              ? 'Kesses Boulevard Liquor'
-              : 'Swahili Bites & Coastal Delights',
-            avatar: '🍛',
-            badge: 'Open Now',
-            isOpen: true,
-            rating: 4.7,
-            reviewCount: 65,
-            deliveryTime: '10-15 min',
-            deliveryFee: 0,
-            location: 'Mabs Center',
-            popularDishes: [
-              { name: 'Swahili Pilau Bowl + Kachumbari', price: 160, emoji: '🍚' },
-              { name: 'Biryani Kuku Special', price: 220, emoji: '🍗' },
-              { name: 'Fresh Mahamri (Pack of 4)', price: 60, emoji: '🥐' },
-            ],
-          },
-        ];
-
-        return normalizeVendors(defaultVendors, categorySlug);
+        return normalizeVendors(Array.from(businessMap.values()), categorySlug);
       } catch (err) {
-        console.error('[useVendorsByCategory] Failed to fetch vendors:', err);
-        return [];
+        throw err;
       }
     },
     enabled: Boolean(categorySlug),

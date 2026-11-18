@@ -19,7 +19,6 @@ export default function FlashSalesRow() {
         const response = await productAPI.getAll({
           page: 1,
           limit: 10,
-          excludeHealthcare: true,
           sort: '-createdAt',
         });
         const all = response.data?.data || [];

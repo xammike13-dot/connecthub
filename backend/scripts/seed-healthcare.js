@@ -12,7 +12,7 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') });
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/connecthub';
 
 async function seed() {
-  console.log('Seeding healthcare products and users...');
+  console.log('Seeding Chemist & Wellness products and users...');
   await mongoose.connect(MONGODB_URI);
   console.log('Connected to DB');
 
@@ -36,7 +36,7 @@ async function seed() {
     businessProfile: {
       businessName: 'Aga Khan Pharmacy',
       businessLocation: 'Nairobi',
-      businessCategory: 'healthcare',
+      businessCategory: 'Chemist & Wellness',
       businessContact: '+254711111111',
     },
   });
@@ -63,7 +63,8 @@ async function seed() {
       description: 'Standard aspirin tablets for headache and minor pain relief.',
       price: 150,
       originalPrice: 200,
-      category: 'healthcare',
+      category: 'Chemist & Wellness',
+      categorySlug: 'chemist-wellness',
       stock: 50,
       business: business._id,
       images: ['https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=300'],
@@ -73,7 +74,8 @@ async function seed() {
       name: 'Comprehensive First Aid Kit Pro',
       description: 'Fully stocked medical kit with bandages, antiseptic, and shears.',
       price: 1250,
-      category: 'healthcare',
+      category: 'Chemist & Wellness',
+      categorySlug: 'chemist-wellness',
       stock: 20,
       business: business._id,
       images: ['https://images.unsplash.com/photo-1603398938378-e54eab446dde?w=300'],

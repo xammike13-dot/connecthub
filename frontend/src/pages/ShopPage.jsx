@@ -129,7 +129,6 @@ const ShopPage = () => {
         sort: sortBy,
         minPrice: priceRange.min > 0 ? priceRange.min : undefined,
         maxPrice: priceRange.max < 1000000 ? priceRange.max : undefined,
-        excludeHealthcare: true,
       };
 
       const response = await productAPI.getAll(params);

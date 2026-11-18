@@ -533,7 +533,7 @@ const CustomerDashboard = () => {
             </div>
             <div>
               <h3 className="font-bold text-neutral-900">Services</h3>
-              <p className="text-xs text-neutral-500 mt-1">Property rentals, transport & healthcare</p>
+              <p className="text-xs text-neutral-500 mt-1">Property rentals, transport & wellness</p>
             </div>
           </div>
         </button>
@@ -997,16 +997,16 @@ const CustomerDashboard = () => {
               </div>
             </Link>
 
-            {/* Action 3: Healthcare */}
+            {/* Action 3: Chemist & Wellness */}
             <Link
-              to="/healthcare"
+              to="/c/chemist"
               className="flex flex-col gap-3 p-5 bg-white border border-neutral-200 rounded-xl hover:border-olaOrange-DEFAULT hover:shadow-md transition-all group"
             >
               <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center text-red-600">
                 <Heart className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="font-bold text-neutral-850 group-hover:text-olaOrange-DEFAULT transition-colors">Healthcare Shop</h4>
+                <h4 className="font-bold text-neutral-850 group-hover:text-olaOrange-DEFAULT transition-colors">Chemist & Wellness Shop</h4>
                 <p className="text-xs text-neutral-500 mt-1">Purchase medical supplies and medications</p>
               </div>
             </Link>

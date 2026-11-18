@@ -63,7 +63,7 @@ const HealthcareShopPage = () => {
     console.log('[VIEWED PRODUCTS LOADED]', viewed.size, 'products');
   }, []);
 
-  // Fetch healthcare products only
+  // Fetch Chemist & Wellness products only
   const fetchProducts = async (pageNumber = 1, append = false) => {
     try {
       setLoading(true);
@@ -72,7 +72,7 @@ const HealthcareShopPage = () => {
       const params = {
         page: pageNumber,
         limit: 12,
-        category: 'healthcare', // Hardcoded to healthcare only
+        category: 'Chemist & Wellness',
         search: searchQuery || undefined,
         sort: sortBy,
         minPrice: priceRange.min > 0 ? priceRange.min : undefined,
@@ -95,7 +95,7 @@ const HealthcareShopPage = () => {
       setPage(pageNumber);
     } catch (err) {
       console.error('Failed to fetch healthcare products:', err);
-      setError('Failed to load healthcare products. Please try again.');
+      setError('Failed to load Chemist & Wellness products. Please try again.');
       if (!append) {
         setProducts([]);
       }
@@ -199,7 +199,7 @@ const HealthcareShopPage = () => {
               <Heart className="w-5 h-5 text-red-500" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-neutral-900">Healthcare Products</h1>
+              <h1 className="text-xl font-bold text-neutral-900">Chemist & Wellness Products</h1>
               <p className="text-sm text-neutral-500">Medicines, medical supplies, and health products</p>
             </div>
           </div>
@@ -208,7 +208,7 @@ const HealthcareShopPage = () => {
           <form onSubmit={handleSearch} className="relative">
             <Input
               type="text"
-              placeholder="Search healthcare products..."
+              placeholder="Search Chemist & Wellness products..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               leftIcon={<Search size={18} />}
@@ -253,7 +253,7 @@ const HealthcareShopPage = () => {
 
             <div className="flex items-center gap-2">
               <span className="text-sm text-neutral-600 hidden sm:block">
-                {totalProducts} healthcare products
+                {totalProducts} Chemist & Wellness products
               </span>
               <div className="flex items-center gap-1 bg-neutral-100 border border-neutral-200 rounded-lg p-1">
                 <button
@@ -341,7 +341,7 @@ const HealthcareShopPage = () => {
         ) : error ? (
           <EmptyState
             variant="error"
-            title="Error loading healthcare products"
+            title="Error loading Chemist & Wellness products"
             message={error}
             actionLabel="Retry"
             onAction={() => fetchProducts(1, false)}
@@ -349,7 +349,7 @@ const HealthcareShopPage = () => {
         ) : products.length === 0 ? (
           <EmptyState
             variant="search"
-            title="No healthcare products found"
+            title="No Chemist & Wellness products found"
             message="Try adjusting your search or filter criteria"
             actionLabel="Clear Filters"
             onAction={clearFilters}

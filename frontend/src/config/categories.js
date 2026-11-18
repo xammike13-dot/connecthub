@@ -174,7 +174,7 @@ export const OLA_CATEGORIES = [
   {
     id: 'chemist-wellness',
     slug: 'chemist',
-    archetype: 'service',
+    archetype: 'retail',
     label: 'Chemist & Wellness',
     shortLabel: 'Chemist',
     tagline: 'Meds & Health',

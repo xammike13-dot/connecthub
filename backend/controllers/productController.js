@@ -3,6 +3,25 @@ import User from '../models/User.js';
 import Wishlist from '../models/Wishlist.js';
 import { asyncHandler, ResponseError } from '../middleware/error.js';
 import { getActiveBusinessId } from './assistantController.js';
+import { OLA_BUSINESS_CATEGORIES } from '../models/Product.js';
+
+const normalizeCategory = (category) => {
+  if (!category) return category;
+  const compact = category.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  if (compact === 'healthcare' || compact === 'health care') return 'Chemist & Wellness';
+  return category;
+};
+
+const categorySlug = (category) =>
+  category.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+const validateCategory = (category) => {
+  const normalized = normalizeCategory(category);
+  if (!OLA_BUSINESS_CATEGORIES.includes(normalized)) {
+    throw new ResponseError(`Invalid product category: ${category}`, 400);
+  }
+  return normalized;
+};
 
 /**
  * Create a new product
@@ -39,6 +58,7 @@ export const createProduct = asyncHandler(async (req, res) => {
   if (!name || !description || !price || !category) {
     throw new ResponseError('Missing required fields', 400);
   }
+  const validatedCategory = validateCategory(category);
 
   const product = await Product.create({
     business: businessId,
@@ -46,7 +66,8 @@ export const createProduct = asyncHandler(async (req, res) => {
     description,
     price,
     originalPrice,
-    category,
+    category: validatedCategory,
+    categorySlug: categorySlug(validatedCategory),
     subcategory: subcategory || '',
     condition: condition || '',
     model: model || '',
@@ -112,8 +133,11 @@ export const getProducts = asyncHandler(async (req, res) => {
   const targetCategory = category || slug || categorySlug;
   if (targetCategory) {
     const categoryLower = targetCategory.toLowerCase().trim();
-    if (categoryLower === 'healthcare' || categoryLower === 'health care') {
-      query.category = /health ?care/i;
+    if (categoryLower === 'healthcare' || categoryLower === 'health care' || categoryLower === 'chemist' || categoryLower === 'chemist-wellness') {
+      query.$or = [
+        { category: { $in: ['Chemist & Wellness', 'Healthcare', 'Health Care', 'Chemist'] } },
+        { categorySlug: { $in: ['chemist-wellness', 'chemist', 'healthcare', 'health-care'] } },
+      ];
     } else if (categoryLower === 'food' || categoryLower === 'food-stuffs' || categoryLower === 'food stuffs' || categoryLower === 'food-drinks') {
       query.$or = [
         { category: { $in: ['Food & Drinks', 'Food', 'Food Stuffs', 'food-stuffs', 'food'] } },
@@ -132,7 +156,7 @@ export const getProducts = asyncHandler(async (req, res) => {
       ];
     }
   } else if (excludeHealthcare === 'true' || excludeHealthcare === true) {
-    query.category = { $not: /health ?care/i };
+    query.category = { $nin: ['Healthcare', 'Health Care', 'Chemist', 'Chemist & Wellness'] };
   }
 
   // Price range filtering
@@ -166,11 +190,13 @@ export const getProducts = asyncHandler(async (req, res) => {
 
   // Search
   if (search) {
-    query.$or = [
-      { name: { $regex: search, $options: 'i' } },
-      { description: { $regex: search, $options: 'i' } },
-      { tags: { $in: [new RegExp(search, 'i')] } },
-    ];
+    query.$and = (query.$and || []).concat([{
+      $or: [
+        { name: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+        { tags: { $in: [new RegExp(search, 'i')] } },
+      ],
+    }]);
   }
 
   // Enhanced sorting
@@ -401,6 +427,11 @@ export const updateProduct = asyncHandler(async (req, res) => {
 
   if (!businessId || product.business.toString() !== businessId.toString()) {
     throw new ResponseError('Not authorized to update this product', 403);
+  }
+
+  if (req.body.category) {
+    req.body.category = validateCategory(req.body.category);
+    req.body.categorySlug = categorySlug(req.body.category);
   }
 
   const updatedProduct = await Product.findByIdAndUpdate(

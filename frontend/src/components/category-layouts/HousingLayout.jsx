@@ -1,6 +1,7 @@
 // HousingLayout.jsx – dedicated layout for rentals and student hostels
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { rentalAPI } from '../../services/api';
 import { 
   Building2, 
   MapPin, 
@@ -24,6 +25,9 @@ export default function HousingLayout({ category }) {
   const [selectedLocation, setSelectedLocation] = useState('all');
   const [selectedPriceTier, setSelectedPriceTier] = useState('all');
   const [vacantOnly, setVacantOnly] = useState(true);
+  const [housingListings, setHousingListings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   // Campus location tags around Moi University
   const locations = ['all', 'Kesses', 'Stage', 'Chebarus', 'Mabs', 'Annex', 'Gate A', 'Gate B'];
@@ -40,98 +44,67 @@ export default function HousingLayout({ category }) {
     { id: '8500-plus', label: 'KSh 8.5k+/mo', min: 8500, max: Infinity },
   ];
 
-  // Curated campus housing listings
-  const housingListings = useMemo(() => [
-    {
-      _id: 'house-1',
-      title: 'Sunrise Heights Executive Bedsitter',
-      roomType: 'Bedsitters',
-      location: 'Stage',
-      price: 5000,
-      deposit: 5000,
-      vacantUnits: 2,
-      walkingTime: '3 min walk to Stage',
-      landlord: 'Mzee Mwangi (Verified)',
-      phone: '0712345678',
-      image: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=800&q=80',
-      amenities: [
-        { label: 'Free High-speed WiFi', icon: Wifi },
-        { label: 'Borehole Water 24/7', icon: Droplets },
-        { label: 'Individual Token Meter', icon: Zap },
-        { label: 'Perimeter Wall & Guard', icon: ShieldCheck },
-        { label: 'Inside Tiled Washroom', icon: Bath },
-      ],
-      features: ['Tiled floors', 'Kitchen counter with sink', 'Balcony view', 'Spacious closet'],
-    },
-    {
-      _id: 'house-2',
-      title: 'Green Valley Student Haven',
-      roomType: category.slug === 'hostels' ? 'Executive Hostels' : 'Single Rooms',
-      location: 'Chebarus',
-      price: 3800,
-      deposit: 3000,
-      vacantUnits: 4,
-      walkingTime: '5 min walk to Main Gate',
-      landlord: 'Mama Grace (Caretaker)',
-      phone: '0723456789',
-      image: 'https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&w=800&q=80',
-      amenities: [
-        { label: 'Constant Tap Water', icon: Droplets },
-        { label: 'Campus WiFi Zone', icon: Wifi },
-        { label: 'Security Gate', icon: ShieldCheck },
-        { label: 'Caretaker On-site', icon: CheckCircle2 },
-      ],
-      features: ['Silent study environment', 'DSTV in common room', 'Garbage collection included'],
-    },
-    {
-      _id: 'house-3',
-      title: 'Apex Modern 1-Bedroom Suites',
-      roomType: '1-Bedroom',
-      location: 'Kesses',
-      price: 7500,
-      deposit: 7500,
-      vacantUnits: 1,
-      walkingTime: '10 min walk to Campus',
-      landlord: 'Apex Properties Ltd',
-      phone: '0734567890',
-      image: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=800&q=80',
-      amenities: [
-        { label: 'High-speed Fibre WiFi', icon: Wifi },
-        { label: 'Hot Shower Installed', icon: Bath },
-        { label: 'Borehole + County Water', icon: Droplets },
-        { label: 'CCTV & Night Guard', icon: ShieldCheck },
-        { label: 'Tokens Pre-installed', icon: Zap },
-      ],
-      features: ['Separate living room', 'Modern kitchenette', 'Paved compound', 'Private balcony'],
-    },
-    {
-      _id: 'house-4',
-      title: 'Comrades Crown Hostel & Suites',
-      roomType: category.slug === 'hostels' ? 'Shared Hostels' : 'Bedsitters',
-      location: 'Mabs',
-      price: 4200,
-      deposit: 4000,
-      vacantUnits: 3,
-      walkingTime: '4 min walk to Lecture Halls',
-      landlord: 'Mwalimu Otieno',
-      phone: '0745678901',
-      image: 'https://images.unsplash.com/photo-1555854877-bab0e564b8d5?auto=format&fit=crop&w=800&q=80',
-      amenities: [
-        { label: 'Uncapped Comrade WiFi', icon: Wifi },
-        { label: 'Overhead Water Tanks', icon: Droplets },
-        { label: 'Biometric Gate Access', icon: ShieldCheck },
-        { label: 'Electric Fence', icon: Zap },
-      ],
-      features: ['Furnished bed & study chair', 'Near grocery stalls', 'Water included in rent'],
-    },
-  ], [category.slug]);
+  useEffect(() => {
+    let active = true;
+    const fetchListings = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const params = { page: 1, limit: 100 };
+        if (category.slug === 'hostels') params.rentalType = 'hostel';
+        const response = await rentalAPI.getAll(params);
+        if (active) setHousingListings(response.data?.data || []);
+      } catch (err) {
+        if (active) {
+          setError(err?.response?.data?.message || 'Failed to load property listings.');
+          setHousingListings([]);
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    fetchListings();
+    return () => { active = false; };
+  }, [category.slug]);
+
+  const normalizedListings = useMemo(() => housingListings.map((listing) => {
+    const rawImage = listing.images?.[0];
+    const image = typeof rawImage === 'string'
+      ? rawImage
+      : rawImage?.url || null;
+    const roomTypeMap = {
+      bedsitter: 'Bedsitters',
+      single: 'Single Rooms',
+      'one-bedroom': '1-Bedroom',
+      'two-bedroom': '2-Bedroom',
+      hostel: 'Shared Hostels',
+      commercial: 'Commercial Stalls',
+      apartment: '1-Bedroom',
+    };
+    return {
+      _id: listing._id,
+      title: listing.rentalName,
+      roomType: roomTypeMap[listing.rentalType] || listing.rentalType,
+      location: listing.location ? listing.location.charAt(0).toUpperCase() + listing.location.slice(1) : '',
+      price: listing.monthlyPrice || 0,
+      monthlyPrice: listing.monthlyPrice || 0,
+      rentalPeriod: listing.rentalPeriod || 'month',
+      isAvailable: listing.isAvailable !== false,
+      landlord: listing.landlord?.name || listing.caretaker?.name || 'Property Manager',
+      phone: listing.landlord?.phone || listing.caretaker?.phone || '',
+      image,
+      amenities: (listing.amenities || []).map((label) => ({ label, icon: ShieldCheck })),
+      features: listing.specifications ? Object.entries(listing.specifications).map(([key, value]) => `${key}: ${value}`).slice(0, 6) : [],
+      description: listing.description || '',
+    };
+  }), [housingListings]);
 
   // Filter listings
   const filteredListings = useMemo(() => {
-    return housingListings.filter((h) => {
-      if (selectedRoomType !== 'all' && h.roomType !== selectedRoomType) return false;
-      if (selectedLocation !== 'all' && h.location !== selectedLocation) return false;
-      if (vacantOnly && h.vacantUnits <= 0) return false;
+    return normalizedListings.filter((h) => {
+      if (selectedRoomType !== 'all' && h.roomType.toLowerCase() !== selectedRoomType.toLowerCase()) return false;
+      if (selectedLocation !== 'all' && h.location.toLowerCase() !== selectedLocation.toLowerCase()) return false;
+      if (vacantOnly && !h.isAvailable) return false;
 
       if (selectedPriceTier !== 'all') {
         const tier = priceTiers.find((t) => t.id === selectedPriceTier);
@@ -238,6 +211,24 @@ export default function HousingLayout({ category }) {
 
       {/* ── Listings Container ──────────────────────────────────── */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+        {loading && (
+          <div className="py-16 text-center text-sm font-semibold text-gray-500">Loading property listings...</div>
+        )}
+        {error && !loading && (
+          <div className="py-16 text-center">
+            <p className="text-sm font-semibold text-red-600 mb-3">{error}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 rounded-lg bg-emerald-700 text-white text-sm font-bold"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+        {!loading && !error && filteredListings.length === 0 && (
+          <div className="py-16 text-center text-sm text-gray-500">No available property listings found.</div>
+        )}
+        {!loading && !error && (
         <div className="space-y-6">
           {filteredListings.map((listing) => (
             <div 
@@ -246,18 +237,24 @@ export default function HousingLayout({ category }) {
             >
               {/* ── Edge-to-Edge Image Section ────────────────────── */}
               <div className="relative w-full lg:w-2/5 aspect-[16/10] lg:aspect-auto bg-gray-100 overflow-hidden flex-shrink-0">
-                <img
-                  src={listing.image}
-                  alt={listing.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
+                {listing.image ? (
+                  <img
+                    src={listing.image}
+                    alt={listing.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-300">
+                    <Home size={48} />
+                  </div>
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent lg:hidden" />
 
                 {/* Badges on image */}
                 <div className="absolute top-4 left-4 flex flex-wrap gap-2">
                   <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-600 text-white shadow-md flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
-                    {listing.vacantUnits} Vacant Units
+                    Available
                   </span>
                   <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-white/95 backdrop-blur-xs text-gray-900 shadow-sm">
                     {listing.roomType}
@@ -276,7 +273,7 @@ export default function HousingLayout({ category }) {
                     <div>
                       <div className="flex items-center gap-2 text-xs text-emerald-800 font-bold mb-1">
                         <MapPin size={14} className="text-[#027A2B]" />
-                        <span>{listing.location} · {listing.walkingTime}</span>
+                        <span>{listing.location}</span>
                       </div>
                       <h2 className="text-xl md:text-2xl font-black text-gray-900 group-hover:text-emerald-700 transition-colors">
                         {listing.title}
@@ -287,7 +284,7 @@ export default function HousingLayout({ category }) {
                       <p className="text-2xl font-black text-[#027A2B]">
                         KSh {listing.price.toLocaleString()}
                       </p>
-                      <p className="text-xs text-gray-500 font-medium">per month · Deposit KSh {listing.deposit.toLocaleString()}</p>
+                      <p className="text-xs text-gray-500 font-medium">per {listing.rentalPeriod}</p>
                     </div>
                   </div>
 
@@ -333,11 +330,11 @@ export default function HousingLayout({ category }) {
                       Call Caretaker
                     </a>
                     <Link
-                      to="/rentals"
+                      to={`/rentals/detail/${listing._id}`}
                       className="flex-1 sm:flex-initial px-6 py-3 rounded-xl bg-[#027A2B] hover:bg-emerald-800 text-white text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <DoorOpen size={15} />
-                      Book Viewing / Stall
+                      Book Now
                     </Link>
                   </div>
                 </div>
@@ -345,6 +342,7 @@ export default function HousingLayout({ category }) {
             </div>
           ))}
         </div>
+        )}
       </div>
     </div>
   );

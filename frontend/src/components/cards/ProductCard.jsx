@@ -9,6 +9,7 @@ const ProductCard = ({ product, isGrid = true, className = '' }) => {
   const { addToCart } = useCart();
   const [added, setAdded] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [buyLock, setBuyLock] = useState(false);
 
   if (!product) return null;
 
@@ -30,7 +31,7 @@ const ProductCard = ({ product, isGrid = true, className = '' }) => {
     ? Math.round(((originalPrice - price) / originalPrice) * 100)
     : 0;
 
-  const isOutOfStock = stock === 0 || !isActive;
+  const isOutOfStock = stock === 0 || product.stockCount === 0 || !isActive;
   const displayCategory = businessCategory || category || '';
 
   // Products with variations or add-ons → open modal.
@@ -40,14 +41,18 @@ const ProductCard = ({ product, isGrid = true, className = '' }) => {
   const handleAddClick = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (isOutOfStock) return;
+    if (isOutOfStock || buyLock) return;
 
     if (hasOptions) {
       setModalOpen(true);
     } else {
       addToCart({ _id, name, price, images, coverImage, category: displayCategory, stock });
       setAdded(true);
-      setTimeout(() => setAdded(false), 1500);
+      setBuyLock(true);
+      setTimeout(() => {
+        setAdded(false);
+        setBuyLock(false);
+      }, 1500);
     }
   };
 
@@ -124,9 +129,9 @@ const ProductCard = ({ product, isGrid = true, className = '' }) => {
 
             <button
               onClick={handleAddClick}
-              disabled={isOutOfStock}
-              aria-label={hasOptions ? 'View options' : 'Add to cart'}
-              className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center transition-all duration-200 shadow-sm hover:scale-110 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+              disabled={isOutOfStock || buyLock}
+              aria-label={hasOptions ? 'Buy and select options' : 'Buy now'}
+              className="px-2.5 h-8 rounded-full flex-shrink-0 flex items-center justify-center gap-1 text-[11px] font-bold text-white transition-all duration-200 shadow-sm hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ background: added ? '#027A2B' : '#FF5E00' }}
             >
               {added ? (
@@ -134,6 +139,7 @@ const ProductCard = ({ product, isGrid = true, className = '' }) => {
               ) : (
                 <Plus size={16} className="text-white stroke-[2.5]" />
               )}
+              <span>Buy</span>
             </button>
           </div>
         </div>

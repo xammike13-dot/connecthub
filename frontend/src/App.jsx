@@ -93,7 +93,7 @@ function App() {
                   <Route path="rentals/detail/:id" element={<RentalDetailPage />} />
                   <Route path="rental/:id" element={<RentalDetailPage />} />
                   <Route path="property/:id" element={<RentalDetailPage />} />
-                  <Route path="healthcare" element={<HealthcareShopPage />} />
+                  <Route path="healthcare" element={<Navigate to="/c/chemist" replace />} />
                   <Route path="transport" element={<BodabodaPage />} />
                   <Route path="support" element={<SupportPage />} />
                   <Route path="contact" element={<SupportPage />} />

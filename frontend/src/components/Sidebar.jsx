@@ -20,7 +20,7 @@ const Sidebar = ({ isOpen, onClose }) => {
           { path: '/customer/dashboard', label: 'Dashboard', icon: 'home' },
           { path: '/customer/orders', label: 'My Orders', icon: 'shopping' },
           { path: '/customer/rentals', label: 'Rentals', icon: 'home' },
-          { path: '/customer/healthcare', label: 'Healthcare', icon: 'medical' },
+          { path: '/customer/healthcare', label: 'Chemist & Wellness', icon: 'medical' },
           { path: '/customer/rides', label: 'My Rides', icon: 'transport' },
           { path: '/customer/settings', label: 'Settings', icon: 'settings' },
           { path: '/customer/help', label: 'Help Center', icon: 'help' },

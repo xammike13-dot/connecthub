@@ -99,7 +99,6 @@ export const useTrendingProducts = ({ page = 1, limit = 12, sort = '-createdAt' 
           page,
           limit,
           sort,
-          excludeHealthcare: true,
         },
       });
       return {

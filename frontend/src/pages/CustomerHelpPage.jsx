@@ -73,7 +73,7 @@ const faqCategories = [
   },
   {
     id: 'rentals-rides',
-    title: 'Rentals, Rides & Healthcare',
+    title: 'Rentals, Rides & Wellness',
     icon: Home,
     items: [
       {
@@ -85,8 +85,8 @@ const faqCategories = [
         answer: 'Go to the "Bodaboda" or "Transport" section. Enter your pick-up point, destination, and select an active, online rider. You will see their estimated rate per kilometre before initiating the ride request.'
       },
       {
-        question: 'How do I make healthcare purchases?',
-        answer: 'Navigate to the "Healthcare" shop from the navbar. Select verified medical and wellness products, add them to your cart, and proceed with our highly secure payment processing.'
+        question: 'How do I make Chemist & Wellness purchases?',
+        answer: 'Navigate to the "Chemist & Wellness" category from the marketplace. Select verified medical and wellness products, add them to your cart, and proceed with the existing checkout flow.'
       }
     ]
   },

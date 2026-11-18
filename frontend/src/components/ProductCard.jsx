@@ -19,6 +19,7 @@ export default function ProductCard({
   const [added, setAdded] = useState(false);
   const [isWished, setIsWished] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [buyLock, setBuyLock] = useState(false);
 
   let cart = null;
   try {
@@ -82,6 +83,8 @@ export default function ProductCard({
   const handleAdd = (e) => {
     e.preventDefault();
     e.stopPropagation();
+    const availableStock = Number(displayStock);
+    if (buyLock || (Number.isFinite(availableStock) && availableStock <= 0)) return;
     if (hasOptions) {
       setModalOpen(true);
       return;
@@ -90,7 +93,11 @@ export default function ProductCard({
       cart.addToCart(product, 1);
     }
     setAdded(true);
-    setTimeout(() => setAdded(false), 1500);
+    setBuyLock(true);
+    setTimeout(() => {
+      setAdded(false);
+      setBuyLock(false);
+    }, 1500);
   };
 
   const img = images?.[0] || null;
@@ -220,8 +227,9 @@ export default function ProductCard({
             <button
               type="button"
               onClick={handleAdd}
-              aria-label="Add to cart"
-              className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center transition-all duration-200 shadow-sm hover:scale-110 active:scale-95 cursor-pointer"
+              disabled={buyLock || (displayStock !== undefined && displayStock !== null && Number(displayStock) <= 0)}
+              aria-label={hasOptions ? 'Buy and select options' : 'Buy now'}
+              className="px-2.5 h-8 rounded-full flex-shrink-0 flex items-center justify-center gap-1 text-[11px] font-bold text-white transition-all duration-200 shadow-sm hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ background: added ? '#027A2B' : '#FF5E00' }}
             >
               {added ? (
@@ -229,6 +237,7 @@ export default function ProductCard({
               ) : (
                 <Plus size={16} className="text-white stroke-[2.5]" />
               )}
+              <span>Buy</span>
             </button>
           </div>
         </div>

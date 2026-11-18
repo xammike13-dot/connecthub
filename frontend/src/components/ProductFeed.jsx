@@ -30,7 +30,6 @@ export default function ProductFeed() {
       const response = await productAPI.getAll({
         page: pageNum,
         limit: 24,
-        excludeHealthcare: true,
         sort: '-createdAt',
       });
 
