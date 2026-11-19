@@ -665,7 +665,7 @@ export const updateRiderGPSLocation = asyncHandler(async (req, res) => {
 });
 
 /**
- * Get nearby riders (for customer ride requests)
+ * OLD MODEL: Get nearby riders (for customer ride requests)
  * Supports both fixed-location booking workflow and optional GPS coordinates.
  * Returns riders who satisfy ALL of the following:
  * - Rider account is active and not deleted
@@ -673,7 +673,190 @@ export const updateRiderGPSLocation = asyncHandler(async (req, res) => {
  * - Rider serves the selected pickup area and is within the configured search radius
  */
 export const getNearbyRiders = asyncHandler(async (req, res) => {
-  const { pickup, pickupLocation, pickupArea } = req.query;
+  const { latitude, longitude, maxDistance = 10000, pickup, pickupLocation, pickupArea } = req.query;
+
+  const rawPickup = pickup || pickupLocation || pickupArea || '';
+  const normPickup = normalizeArea(rawPickup);
+
+  const hasCoords =
+    latitude !== undefined &&
+    latitude !== null &&
+    longitude !== undefined &&
+    longitude !== null &&
+    Number.isFinite(Number(latitude)) &&
+    Number.isFinite(Number(longitude)) &&
+    Number(latitude) >= -90 &&
+    Number(latitude) <= 90 &&
+    Number(longitude) >= -180 &&
+    Number(longitude) <= 180;
+
+  const lat = hasCoords ? parseFloat(latitude) : null;
+  const lng = hasCoords ? parseFloat(longitude) : null;
+  const radiusSetting = Number(process.env.RIDER_SEARCH_RADIUS_METERS);
+  const configuredRadius = Number.isFinite(radiusSetting) && radiusSetting > 0
+    ? radiusSetting
+    : 10000;
+  const requestedRadius = Number(maxDistance);
+  const maxSearchRadiusKm = Math.min(
+    Number.isFinite(requestedRadius) && requestedRadius > 0 ? requestedRadius : configuredRadius,
+    configuredRadius
+  ) / 1000;
+
+  if ((latitude !== undefined || longitude !== undefined) && !hasCoords) {
+    throw new ResponseError('Valid pickup latitude and longitude are required', 400);
+  }
+
+  const allRiders = await User.find({
+    role: 'rider',
+    emailVerified: true,
+    isActive: { $ne: false },
+    isDeleted: { $ne: true },
+    $or: [
+      { 'riderProfile.isOnline': true },
+      { 'riderProfile.status': 'online' },
+    ],
+  }).select('name avatar profilePhoto riderProfile');
+
+  const activeRideRiderIds = await RideRequest.distinct('rider', {
+    status: { $in: ['accepted', 'in_progress', 'awaiting_customer_confirmation'] },
+    rider: { $ne: null },
+  });
+  const activeRideRiderSet = new Set(activeRideRiderIds.map((id) => id.toString()));
+
+  const haversineKm = (lat1, lon1, lat2, lon2) => {
+    const R = 6371;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  };
+
+  const availableRiders = [];
+
+  for (const rider of allRiders) {
+    const profile = rider.riderProfile || {};
+
+    if (activeRideRiderSet.has(rider._id.toString())) continue;
+
+    // Exclude riders marked offline, busy, or already on a trip.
+    const isOnline =
+      (profile.isOnline === true || profile.status === 'online') &&
+      profile.status !== 'offline' &&
+      profile.status !== 'busy' &&
+      profile.status !== 'on_trip';
+    if (!isOnline) continue;
+    if (!isWithinRiderWorkingHours(profile.workingHours)) continue;
+
+    // Check working area relevance
+    const workingAreas = profile.workingArea?.selectedWorkingAreas || [];
+    let matchesWorkingArea = !normPickup;
+    if (normPickup && workingAreas.length > 0) {
+      matchesWorkingArea = workingAreas.some((area) => {
+        const canonical = normalizeArea(area);
+        return canonical === normPickup;
+      });
+    }
+
+    // Handle distance if coordinates exist
+    const riderLoc = profile.currentLocation;
+    let distance = null;
+    let sortDistance = null;
+    let rLat = null;
+    let rLng = null;
+
+    if (riderLoc && Array.isArray(riderLoc.coordinates) && riderLoc.coordinates.length >= 2) {
+      rLng = riderLoc.coordinates[0];
+      rLat = riderLoc.coordinates[1];
+      if (rLng >= -10 && rLng <= 10 && rLat >= 30 && rLat <= 45) {
+        [rLng, rLat] = [rLat, rLng];
+      }
+
+      if (hasCoords && rLat !== null && rLng !== null && !isNaN(rLat) && !isNaN(rLng)) {
+        const calcDist = haversineKm(lat, lng, rLat, rLng);
+        if (!isNaN(calcDist)) {
+          const configuredRadiusKm = parseFloat(profile.workingArea?.serviceRadius);
+          const riderRadiusKm = Number.isFinite(configuredRadiusKm) && configuredRadiusKm > 0
+            ? configuredRadiusKm
+            : maxSearchRadiusKm;
+          if (calcDist > Math.min(maxSearchRadiusKm, riderRadiusKm)) {
+            continue;
+          }
+          sortDistance = calcDist;
+          distance = parseFloat(calcDist.toFixed(1));
+        }
+      }
+    }
+
+    if (hasCoords && distance === null) continue;
+
+    if (normPickup && workingAreas.length > 0 && !matchesWorkingArea) {
+      continue;
+    }
+
+    if (!hasCoords && normPickup && !matchesWorkingArea) {
+      continue;
+    }
+
+    availableRiders.push({
+      _id: rider._id,
+      id: rider._id,
+      name: rider.name,
+      riderName: rider.name,
+      avatar: profile.profilePhoto || rider.avatar || '',
+      profilePhoto: profile.profilePhoto || rider.profilePhoto || rider.avatar || '',
+      rating: parseFloat(profile.rating || 5.0),
+      totalTrips: parseInt(profile.totalRides || 0, 10),
+      vehicleType: profile.motorcycle?.brand || profile.vehicleType || 'Motorcycle',
+      motorcycleType: profile.motorcycle?.brand || profile.vehicleType || 'Motorcycle',
+      motorcycle: profile.motorcycle,
+      registrationNumber: profile.motorcycle?.plateNumber || profile.vehicleNumber || '',
+      lat: rLat,
+      lng: rLng,
+      latitude: rLat,
+      longitude: rLng,
+      distance,
+      sortDistance,
+      estimatedArrival: distance === null ? null : Math.max(1, Math.round(distance * 3)),
+      availabilityStatus: 'available',
+      isOnline: true,
+      workingAreas,
+      matchesWorkingArea,
+    });
+  }
+
+  // Distance is the primary sort key whenever the passenger supplied a GPS pickup.
+  availableRiders.sort((a, b) => {
+    if (a.sortDistance !== null && b.sortDistance !== null) {
+      return a.sortDistance - b.sortDistance || b.rating - a.rating;
+    }
+    if (a.sortDistance !== null) return -1;
+    if (b.sortDistance !== null) return 1;
+    return b.rating - a.rating;
+  });
+
+  res.status(200).json({
+    success: true,
+    data: availableRiders.map(({ sortDistance, ...rider }) => rider),
+    count: availableRiders.length,
+  });
+});
+
+/**
+ * NEW MODEL: Get available boda riders directly from database for Olafasta fixed-fare booking.
+ * Requirements:
+ * 1. Fetch all riders directly from the database whose status indicates they are ONLINE and AVAILABLE.
+ * 2. Display all eligible riders in the customer's Available Boda Riders section.
+ * 3. Ignore GPS location and distance calculations (database fetching only).
+ * 4. Ensure rider online/offline status is synchronized between rider account and customer interface.
+ * 5. Display "No Active Riders Right Now" only when database genuinely returns zero eligible riders.
+ */
+export const getAvailableBodaRiders = asyncHandler(async (req, res) => {
+  const { pickup } = req.query;
 
   // 1. Fetch active riders currently occupied on a ride
   const activeRideRiderIds = await RideRequest.distinct('rider', {
@@ -710,8 +893,8 @@ export const getNearbyRiders = asyncHandler(async (req, res) => {
       continue;
     }
 
-    // Exclude if explicitly marked offline (and not marked isOnline: true)
-    if (profile.status === 'offline' && profile.isOnline !== true) {
+    // Exclude if explicitly marked offline (and neither isOnline nor isAvailable is true)
+    if (profile.status === 'offline' && profile.isOnline !== true && profile.isAvailable !== true) {
       continue;
     }
 
@@ -755,7 +938,7 @@ export const getNearbyRiders = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     success: true,
-    data: availableRiders.map(({ sortDistance, ...rider }) => rider),
+    data: availableRiders,
     count: availableRiders.length,
   });
 });

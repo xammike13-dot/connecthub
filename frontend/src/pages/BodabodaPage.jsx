@@ -130,7 +130,7 @@ const BodabodaPage = () => {
   const rideAlreadyPaid = rideRequest?.paymentStatus === 'paid' &&
     ['declined', 'no_rider_available'].includes(rideRequest?.status);
 
-  // Fetch available riders for selected pickup location directly from database
+  // Fetch available riders for selected pickup location directly from database (NEW MODEL)
   const fetchAvailableRiders = useCallback(async (pickup) => {
     if (!pickup) return;
     const requestId = ++riderFetchSequence.current;
@@ -139,7 +139,7 @@ const BodabodaPage = () => {
       setLoadingRiders(true);
       setRidersLoaded(false);
 
-      const response = await riderAPI.getNearbyRiders({ pickup });
+      const response = await riderAPI.getAvailableBodaRiders({ pickup });
 
       if (requestId !== riderFetchSequence.current) return;
 

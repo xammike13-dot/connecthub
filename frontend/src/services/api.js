@@ -106,7 +106,10 @@ export const riderAPI = {
   // Notifications
   getNotifications: (params) => api.get('/rider/notifications', { params }),
 
-  // Nearby riders (for customers)
+  // NEW MODEL: Available Boda Riders (Database-backed for Olafasta campus ordering)
+  getAvailableBodaRiders: (params) => api.get('/rider/available-boda-riders', { params }),
+
+  // OLD MODEL: Nearby riders (GPS/haversine-backed)
   getNearbyRiders: (params) => api.get('/rider/nearby', { params }),
 };
 

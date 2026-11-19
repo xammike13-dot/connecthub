@@ -8,6 +8,7 @@ import {
   updateOnlineStatus,
   updateRiderGPSLocation,
   getNearbyRiders,
+  getAvailableBodaRiders,
   getActiveRide,
   getRiderNotifications,
   removeProfilePhoto,
@@ -18,11 +19,17 @@ import { protect, authorize, optionalAuth } from '../middleware/auth.js';
 const router = express.Router();
 
 // =====================================================
-// NEARBY RIDERS ENDPOINT (Must be defined BEFORE authorize('rider') middleware)
-// This endpoint is for CUSTOMERS to find nearby riders
-// Uses optionalAuth so unauthenticated visitors or pending verification users can view available riders
+// NEW MODEL: Available Boda Riders for Olafasta Customer Ordering
+// Database fetching only, no GPS/radius requirement
 // =====================================================
-router.get('/nearby', optionalAuth, getNearbyRiders);
+router.get('/available-boda-riders', optionalAuth, getAvailableBodaRiders);
+router.get('/new-model/available-riders', optionalAuth, getAvailableBodaRiders);
+
+// =====================================================
+// OLD MODEL: Nearby Riders Endpoint
+// Preserved untouched with GPS coordinate/radius/working hours logic
+// =====================================================
+router.get('/nearby', protect, getNearbyRiders);
 
 // =====================================================
 // RIDER-ONLY ROUTES (All routes below require rider role)

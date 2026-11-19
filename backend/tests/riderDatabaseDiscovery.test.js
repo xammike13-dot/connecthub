@@ -8,7 +8,7 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 
 import User from '../models/User.js';
 import RideRequest from '../models/RideRequest.js';
-import { getNearbyRiders, updateOnlineStatus } from '../controllers/riderController.js';
+import { getAvailableBodaRiders, updateOnlineStatus } from '../controllers/riderController.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -111,7 +111,7 @@ test('Boda Riders Database Fetching and Availability Test Suite', async (t) => {
         },
       };
 
-      await getNearbyRiders(req, res, (err) => { if (err) throw err; });
+      await getAvailableBodaRiders(req, res, (err) => { if (err) throw err; });
 
       assert.equal(res.statusCode, 200);
       assert.equal(res.data.success, true);
@@ -166,7 +166,7 @@ test('Boda Riders Database Fetching and Availability Test Suite', async (t) => {
         },
       };
 
-      await getNearbyRiders(req, res, (err) => { if (err) throw err; });
+      await getAvailableBodaRiders(req, res, (err) => { if (err) throw err; });
       assert.equal(res.data.count, 2);
       const names = res.data.data.map(r => r.name);
       assert.ok(names.includes('Kamau Online'));
@@ -204,7 +204,7 @@ test('Boda Riders Database Fetching and Availability Test Suite', async (t) => {
         },
       };
 
-      await getNearbyRiders(req, res, (err) => { if (err) throw err; });
+      await getAvailableBodaRiders(req, res, (err) => { if (err) throw err; });
       assert.equal(res.statusCode, 200);
       assert.equal(res.data.success, true);
       assert.equal(res.data.count, 0);
