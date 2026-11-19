@@ -99,6 +99,10 @@ const seedInitialDataIfEmpty = async () => {
         name: 'Kamau Boda Fasta',
         phone: '0755555555',
         role: 'rider',
+        emailVerified: true,
+        phoneVerified: true,
+        isActive: true,
+        isVerified: true,
         riderProfile: {
           workingArea: {
             county: 'Uasin Gishu',
@@ -115,6 +119,7 @@ const seedInitialDataIfEmpty = async () => {
             color: 'Red',
             year: 2023,
           },
+          status: 'online',
           isAvailable: true,
           isOnline: true,
         },
@@ -329,7 +334,9 @@ const connectDB = async () => {
 
       try {
         const { MongoMemoryServer } = await import('mongodb-memory-server');
-        mongoMemoryServerInstance = await MongoMemoryServer.create();
+        mongoMemoryServerInstance = await MongoMemoryServer.create({
+          instance: { launchTimeout: 60000 },
+        });
         const memUri = mongoMemoryServerInstance.getUri();
 
         const conn = await mongoose.connect(memUri);

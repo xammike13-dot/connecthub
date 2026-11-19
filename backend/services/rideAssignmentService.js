@@ -19,10 +19,10 @@ export const isRiderAvailableForPickup = async (riderId, pickup) => {
 
   const profile = rider.riderProfile || {};
   const isOnline =
-    (profile.isOnline === true || profile.status === 'online') &&
-    profile.status !== 'offline' &&
+    (profile.isOnline === true || profile.status === 'online' || profile.isAvailable === true) &&
     profile.status !== 'busy' &&
-    profile.status !== 'on_trip';
+    profile.status !== 'on_trip' &&
+    (profile.status !== 'offline' || profile.isOnline === true || profile.isAvailable === true);
   if (!isOnline) return false;
 
   const pickupArea = normalizeArea(pickup);

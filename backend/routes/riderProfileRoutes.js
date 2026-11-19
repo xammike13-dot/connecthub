@@ -13,16 +13,16 @@ import {
   removeProfilePhoto,
   removeMotorcyclePhoto,
 } from '../controllers/riderController.js';
-import { protect, authorize } from '../middleware/auth.js';
+import { protect, authorize, optionalAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
 // =====================================================
 // NEARBY RIDERS ENDPOINT (Must be defined BEFORE authorize('rider') middleware)
 // This endpoint is for CUSTOMERS to find nearby riders
-// It only requires authentication (protect), not rider role
+// Uses optionalAuth so unauthenticated visitors or pending verification users can view available riders
 // =====================================================
-router.get('/nearby', protect, getNearbyRiders);
+router.get('/nearby', optionalAuth, getNearbyRiders);
 
 // =====================================================
 // RIDER-ONLY ROUTES (All routes below require rider role)

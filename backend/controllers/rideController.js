@@ -495,8 +495,8 @@ export const acceptRide = asyncHandler(async (req, res) => {
     { $inc: { 'riderProfile.totalRides': 1 } }
   );
 
-  // Emit Socket.io event to customer
-  const io = req.app.get('io');
+  // Emit Socket.io event to customer and broadcast availability change
+  const io = req.app?.get('io') || global.io;
   if (io) {
     io.to(`user_${ride.customer}`).emit('ride_accepted', {
       rideId: ride._id,
@@ -505,6 +505,12 @@ export const acceptRide = asyncHandler(async (req, res) => {
       riderPhone: req.user.phone,
       riderProfile: req.user.riderProfile,
       updatedFare: ride.fare,
+    });
+    io.emit('rider_availability_changed', {
+      riderId: riderId.toString(),
+      isOnline: true,
+      status: 'busy',
+      isAvailable: false,
     });
   }
 
@@ -798,6 +804,16 @@ export const confirmRideCompletion = asyncHandler(async (req, res) => {
     console.error('[Customer completion notification failed]', err);
   }
 
+  const io = req.app?.get('io') || global.io;
+  if (io && ride.rider) {
+    io.emit('rider_availability_changed', {
+      riderId: ride.rider.toString(),
+      isOnline: true,
+      status: 'online',
+      isAvailable: true,
+    });
+  }
+
   res.status(200).json({
     success: true,
     message: 'Ride completion confirmed successfully. Payment has been released to the rider.',
@@ -890,6 +906,16 @@ export const cancelRide = asyncHandler(async (req, res) => {
   ride.cancelledAt = new Date();
   ride.cancelledBy = userId;
   await ride.save();
+
+  const io = req.app?.get('io') || global.io;
+  if (io && ride.rider) {
+    io.emit('rider_availability_changed', {
+      riderId: ride.rider.toString(),
+      isOnline: true,
+      status: 'online',
+      isAvailable: true,
+    });
+  }
 
   res.status(200).json({
     success: true,
@@ -1153,13 +1179,19 @@ export const declineRide = asyncHandler(async (req, res) => {
   });
 
   // Emit Socket.io event to customer with reason
-  const io = req.app.get('io');
+  const io = req.app?.get('io') || global.io;
   if (io) {
     io.to(`user_${ride.customer._id}`).emit('ride_declined', {
       rideId: ride._id,
       riderId,
       reason,
       message: 'The rider declined your ride request.',
+    });
+    io.emit('rider_availability_changed', {
+      riderId: riderId.toString(),
+      isOnline: true,
+      status: 'online',
+      isAvailable: true,
     });
   }
 

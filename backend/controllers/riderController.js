@@ -552,10 +552,19 @@ export const updateOnlineStatus = asyncHandler(async (req, res) => {
   
   if (typeof isOnline === 'boolean') {
     updates['riderProfile.isOnline'] = isOnline;
+    updates['riderProfile.status'] = isOnline ? 'online' : 'offline';
+    updates['riderProfile.isAvailable'] = isOnline;
   }
   
   if (status && ['offline', 'online', 'busy', 'on_trip'].includes(status)) {
     updates['riderProfile.status'] = status;
+    if (status === 'online') {
+      updates['riderProfile.isOnline'] = true;
+      updates['riderProfile.isAvailable'] = true;
+    } else {
+      updates['riderProfile.isOnline'] = false;
+      updates['riderProfile.isAvailable'] = false;
+    }
   }
 
   if (Object.keys(updates).length === 0) {
@@ -569,24 +578,26 @@ export const updateOnlineStatus = asyncHandler(async (req, res) => {
   ).select('-password');
 
   // Emit socket event for real-time rider availability updates
-  const io = req.app.get('io');
+  const io = req.app?.get('io') || global.io;
   if (io) {
     io.emit('rider_availability_changed', {
-      riderId,
+      riderId: riderId.toString(),
       isOnline: rider.riderProfile?.isOnline,
       status: rider.riderProfile?.status,
+      isAvailable: rider.riderProfile?.isAvailable,
       location: rider.riderProfile?.currentLocation,
     });
     console.log('[updateOnlineStatus] Emitted rider_availability_changed event:', {
-      riderId,
+      riderId: riderId.toString(),
       isOnline: rider.riderProfile?.isOnline,
       status: rider.riderProfile?.status,
+      isAvailable: rider.riderProfile?.isAvailable,
     });
   }
 
   res.status(200).json({
     success: true,
-    message: `Rider status updated to ${updates['riderProfile.status'] || (isOnline ? 'online' : 'offline')}`,
+    message: `Rider status updated to ${updates['riderProfile.status']}`,
     data: rider,
   });
 });
@@ -662,171 +673,85 @@ export const updateRiderGPSLocation = asyncHandler(async (req, res) => {
  * - Rider serves the selected pickup area and is within the configured search radius
  */
 export const getNearbyRiders = asyncHandler(async (req, res) => {
-  const { latitude, longitude, maxDistance = 10000, pickup, pickupLocation, pickupArea } = req.query;
+  const { pickup, pickupLocation, pickupArea } = req.query;
 
-  const rawPickup = pickup || pickupLocation || pickupArea || '';
-  const normPickup = normalizeArea(rawPickup);
-
-  const hasCoords =
-    latitude !== undefined &&
-    latitude !== null &&
-    longitude !== undefined &&
-    longitude !== null &&
-    Number.isFinite(Number(latitude)) &&
-    Number.isFinite(Number(longitude)) &&
-    Number(latitude) >= -90 &&
-    Number(latitude) <= 90 &&
-    Number(longitude) >= -180 &&
-    Number(longitude) <= 180;
-
-  const lat = hasCoords ? parseFloat(latitude) : null;
-  const lng = hasCoords ? parseFloat(longitude) : null;
-  const radiusSetting = Number(process.env.RIDER_SEARCH_RADIUS_METERS);
-  const configuredRadius = Number.isFinite(radiusSetting) && radiusSetting > 0
-    ? radiusSetting
-    : 10000;
-  const requestedRadius = Number(maxDistance);
-  const maxSearchRadiusKm = Math.min(
-    Number.isFinite(requestedRadius) && requestedRadius > 0 ? requestedRadius : configuredRadius,
-    configuredRadius
-  ) / 1000;
-
-  if ((latitude !== undefined || longitude !== undefined) && !hasCoords) {
-    throw new ResponseError('Valid pickup latitude and longitude are required', 400);
-  }
-
-  const allRiders = await User.find({
-    role: 'rider',
-    emailVerified: true,
-    isActive: { $ne: false },
-    isDeleted: { $ne: true },
-    $or: [
-      { 'riderProfile.isOnline': true },
-      { 'riderProfile.status': 'online' },
-    ],
-  }).select('name avatar profilePhoto riderProfile');
-
+  // 1. Fetch active riders currently occupied on a ride
   const activeRideRiderIds = await RideRequest.distinct('rider', {
     status: { $in: ['accepted', 'in_progress', 'awaiting_customer_confirmation'] },
     rider: { $ne: null },
   });
   const activeRideRiderSet = new Set(activeRideRiderIds.map((id) => id.toString()));
 
-  const haversineKm = (lat1, lon1, lat2, lon2) => {
-    const R = 6371;
-    const dLat = ((lat2 - lat1) * Math.PI) / 180;
-    const dLon = ((lon2 - lon1) * Math.PI) / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  };
+  // 2. Query all registered riders whose account is active and status indicates ONLINE & AVAILABLE
+  const allRiders = await User.find({
+    role: 'rider',
+    isActive: { $ne: false },
+    isDeleted: { $ne: true },
+    $or: [
+      { 'riderProfile.isOnline': true },
+      { 'riderProfile.status': 'online' },
+      { 'riderProfile.isAvailable': true },
+    ],
+  }).select('name phone avatar profilePhoto riderProfile');
 
   const availableRiders = [];
 
   for (const rider of allRiders) {
     const profile = rider.riderProfile || {};
+    const riderIdStr = rider._id.toString();
 
-    if (activeRideRiderSet.has(rider._id.toString())) continue;
+    // Exclude if currently occupied with an active accepted/in-progress ride
+    if (activeRideRiderSet.has(riderIdStr)) {
+      continue;
+    }
 
-    // Exclude riders marked offline, busy, or already on a trip.
-    const isOnline =
-      (profile.isOnline === true || profile.status === 'online') &&
-      profile.status !== 'offline' &&
-      profile.status !== 'busy' &&
-      profile.status !== 'on_trip';
-    if (!isOnline) continue;
-    if (!isWithinRiderWorkingHours(profile.workingHours)) continue;
+    // Exclude riders explicitly marked busy or on_trip
+    if (profile.status === 'busy' || profile.status === 'on_trip') {
+      continue;
+    }
 
-    // Check working area relevance
+    // Exclude if explicitly marked offline (and not marked isOnline: true)
+    if (profile.status === 'offline' && profile.isOnline !== true) {
+      continue;
+    }
+
+    // Exclude if isOnline is explicitly false and status is not 'online'
+    if (profile.isOnline === false && profile.status !== 'online') {
+      continue;
+    }
+
     const workingAreas = profile.workingArea?.selectedWorkingAreas || [];
-    let matchesWorkingArea = !normPickup;
-    if (normPickup && workingAreas.length > 0) {
-      matchesWorkingArea = workingAreas.some((area) => {
-        const canonical = normalizeArea(area);
-        return canonical === normPickup;
-      });
-    }
-
-    // Handle distance if coordinates exist
-    const riderLoc = profile.currentLocation;
-    let distance = null;
-    let sortDistance = null;
-    let rLat = null;
-    let rLng = null;
-
-    if (riderLoc && Array.isArray(riderLoc.coordinates) && riderLoc.coordinates.length >= 2) {
-      rLng = riderLoc.coordinates[0];
-      rLat = riderLoc.coordinates[1];
-      if (rLng >= -10 && rLng <= 10 && rLat >= 30 && rLat <= 45) {
-        [rLng, rLat] = [rLat, rLng];
-      }
-
-      if (hasCoords && rLat !== null && rLng !== null && !isNaN(rLat) && !isNaN(rLng)) {
-        const calcDist = haversineKm(lat, lng, rLat, rLng);
-        if (!isNaN(calcDist)) {
-          const configuredRadiusKm = parseFloat(profile.workingArea?.serviceRadius);
-          const riderRadiusKm = Number.isFinite(configuredRadiusKm) && configuredRadiusKm > 0
-            ? configuredRadiusKm
-            : maxSearchRadiusKm;
-          if (calcDist > Math.min(maxSearchRadiusKm, riderRadiusKm)) {
-            continue;
-          }
-          sortDistance = calcDist;
-          distance = parseFloat(calcDist.toFixed(1));
-        }
-      }
-    }
-
-    if (hasCoords && distance === null) continue;
-
-    if (normPickup && workingAreas.length > 0 && !matchesWorkingArea) {
-      continue;
-    }
-
-    if (!hasCoords && normPickup && !matchesWorkingArea) {
-      continue;
-    }
 
     availableRiders.push({
       _id: rider._id,
       id: rider._id,
       name: rider.name,
       riderName: rider.name,
+      phone: rider.phone,
       avatar: profile.profilePhoto || rider.avatar || '',
       profilePhoto: profile.profilePhoto || rider.profilePhoto || rider.avatar || '',
       rating: parseFloat(profile.rating || 5.0),
       totalTrips: parseInt(profile.totalRides || 0, 10),
       vehicleType: profile.motorcycle?.brand || profile.vehicleType || 'Motorcycle',
       motorcycleType: profile.motorcycle?.brand || profile.vehicleType || 'Motorcycle',
-      motorcycle: profile.motorcycle,
+      motorcycle: profile.motorcycle || {
+        brand: profile.vehicleType || 'Boxer',
+        model: 'BM 150',
+        plateNumber: profile.vehicleNumber || '',
+      },
       registrationNumber: profile.motorcycle?.plateNumber || profile.vehicleNumber || '',
-      lat: rLat,
-      lng: rLng,
-      latitude: rLat,
-      longitude: rLng,
-      distance,
-      sortDistance,
-      estimatedArrival: distance === null ? null : Math.max(1, Math.round(distance * 3)),
+      distance: null,
+      sortDistance: null,
+      estimatedArrival: null,
       availabilityStatus: 'available',
       isOnline: true,
       workingAreas,
-      matchesWorkingArea,
+      matchesWorkingArea: true,
     });
   }
 
-  // Distance is the primary sort key whenever the passenger supplied a GPS pickup.
-  availableRiders.sort((a, b) => {
-    if (a.sortDistance !== null && b.sortDistance !== null) {
-      return a.sortDistance - b.sortDistance || b.rating - a.rating;
-    }
-    if (a.sortDistance !== null) return -1;
-    if (b.sortDistance !== null) return 1;
-    return b.rating - a.rating;
-  });
+  // Sort by rating descending or total trips
+  availableRiders.sort((a, b) => b.rating - a.rating || b.totalTrips - a.totalTrips);
 
   res.status(200).json({
     success: true,

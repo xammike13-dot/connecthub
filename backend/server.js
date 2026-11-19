@@ -230,6 +230,7 @@ const io = initSocket(httpServer, corsOptions);
 
 // Make io accessible everywhere
 app.set('io', io);
+global.io = io;
 
 // Security Middleware
 app.set('trust proxy', 1);

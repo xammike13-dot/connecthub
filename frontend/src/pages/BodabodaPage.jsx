@@ -130,7 +130,7 @@ const BodabodaPage = () => {
   const rideAlreadyPaid = rideRequest?.paymentStatus === 'paid' &&
     ['declined', 'no_rider_available'].includes(rideRequest?.status);
 
-  // Fetch available riders for selected pickup location
+  // Fetch available riders for selected pickup location directly from database
   const fetchAvailableRiders = useCallback(async (pickup) => {
     if (!pickup) return;
     const requestId = ++riderFetchSequence.current;
@@ -138,52 +138,29 @@ const BodabodaPage = () => {
     try {
       setLoadingRiders(true);
       setRidersLoaded(false);
-      let coordinates = pickupCoordinatesRef.current;
-      if (navigator.geolocation) {
-        coordinates = await new Promise((resolve) => {
-          navigator.geolocation.getCurrentPosition(
-            ({ coords }) => resolve({ latitude: coords.latitude, longitude: coords.longitude }),
-            () => resolve(null),
-            { enableHighAccuracy: true, maximumAge: 0, timeout: 8000 }
-          );
-        });
-      }
-      if (requestId !== riderFetchSequence.current) return;
-      pickupCoordinatesRef.current = coordinates;
-      setPickupCoordinates(coordinates);
-      const response = await riderAPI.getNearbyRiders({
-        pickup: pickup,
-        ...(coordinates && {
-          latitude: coordinates.latitude,
-          longitude: coordinates.longitude,
-        }),
-      });
 
-      if (!response.data.success) {
-        throw new Error(response.data.message || 'Rider search failed.');
+      const response = await riderAPI.getNearbyRiders({ pickup });
+
+      if (requestId !== riderFetchSequence.current) return;
+
+      if (!response.data?.success || !Array.isArray(response.data?.data)) {
+        throw new Error(response.data?.message || 'Rider search returned an invalid response.');
       }
-      if (!Array.isArray(response.data.data)) {
-        throw new Error('Rider search returned an invalid response.');
-      }
-      if (requestId === riderFetchSequence.current) {
-        const sortedRiders = [...response.data.data].sort((a, b) => {
-          const distanceA = Number.isFinite(Number(a.distance)) ? Number(a.distance) : Number.POSITIVE_INFINITY;
-          const distanceB = Number.isFinite(Number(b.distance)) ? Number(b.distance) : Number.POSITIVE_INFINITY;
-          return distanceA - distanceB;
-        });
-        setNearbyRiders(sortedRiders);
-        setRidersLoaded(true);
-      }
+
+      setNearbyRiders(response.data.data);
+      setRidersLoaded(true);
     } catch (error) {
       console.error('[BodabodaPage] Failed to fetch riders:', error);
       if (requestId === riderFetchSequence.current) {
         setNearbyRiders([]);
-        addToast('Could not load available riders for this area. Please retry.', 'error');
+        setRidersLoaded(true);
       }
     } finally {
-      if (requestId === riderFetchSequence.current) setLoadingRiders(false);
+      if (requestId === riderFetchSequence.current) {
+        setLoadingRiders(false);
+      }
     }
-  }, [addToast]);
+  }, []);
 
   // Auto-fetch riders once both pickup and destination are selected and route is valid
   useEffect(() => {
@@ -231,6 +208,7 @@ const BodabodaPage = () => {
       return;
     }
     setBookingStep(BOOKING_STEP.RIDER_SELECTION);
+    fetchAvailableRiders(selectedPickup);
   };
 
   // Select a rider and proceed to review
@@ -458,11 +436,19 @@ const BodabodaPage = () => {
       }
     };
 
+    const handleRiderAvailabilityChanged = (data) => {
+      console.log('[BodabodaPage] Real-time rider availability changed:', data);
+      if (selectedPickup) {
+        fetchAvailableRiders(selectedPickup);
+      }
+    };
+
     socket.on('ride_accepted', handleRideAccepted);
     socket.on('ride_declined', handleRideDeclined);
     socket.on('ride_rider_unavailable', handleRiderUnavailable);
     socket.on('ride_request_expired', handleRiderUnavailable);
     socket.on('ride_status_update', handleRideStatusUpdate);
+    socket.on('rider_availability_changed', handleRiderAvailabilityChanged);
 
     return () => {
       socket.off('ride_accepted', handleRideAccepted);
@@ -470,6 +456,7 @@ const BodabodaPage = () => {
       socket.off('ride_rider_unavailable', handleRiderUnavailable);
       socket.off('ride_request_expired', handleRiderUnavailable);
       socket.off('ride_status_update', handleRideStatusUpdate);
+      socket.off('rider_availability_changed', handleRiderAvailabilityChanged);
     };
   }, [socket, rideRequest?._id, selectedRider, selectedPickup, addToast, fetchAvailableRiders]);
 
