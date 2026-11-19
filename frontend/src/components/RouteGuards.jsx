@@ -111,7 +111,10 @@ export const PublicOnlyRoute = ({ children }) => {
 
   if (isAuthenticated) {
     const origin = location.state?.from?.pathname;
-    const target = origin || ROLE_DASHBOARDS[role] || '/';
+    let target = origin || ROLE_DASHBOARDS[role] || '/';
+    if (role === 'customer' && target.includes('/dashboard')) {
+      target = '/';
+    }
     return <Navigate to={target} replace />;
   }
 

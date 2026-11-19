@@ -79,7 +79,7 @@ const PhoneVerificationPage = () => {
       
       // Redirect based on role
       if (user.role === 'customer') {
-        navigate('/customer/dashboard', { replace: true });
+        navigate('/', { replace: true });
       } else if (user.role === 'business') {
         navigate('/setup/business', { replace: true });
       } else if (user.role === 'landlord') {

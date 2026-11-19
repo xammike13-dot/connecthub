@@ -24,11 +24,15 @@ const HomePage = () => {
   const { data: beautyProducts = [], isLoading: loadingBeauty } = useProductsByCategory('grooming', 8);
   const { data: gasProducts = [], isLoading: loadingGas } = useProductsByCategory('gas-refill', 8);
 
-  // Redirect logged-in users to their respective role dashboard
+  // Redirect non-customer roles to their respective role dashboards (landlords, riders, vendors)
+  // Customers MUST remain on the homepage as their default landing page
   useEffect(() => {
     if (isAuthenticated && user) {
+      if (user.role === 'customer') {
+        // Customer remains on the main Connect Hub homepage
+        return;
+      }
       const map = {
-        customer: '/customer/dashboard',
         landlord: '/landlord/dashboard',
         business: '/business/dashboard',
         rider: '/rider/dashboard',

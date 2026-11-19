@@ -33,12 +33,15 @@ const LoginPage = () => {
     };
 
     let targetPath;
-    if (user.role !== 'customer' && user.role !== 'assistant' && (!user.setupCompleted || !user.onboardingCompleted)) {
+    if (user.role === 'customer') {
+      // Customers stay on the homepage; account accessible via Account icon in bottom nav
+      const allowedReturnPaths = ['/cart', '/checkout', '/account', '/profile'];
+      const isAllowedReturn = from && allowedReturnPaths.some((p) => from.startsWith(p));
+      targetPath = isAllowedReturn ? from : '/';
+    } else if (user.role !== 'assistant' && (!user.setupCompleted || !user.onboardingCompleted)) {
       targetPath = setupPages[user.role] || '/';
     } else {
       const dashboardMap = {
-        // Customers stay on the homepage; account accessible via Account icon
-        customer: '/',
         landlord: '/landlord/dashboard',
         business: '/business/dashboard',
         rider: '/rider/dashboard',
@@ -137,19 +140,23 @@ const LoginPage = () => {
       }
 
       // Determine redirect destination:
-      // Customers always land on the homepage; they access their account via the Account icon.
-      const dashboardMap = {
-        customer: '/',
-        landlord: '/landlord/dashboard',
-        business: '/business/dashboard',
-        rider: '/rider/dashboard',
-        admin: '/',
-        assistant: '/assistant/dashboard',
-        caretaker: '/caretaker/dashboard',
-      };
-      
-      // Use the return URL if available, otherwise use role-based destination
-      const targetPath = from || dashboardMap[result.user?.role] || '/';
+      // Customers always land on the homepage (connecthub.website); they access their account via the Account icon.
+      let targetPath;
+      if (result.user?.role === 'customer') {
+        const allowedReturnPaths = ['/cart', '/checkout', '/account', '/profile'];
+        const isAllowedReturn = from && allowedReturnPaths.some((p) => from.startsWith(p));
+        targetPath = isAllowedReturn ? from : '/';
+      } else {
+        const dashboardMap = {
+          landlord: '/landlord/dashboard',
+          business: '/business/dashboard',
+          rider: '/rider/dashboard',
+          admin: '/',
+          assistant: '/assistant/dashboard',
+          caretaker: '/caretaker/dashboard',
+        };
+        targetPath = from || dashboardMap[result.user?.role] || '/';
+      }
       
       // Navigate to the target path
       navigate(targetPath, { replace: true, state: returnState });

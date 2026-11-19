@@ -72,9 +72,9 @@ export default function BottomNav() {
       route: getProfileRoute(),
       isActive:
         location.pathname === '/account' ||
-        location.pathname.includes('/customer/dashboard') ||
-        location.pathname === '/login' ||
-        location.pathname === '/profile',
+        location.pathname === '/profile' ||
+        location.pathname === '/customer/settings' ||
+        (!isAuthenticated && location.pathname === '/login'),
     },
   ];
 
@@ -97,12 +97,32 @@ export default function BottomNav() {
             >
               {/* Icon Container */}
               <div className="relative">
-                <Icon
-                  size={20}
-                  className={`transition-colors duration-200 ${
-                    active ? 'text-[#FF5E00] stroke-[2.4]' : 'text-gray-500 group-hover:text-gray-700 stroke-[1.8]'
-                  }`}
-                />
+                {item.id === 'profile' && isAuthenticated ? (
+                  user?.avatar ? (
+                    <img
+                      src={user.avatar}
+                      alt={user?.name || 'Account'}
+                      className={`w-5 h-5 rounded-full object-cover border ${
+                        active ? 'border-[#FF5E00] ring-1 ring-[#FF5E00]' : 'border-gray-300'
+                      }`}
+                    />
+                  ) : (
+                    <div
+                      className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black uppercase transition-colors ${
+                        active ? 'bg-[#FF5E00] text-white shadow-xs' : 'bg-gray-200 text-gray-700'
+                      }`}
+                    >
+                      {user?.name ? user.name.charAt(0) : <User size={13} />}
+                    </div>
+                  )
+                ) : (
+                  <Icon
+                    size={20}
+                    className={`transition-colors duration-200 ${
+                      active ? 'text-[#FF5E00] stroke-[2.4]' : 'text-gray-500 group-hover:text-gray-700 stroke-[1.8]'
+                    }`}
+                  />
+                )}
 
                 {/* Cart Badge */}
                 {item.badge !== null && item.badge > 0 && (

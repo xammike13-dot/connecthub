@@ -91,7 +91,7 @@ export default function Header() {
     if (!user) return '/';
     switch (user.role) {
       case 'customer':
-        return '/customer/dashboard';
+        return '/account';
       case 'landlord':
         return '/landlord/dashboard';
       case 'business':
@@ -103,7 +103,7 @@ export default function Header() {
       case 'caretaker':
         return '/caretaker/dashboard';
       default:
-        return '/customer/dashboard';
+        return '/account';
     }
   };
 
@@ -122,10 +122,10 @@ export default function Header() {
   ];
 
   const accountNav = [
-    { label: 'Dashboard', href: getDashboardLink(), icon: LayoutDashboard },
+    { label: user?.role === 'customer' ? 'My Account' : 'Dashboard', href: getDashboardLink(), icon: LayoutDashboard },
     { label: 'Active Orders', href: '/customer/orders', icon: Package },
     { label: 'Saved Wishlist', href: '/wishlist', icon: Heart },
-    { label: 'Profile Settings', href: '/customer/settings', icon: Settings },
+    { label: 'Profile Settings', href: '/account', icon: Settings },
   ];
 
   const servicesNav = [
@@ -300,7 +300,7 @@ export default function Header() {
                   to={getDashboardLink()}
                   className="bg-olaGreen-DEFAULT hover:bg-olaGreen-deep text-white text-xs font-bold px-4 py-2 rounded-xl shadow-xs transition-all active:scale-95"
                 >
-                  Dashboard
+                  {user?.role === 'customer' ? 'Account' : 'Dashboard'}
                 </Link>
                 <button
                   onClick={handleLogout}

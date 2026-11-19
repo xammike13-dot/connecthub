@@ -72,6 +72,7 @@ import AssistantInvitePage from './pages/AssistantInvitePage';
 import BusinessAssistantsPage from './pages/BusinessAssistantsPage';
 import AssistantDashboard from './pages/AssistantDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import CustomerProfilePage from './pages/CustomerProfilePage';
 import { ProtectedRoute } from './components/RouteGuards';
 
 
@@ -107,12 +108,20 @@ function App() {
                   <Route path="c/:slug" element={<CategoryPage />} />
                   <Route path="product/:productId" element={<ProductDetailsPage />} />
                   <Route path="p/:productId" element={<ProductDetailsPage />} />
-                  {/* Customer Account Page — accessible via "Account" icon in bottom nav */}
+                  {/* Customer Account & Profile Page — accessible via "Account" icon in footer nav */}
                   <Route
                     path="account"
                     element={
                       <ProtectedRoute>
-                        <CustomerDashboard />
+                        <CustomerProfilePage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="profile"
+                    element={
+                      <ProtectedRoute>
+                        <CustomerProfilePage />
                       </ProtectedRoute>
                     }
                   />

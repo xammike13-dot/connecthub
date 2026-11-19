@@ -44,6 +44,11 @@ const MobileBottomNav = () => {
         icon: <Bike size={20} />,
         label: 'Rides',
       },
+      {
+        path: user ? '/account' : '/login',
+        icon: <User size={20} />,
+        label: user ? 'Account' : 'Sign In',
+      },
     ];
 
     const customerItems = [

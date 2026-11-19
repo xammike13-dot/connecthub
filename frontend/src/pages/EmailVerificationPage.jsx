@@ -140,17 +140,17 @@ const EmailVerificationPage = () => {
                 business: '/setup/business',
                 rider: '/setup/rider',
               };
-              navigate(setupPages[role] || '/customer/dashboard');
+              navigate(setupPages[role] || '/');
             } else {
               const dashboardMap = {
-                customer: '/customer/dashboard',
+                customer: '/',
                 landlord: '/landlord/dashboard',
                 business: '/business/dashboard',
                 rider: '/rider/dashboard',
                 admin: '/',
                 assistant: '/assistant/dashboard',
               };
-              navigate(dashboardMap[role] || '/customer/dashboard');
+              navigate(dashboardMap[role] || '/');
             }
           } else {
             navigate('/login', { state: { message: 'Email verified successfully! Please log in.' } });
