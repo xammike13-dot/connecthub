@@ -6,6 +6,7 @@ import SystemLog from '../models/SystemLog.js';
 import { generateVerificationCode } from '../utils/phoneService.js';
 import { hashEmailVerificationCode } from '../utils/emailVerification.js';
 import { 
+  sendWelcomeEmail,
   sendVerificationEmail, 
   sendPasswordResetEmail,
   sendPasswordResetConfirmation
@@ -39,7 +40,7 @@ const handleLoginSuccess = async (user, password, req, res) => {
   }
 
   // Check email verification status - users must verify email before logging in
-  if (!user.emailVerified) {
+  if (!user.emailVerified && user.role !== 'customer') {
     // Log email unverified
     SystemLog.create({
       type: 'auth_failure',
@@ -111,24 +112,33 @@ const handleLoginSuccess = async (user, password, req, res) => {
       emailVerified: user.emailVerified,
       setupCompleted: user.setupCompleted,
       onboardingCompleted: user.onboardingCompleted,
+      roleApplication: user.roleApplication,
     },
   });
 };
 
-// @desc    Register user
+// @desc    Register user (Customer-First Onboarding)
 // @route   POST /api/auth/register
 // @access  Public
 export const register = async (req, res, next) => {
   try {
-    const { name, phone, password, role } = req.body;
+    const { name, phone, password } = req.body;
     const email = typeof req.body.email === 'string'
       ? req.body.email.trim().toLowerCase()
       : '';
 
-    if (!name?.trim() || !email || !phone?.trim() || !password) {
+    // 1. Validate required fields
+    if (!name?.trim()) {
       return res.status(400).json({
         success: false,
-        message: 'Name, email, phone, and password are required',
+        message: 'Please enter your full name',
+      });
+    }
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please enter your email address',
       });
     }
 
@@ -139,140 +149,121 @@ export const register = async (req, res, next) => {
       });
     }
 
-    if (password.length < 6) {
+    if (!phone?.trim()) {
       return res.status(400).json({
         success: false,
-        message: 'Password must be at least 6 characters',
+        message: 'Please enter your phone number',
       });
     }
 
-    const allowedRoles = ['customer', 'landlord', 'business', 'rider'];
-    if (role && !allowedRoles.includes(role)) {
+    // Validate and normalize Kenyan phone number
+    const cleanedPhone = phone.trim().replace(/\D/g, '');
+    let normalizedPhone = cleanedPhone;
+    if (cleanedPhone.startsWith('0')) {
+      normalizedPhone = '254' + cleanedPhone.substring(1);
+    } else if (cleanedPhone.length === 9 && (cleanedPhone.startsWith('7') || cleanedPhone.startsWith('1'))) {
+      normalizedPhone = '254' + cleanedPhone;
+    }
+
+    if (!/^254(7\d{8}|1\d{8})$/.test(normalizedPhone)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid registration role',
+        message: 'Please enter a valid Kenyan phone number (e.g., 07XX XXX XXX or 01XX XXX XXX)',
       });
     }
 
-    // Check if user exists
-    const userExists = await User.findOne({
+    if (!password || password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters long',
+      });
+    }
+
+    // 2. Check for duplicate email cleanly
+    const existingEmailUser = await User.findOne({
       email: { $regex: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
       isDeleted: { $ne: true },
     });
-    if (userExists) {
+    if (existingEmailUser) {
       return res.status(400).json({
         success: false,
-        message: 'User already exists with this email',
+        message: 'An account with this email already exists. Please log in instead.',
       });
     }
 
-    // Create user with verification fields (pending/unverified state)
-    let user;
-    try {
-      user = await User.create({
-        name: name.trim(),
-        email,
-        phone: phone.trim(),
-        password,
-        role: role || 'customer',
-        emailVerified: false,
-        isActive: false, // Account is not active until email is verified
-        accountActive: false,
-        isVerified: false,
-        setupCompleted: false,
-        onboardingCompleted: false,
-      });
-
-      // Create wallet for the user (for all roles)
-      await Wallet.create({
-        user: user._id,
-      });
-    } catch (error) {
-      if (error.code === 11000) {
-        return res.status(409).json({
-          success: false,
-          message: 'User already exists with this email',
-        });
-      }
-      throw error;
-    }
-
-    // Generate email verification code
-    const code = generateVerificationCode();
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
-
-    // Delete any existing unused email verification tokens for this user
-    await VerificationToken.deleteMany({
-      userId: user._id,
-      type: 'email',
-      used: false,
+    // 3. Check for duplicate phone cleanly
+    const existingPhoneUser = await User.findOne({
+      phone: { $in: [phone.trim(), normalizedPhone, '0' + normalizedPhone.substring(3)] },
+      isDeleted: { $ne: true },
     });
-
-    // Create verification token
-    await VerificationToken.create({
-      userId: user._id,
-      type: 'email',
-      token: hashEmailVerificationCode(user._id, code),
-      expiresAt,
-    });
-
-    // Keep only the expiry on the user; remove any legacy plaintext OTP.
-    await User.updateOne(
-      { _id: user._id },
-      { $set: { emailVerificationExpire: expiresAt }, $unset: { emailVerificationToken: 1 } }
-    );
-
-    // Registration sends only a verification email; welcome email follows verification.
-    const emailResult = await sendVerificationEmail(user.email, code, { stage: 'registration' });
-
-    // In development mode, if Brevo is not configured, still allow registration
-    // but return devMode so the frontend can show the verification code from server logs.
-    if (!emailResult.success && !emailResult.devMode) {
-      console.error('[REGISTER] Failed to send verification email:', emailResult.error);
-      await VerificationToken.deleteMany({ userId: user._id });
-      await Wallet.deleteMany({ user: user._id });
-      await User.deleteOne({ _id: user._id });
-      return res.status(502).json({
+    if (existingPhoneUser) {
+      return res.status(400).json({
         success: false,
-        message: 'We could not deliver the verification email. Please check the email address and try again.',
-        emailDeliveryError: emailResult.error,
+        message: 'An account with this phone number already exists. Please log in instead.',
       });
     }
 
-    if (emailResult.devMode) {
-      console.log('[REGISTER DEV MODE] Brevo not configured. Verification code logged below:');
-      console.log(`[REGISTER DEV MODE] User: ${user.email} | Code: ${code} | Expires: ${expiresAt.toISOString()}`);
+    // 4. Create user - strictly hardcoding role: 'customer' (ignores any requested role to prevent privilege-escalation)
+    const user = await User.create({
+      name: name.trim(),
+      email,
+      phone: phone.trim(),
+      password,
+      role: 'customer',
+      emailVerified: true,
+      isActive: true,
+      accountActive: true,
+      isVerified: true,
+      setupCompleted: true,
+      onboardingCompleted: true,
+    });
+
+    // Create user wallet
+    try {
+      await Wallet.create({ user: user._id });
+    } catch (walletErr) {
+      console.warn('[REGISTER] Wallet initialization warning:', walletErr.message);
     }
 
-    // Do NOT create token or auto-login
-    // User must verify email first
+    // 5. Generate JWT immediately so user is authenticated without friction
+    const token = generateToken(user._id);
+
+    // 6. Non-blocking automated Welcome Email dispatch
+    sendWelcomeEmail(user.email, user.name).catch((err) => {
+      console.warn('[REGISTER] Welcome email delivery notice:', err.message);
+    });
+
     res.status(201).json({
       success: true,
-      message: 'Registration successful. Please verify your email address.',
+      message: 'Registration successful! Welcome to Olafasta.',
+      token,
       user: {
         id: user._id,
+        _id: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
         role: user.role,
+        avatar: user.avatar || '',
+        emailVerified: user.emailVerified,
       },
-      devMode: emailResult.devMode || !!process.env.NODE_ENV && process.env.NODE_ENV === 'development',
-      ...(emailResult.devMode && {
-        devCode: code,
-        devExpiresAt: expiresAt,
-      }),
     });
   } catch (error) {
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern || {})[0] || 'email';
+      return res.status(409).json({
+        success: false,
+        message: `An account with this ${field} already exists. Please sign in instead.`,
+      });
+    }
     console.error('[REGISTER ERROR]', error);
     res.status(500).json({
       success: false,
-      message: error.message,
+      message: error.message || 'Registration failed. Please try again.',
     });
   }
 };
 
-// @desc    Login user
-// @route   POST /api/auth/login
-// @access  Public
 export const login = async (req, res, next) => {
   try {
     const email = typeof req.body.email === 'string'
@@ -352,6 +343,7 @@ export const getProfile = async (req, res, next) => {
         customerProfile: user.customerProfile,
         setupCompleted: user.setupCompleted,
         onboardingCompleted: user.onboardingCompleted,
+        roleApplication: user.roleApplication,
       },
     });
   } catch (error) {

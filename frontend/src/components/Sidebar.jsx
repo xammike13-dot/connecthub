@@ -1,9 +1,12 @@
+import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import JoinTeamModal from './JoinTeamModal';
 
 const Sidebar = ({ isOpen, onClose }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
 
   const handleLogout = async () => {
     await logout();
@@ -179,7 +182,10 @@ const Sidebar = ({ isOpen, onClose }) => {
       {isOpen && (
         <div
           className="fixed inset-0 bg-neutral-900 bg-opacity-50 z-40 lg:hidden"
-          onClick={onClose}
+          onClick={() => {
+            document.body.style.overflow = '';
+            if (onClose) onClose();
+          }}
         />
       )}
 
@@ -190,14 +196,20 @@ const Sidebar = ({ isOpen, onClose }) => {
         <div className="p-6 border-b border-neutral-200 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-olaOrange-DEFAULT rounded-lg flex items-center justify-center shadow-md">
-              <span className="text-white font-bold text-lg">C</span>
+              <span className="text-white font-bold text-lg">⚡</span>
             </div>
-            <span className="text-xl font-bold text-neutral-900">Olafasta</span>
+            <span className="text-xl font-bold text-neutral-900">
+              <span className="text-olaGreen-DEFAULT">Ola</span>
+              <span className="text-olaOrange-DEFAULT">fasta</span>
+            </span>
           </div>
           {/* Mobile Close Button */}
           <button
-            onClick={onClose}
-            className="lg:hidden p-1.5 rounded-lg text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 transition-colors"
+            onClick={() => {
+              document.body.style.overflow = '';
+              if (onClose) onClose();
+            }}
+            className="lg:hidden p-1.5 rounded-lg text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 transition-colors cursor-pointer"
             title="Close Menu"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -206,61 +218,97 @@ const Sidebar = ({ isOpen, onClose }) => {
           </button>
         </div>
 
-      {/* User Info */}
-      <div className="p-4 border-b border-neutral-200">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-olaOrange-light rounded-full overflow-hidden flex items-center justify-center border border-olaOrange-DEFAULT/20">
-            {user?.riderProfile?.profilePhoto || user?.avatar ? (
-              <img 
-                src={user?.riderProfile?.profilePhoto || user?.avatar} 
-                alt={user?.name}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <span className="text-olaOrange-DEFAULT font-bold">
-                {user?.name?.charAt(0).toUpperCase() || 'U'}
-              </span>
-            )}
-          </div>
-          <div>
-            <p className="font-semibold text-neutral-900">{user?.name}</p>
-            <p className="text-sm text-neutral-500 capitalize">{user?.role}</p>
+        {/* User Info */}
+        <div className="p-4 border-b border-neutral-200">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-olaOrange-light rounded-full overflow-hidden flex items-center justify-center border border-olaOrange-DEFAULT/20 flex-shrink-0">
+              {user?.riderProfile?.profilePhoto || user?.avatar ? (
+                <img 
+                  src={user?.riderProfile?.profilePhoto || user?.avatar} 
+                  alt={user?.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-olaOrange-DEFAULT font-bold">
+                  {user?.name?.charAt(0).toUpperCase() || 'U'}
+                </span>
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-neutral-900 text-sm truncate">{user?.name}</p>
+              <p className="text-xs text-neutral-500 capitalize">{user?.role}</p>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Navigation */}
-      <nav className="p-4 space-y-1 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 200px)' }}>
-        {menuItems.map((item) => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            onClick={() => {
-              if (onClose) onClose();
-            }}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive ? 'bg-olaOrange-light text-olaOrange-DEFAULT font-bold shadow-sm' : 'text-neutral-600 hover:bg-gray-100 hover:text-olaOrange-DEFAULT'}`
-            }
+        {/* Navigation */}
+        <nav className="p-4 space-y-1 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 210px)' }}>
+          {menuItems.map((item) => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              onClick={() => {
+                document.body.style.overflow = '';
+                if (onClose) onClose();
+              }}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive ? 'bg-olaOrange-light text-olaOrange-DEFAULT font-bold shadow-sm' : 'text-neutral-600 hover:bg-gray-100 hover:text-olaOrange-DEFAULT'}`
+              }
+            >
+              {getIcon(item.icon)}
+              <span>{item.label}</span>
+            </NavLink>
+          ))}
+
+          {/* Dedicated "Join Olafasta Team & Earn ⚡" Item for Customers */}
+          {user?.role === 'customer' && (
+            <div className="pt-3 pb-1 border-t border-neutral-100 mt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (onClose) onClose();
+                  document.body.style.overflow = '';
+                  setIsJoinModalOpen(true);
+                }}
+                className="w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold bg-olaOrange-light/70 text-olaOrange-DEFAULT hover:bg-olaOrange-light border border-olaOrange-DEFAULT/25 shadow-2xs transition-all active:scale-[0.98] cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5 truncate">
+                  <span className="text-base leading-none">⚡</span>
+                  <span className="truncate">Join Team &amp; Earn</span>
+                </div>
+                {user?.roleApplication?.status === 'pending' ? (
+                  <span className="px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] font-black uppercase flex-shrink-0">
+                    Pending
+                  </span>
+                ) : (
+                  <span className="px-1.5 py-0.5 rounded-md bg-olaOrange-DEFAULT text-white text-[10px] font-black uppercase flex-shrink-0">
+                    Earn
+                  </span>
+                )}
+              </button>
+            </div>
+          )}
+        </nav>
+
+        {/* Logout */}
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-neutral-200 bg-white">
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-3 w-full px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium text-sm cursor-pointer"
           >
-            {getIcon(item.icon)}
-            <span>{item.label}</span>
-          </NavLink>
-        ))}
-      </nav>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013 3h4a3 3 0 013 3v1" />
+            </svg>
+            <span>Logout</span>
+          </button>
+        </div>
+      </aside>
 
-      {/* Logout */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-neutral-200 bg-white">
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-3 w-full px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013 3h4a3 3 0 013 3v1" />
-          </svg>
-          <span>Logout</span>
-        </button>
-      </div>
-    </aside>
+      {/* Global Join Team Modal mounted cleanly outside the drawer */}
+      <JoinTeamModal
+        isOpen={isJoinModalOpen}
+        onClose={() => setIsJoinModalOpen(false)}
+      />
     </>
   );
 };

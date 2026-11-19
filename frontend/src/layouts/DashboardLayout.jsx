@@ -29,7 +29,13 @@ const DashboardLayout = ({ allowedRoles }) => {
   }
 
   // 3. Onboarding guard: ensure vendors and riders complete profile setup
-  if (user && role !== OLA_ROLES.CUSTOMER && role !== OLA_ROLES.ADMIN && !user.onboardingCompleted) {
+  const isApprovedPartner =
+    user?.onboardingCompleted === true ||
+    user?.setupCompleted === true ||
+    user?.roleApplication?.status === 'approved' ||
+    user?.businessProfile?.isApproved === true;
+
+  if (user && role !== OLA_ROLES.CUSTOMER && role !== OLA_ROLES.ADMIN && !isApprovedPartner) {
     const setupPages = {
       [OLA_ROLES.BUSINESS]: '/setup/business',
       [OLA_ROLES.RIDER]: '/setup/rider',

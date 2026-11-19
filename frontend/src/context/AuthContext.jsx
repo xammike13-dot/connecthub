@@ -152,6 +152,38 @@ export const AuthProvider = ({ children }) => {
     return () => window.removeEventListener('auth-error', handleAuthError);
   }, [logout]);
 
+
+  // Listen for real-time role approval from socket
+  useEffect(() => {
+    const handleRoleApproved = async (e) => {
+      const detail = e.detail || {};
+      const activeToken = localStorage.getItem('token') || getCookie('token');
+      if (activeToken) {
+        const res = await fetchUserProfile(activeToken);
+        const upgradedRole = detail.role || detail.requestedRole || res.user?.role;
+        const targetUrl = detail.dashboardUrl || (upgradedRole ? `/${upgradedRole}/dashboard` : '/');
+
+        // Trigger celebratory toast with one-click dashboard link
+        window.dispatchEvent(
+          new CustomEvent('show-toast', {
+            detail: {
+              message: `🎉 Congratulations! Your Olafasta ${upgradedRole?.toUpperCase()} account is now active.`,
+              type: 'success',
+              duration: 8000,
+              action: {
+                label: 'Go to Your Dashboard →',
+                url: targetUrl,
+              },
+            },
+          })
+        );
+      }
+    };
+
+    window.addEventListener('olafasta:role-approved', handleRoleApproved);
+    return () => window.removeEventListener('olafasta:role-approved', handleRoleApproved);
+  }, [fetchUserProfile]);
+
   /**
    * Login handler
    */
@@ -207,7 +239,15 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     try {
       const { data } = await api.post('/auth/register', userData);
-      return { success: true, user: data.user, devMode: data.devMode };
+      if (data.token && data.user) {
+        authenticateWithToken(data.token, data.user);
+      }
+      return { 
+        success: true, 
+        user: data.user, 
+        token: data.token,
+        message: data.message 
+      };
     } catch (error) {
       return {
         success: false,

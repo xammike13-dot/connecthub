@@ -59,6 +59,18 @@ export const ToastProvider = ({ children }) => {
     );
   }, []);
 
+  useEffect(() => {
+    const handleShowToast = (e) => {
+      const { message, type = 'info', duration = 6000, action } = e.detail || {};
+      if (message) {
+        const id = Date.now();
+        setToasts((prev) => [...prev, { id, message, type, duration, action }]);
+      }
+    };
+    window.addEventListener('show-toast', handleShowToast);
+    return () => window.removeEventListener('show-toast', handleShowToast);
+  }, []);
+
   // Convenience methods
   const success = useCallback((message, duration) => addToast(message, 'success', duration), [addToast]);
   const error = useCallback((message, duration) => addToast(message, 'error', duration), [addToast]);
@@ -110,12 +122,26 @@ const Toast = ({ toast, onRemove }) => {
       animate={{ opacity: 1, x: 0, scale: 1 }}
       exit={{ opacity: 0, x: 100, scale: 0.9 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
-      className={`flex items-center gap-3 px-4 py-3 rounded-lg border shadow-lg ${config.bgColor} ${config.borderColor}`}
+      className={`flex items-start gap-3 px-4 py-3 rounded-2xl border shadow-lg pointer-events-auto ${config.bgColor} ${config.borderColor}`}
     >
       <Icon className={`w-5 h-5 flex-shrink-0 ${config.iconColor}`} />
-      <p className={`text-sm font-medium ${config.textColor} flex-1`}>
-        {toast.message}
-      </p>
+      <div className="flex-1 min-w-0">
+        <p className={`text-sm font-semibold ${config.textColor}`}>
+          {toast.message}
+        </p>
+        {toast.action && (
+          <a
+            href={toast.action.url}
+            onClick={(e) => {
+              if (toast.action.onClick) toast.action.onClick(e);
+              onRemove();
+            }}
+            className="inline-flex items-center gap-1 mt-1.5 text-xs font-black text-olaOrange-DEFAULT hover:underline cursor-pointer"
+          >
+            <span>{toast.action.label || 'View'}</span>
+          </a>
+        )}
+      </div>
       <button
         onClick={onRemove}
         className={`flex-shrink-0 ${config.iconColor} hover:opacity-70 transition-opacity`}

@@ -1,5 +1,7 @@
 import express from 'express';
 import {
+  applyRole,
+  reviewRole,
   approveVendor,
   getProviders,
   getAllUsers,
@@ -20,6 +22,13 @@ router.use(protect);
 
 // Get current user profile (Must precede /:id)
 router.get('/profile', getProfile);
+
+// Partner role application (internal onboarding pipeline)
+router.post('/apply-role', applyRole);
+
+// Review role application (admin only)
+router.patch('/:id/review-role', restrictTo('admin'), reviewRole);
+
 
 // Get all users (admin only)
 router.get('/', restrictTo('admin'), getAllUsers);

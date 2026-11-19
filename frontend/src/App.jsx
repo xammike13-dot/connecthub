@@ -96,7 +96,9 @@ function App() {
                   <Route path="healthcare" element={<Navigate to="/c/chemist" replace />} />
                   <Route path="transport" element={<BodabodaPage />} />
                   <Route path="boda" element={<Navigate to="/transport" replace />} />
+                  <Route path="bodaboda" element={<Navigate to="/transport" replace />} />
                   <Route path="c/boda" element={<Navigate to="/transport" replace />} />
+                  <Route path="wishlist" element={<Navigate to="/customer/dashboard" replace />} />
                   <Route path="support" element={<SupportPage />} />
                   <Route path="contact" element={<SupportPage />} />
                   <Route path="about" element={<AboutPage />} />
@@ -140,6 +142,7 @@ function App() {
                   <Route path="chat" element={<ChatPage />} />
                   <Route path="chat/:conversationId" element={<ChatPage />} />
                   <Route path="help" element={<CustomerHelpPage />} />
+                  <Route path="join-team" element={<Navigate to="/customer/dashboard?join=true" replace />} />
                 </Route>
 
                 {/* Landlord Routes */}

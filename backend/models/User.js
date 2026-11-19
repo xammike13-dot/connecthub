@@ -121,6 +121,26 @@ const userSchema = new mongoose.Schema(
       loginTime: Date,
       lastActive: Date,
     }],
+    // Internal onboarding pipeline: Role application subdocument
+    roleApplication: {
+      requestedRole: {
+        type: String,
+        enum: ['rider', 'business', 'landlord', 'assistant', null],
+        default: null,
+      },
+      status: {
+        type: String,
+        enum: ['none', 'pending', 'approved', 'rejected'],
+        default: 'none',
+      },
+      details: {
+        type: mongoose.Schema.Types.Mixed,
+        default: {},
+      },
+      appliedAt: Date,
+      reviewedAt: Date,
+      notes: String,
+    },
     // Rider specific fields
     riderProfile: {
       vehicleType: String,

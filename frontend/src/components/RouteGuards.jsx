@@ -63,7 +63,13 @@ export const RoleRoute = ({ allowedRoles = [], children }) => {
   }
 
   // Prevent users from skipping mandatory onboarding
-  if (user && role !== OLA_ROLES.CUSTOMER && !user.onboardingCompleted) {
+  const isApprovedPartner =
+    user?.onboardingCompleted === true ||
+    user?.setupCompleted === true ||
+    user?.roleApplication?.status === 'approved' ||
+    user?.businessProfile?.isApproved === true;
+
+  if (user && role !== OLA_ROLES.CUSTOMER && !isApprovedPartner) {
     const setupPages = {
       business: '/setup/business',
       rider: '/setup/rider',

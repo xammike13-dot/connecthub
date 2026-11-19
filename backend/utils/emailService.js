@@ -1,49 +1,154 @@
-import nodemailer from 'nodemailer';
+// backend/utils/emailService.js
+// Enterprise Non-Blocking Automated Email Dispatcher for Olafasta
+// Supports Brevo Transactional Email API with Nodemailer SMTP fallback
 
-// Create transporter
-const createTransporter = () => {
+import axios from 'axios';
+import nodemailer from 'nodemailer';
+import { getWelcomeEmailTemplate, getVerificationEmailTemplate } from './emailTemplates.js';
+
+const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
+
+const getBrevoApiKey = () => process.env.BREVO_API_KEY?.trim();
+const getSenderEmail = () => process.env.BREVO_SENDER_EMAIL?.trim() || process.env.SMTP_USER?.trim() || 'support@olafasta.com';
+const getSenderName = () => process.env.BREVO_SENDER_NAME?.trim() || 'Olafasta';
+
+/**
+ * Creates SMTP transporter if credentials are configured
+ */
+const getSmtpTransporter = () => {
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER) {
+    return null;
+  }
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST,
-    port: process.env.SMTP_PORT || 587,
-    secure: false, // true for 465, false for other ports
+    port: parseInt(process.env.SMTP_PORT, 10) || 587,
+    secure: process.env.SMTP_SECURE === 'true' || process.env.SMTP_PORT === '465',
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
+    tls: {
+      rejectUnauthorized: false,
+    },
   });
 };
 
-// Send email verification code
-export const sendEmailVerification = async (email, code) => {
-  try {
-    const transporter = createTransporter();
-    
-    const mailOptions = {
-      from: `"Olafasta" <${process.env.SMTP_USER}>`,
-      to: email,
-      subject: 'Verify your Olafasta account',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
-            <h1 style="color: white; margin: 0; font-size: 28px;">Olafasta</h1>
-          </div>
-          <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
-            <h2 style="color: #333; margin-top: 0;">Email Verification</h2>
-            <p style="color: #666; line-height: 1.6;">Thank you for signing up for Olafasta. Please use the verification code below to verify your email address:</p>
-            <div style="background: white; border: 2px solid #667eea; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0;">
-              <span style="font-size: 32px; font-weight: bold; color: #667eea; letter-spacing: 5px;">${code}</span>
-            </div>
-            <p style="color: #666; line-height: 1.6;">This code will expire in 15 minutes. If you didn't request this verification, please ignore this email.</p>
-            <p style="color: #999; font-size: 12px; margin-top: 30px;">This is an automated email. Please do not reply.</p>
-          </div>
-        </div>
-      `,
-    };
+/**
+ * Core sendEmail function
+ * Prioritizes Brevo API, falls back to SMTP, and gracefully logs in dev mode
+ */
+export const sendEmail = async ({ to, subject, html, text }) => {
+  const senderEmail = getSenderEmail();
+  const senderName = getSenderName();
+  const brevoKey = getBrevoApiKey();
 
-    await transporter.sendMail(mailOptions);
-    return { success: true };
-  } catch (error) {
-    console.error('Email sending error:', error);
-    return { success: false, error: error.message };
+  if (!to || !/^\S+@\S+\.\S+$/.test(String(to).trim())) {
+    console.warn('[EMAIL] Skipping dispatch: invalid recipient email:', to);
+    return { success: false, error: 'Invalid recipient email' };
   }
+
+  // 1. Attempt Brevo API if key is present
+  if (brevoKey && brevoKey !== 'your-brevo-api-key-here' && brevoKey.length > 10) {
+    try {
+      const response = await axios.post(
+        BREVO_API_URL,
+        {
+          sender: { name: senderName, email: senderEmail },
+          to: [{ email: to.trim() }],
+          subject,
+          htmlContent: html,
+          textContent: text || undefined,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'api-key': brevoKey,
+            'Accept': 'application/json',
+          },
+          timeout: 15000,
+        }
+      );
+
+      if (response.status === 200 || response.status === 201) {
+        console.log(`[EMAIL] Dispatched via Brevo to ${to} (MessageId: ${response.data?.messageId || 'OK'})`);
+        return { success: true, provider: 'brevo', messageId: response.data?.messageId };
+      }
+    } catch (brevoErr) {
+      console.warn('[EMAIL] Brevo API attempt failed, attempting fallback:', brevoErr.response?.data?.message || brevoErr.message);
+    }
+  }
+
+  // 2. Attempt SMTP Transporter fallback
+  const transporter = getSmtpTransporter();
+  if (transporter) {
+    try {
+      const info = await transporter.sendMail({
+        from: `"${senderName}" <${senderEmail}>`,
+        to: to.trim(),
+        subject,
+        html,
+        text,
+      });
+      console.log(`[EMAIL] Dispatched via SMTP to ${to} (MessageId: ${info.messageId})`);
+      return { success: true, provider: 'smtp', messageId: info.messageId };
+    } catch (smtpErr) {
+      console.warn('[EMAIL] SMTP attempt failed:', smtpErr.message);
+    }
+  }
+
+  // 3. Fallback / Dev Mode
+  console.log('════════════════════════════════════════════════════════════════');
+  console.log(`[EMAIL DEV MODE] Simulated Email to: ${to}`);
+  console.log(`Subject: ${subject}`);
+  console.log('════════════════════════════════════════════════════════════════');
+  return { success: true, provider: 'devMode', devMode: true };
+};
+
+/**
+ * Non-Blocking Welcome Email Dispatcher
+ * @param {string} email
+ * @param {string} name
+ * @param {Object} [options]
+ */
+export const sendWelcomeEmail = async (email, name = '', options = {}) => {
+  try {
+    const template = getWelcomeEmailTemplate({ name, dashboardUrl: options.dashboardUrl });
+    return await sendEmail({
+      to: email,
+      subject: template.subject,
+      html: template.html,
+      text: template.text,
+    });
+  } catch (err) {
+    // Non-blocking: never let email failure interrupt user signup
+    console.error('[EMAIL ERROR] Failed to send welcome email:', err.message);
+    return { success: false, error: err.message };
+  }
+};
+
+/**
+ * Non-Blocking Email Verification Code Dispatcher
+ * @param {string} email
+ * @param {string} code
+ * @param {Object} [options]
+ */
+export const sendVerificationEmail = async (email, code, options = {}) => {
+  try {
+    const template = getVerificationEmailTemplate({ name: options.name || '', code });
+    return await sendEmail({
+      to: email,
+      subject: template.subject,
+      html: template.html,
+      text: template.text,
+    });
+  } catch (err) {
+    console.error('[EMAIL ERROR] Failed to send verification email:', err.message);
+    return { success: false, error: err.message };
+  }
+};
+
+export default {
+  sendEmail,
+  sendWelcomeEmail,
+  sendVerificationEmail,
 };

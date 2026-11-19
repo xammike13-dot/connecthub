@@ -1075,26 +1075,30 @@ const BodabodaPage = () => {
                 </div>
 
                 {/* M-Pesa Phone Input */}
-                {!rideAlreadyPaid && <div className="pt-4 space-y-3">
-                  <label className="block text-xs font-bold uppercase text-slate-300 tracking-wider">
-                    M-Pesa Phone Number
-                  </label>
-                  <Input
-                    type="tel"
-                    placeholder="0712345678"
-                    value={mpesaPhone}
-                    onChange={(e) => setMpesaPhone(e.target.value)}
-                    className="w-full bg-slate-900 border-slate-700 text-white placeholder-slate-500 font-mono text-base"
-                  />
-                  <p className="text-[11px] text-slate-400">
-                    Enter the Safaricom number where you will enter your M-Pesa PIN.
-                  </p>
+                <div className="pt-4 space-y-3">
+                  {!rideAlreadyPaid && (
+                    <>
+                      <label className="block text-xs font-bold uppercase text-slate-300 tracking-wider">
+                        M-Pesa Phone Number
+                      </label>
+                      <Input
+                        type="tel"
+                        placeholder="0712345678"
+                        value={mpesaPhone}
+                        onChange={(e) => setMpesaPhone(e.target.value)}
+                        className="w-full bg-slate-900 border-slate-700 text-white placeholder-slate-500 font-mono text-base"
+                      />
+                      <p className="text-[11px] text-slate-400">
+                        Enter the Safaricom number where you will enter your M-Pesa PIN.
+                      </p>
+                    </>
+                  )}
 
                   {paymentError && (
                     <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-center gap-2">
                       <AlertCircle size={14} className="flex-shrink-0" />
                       <span>{paymentError}</span>
-                    </div>}
+                    </div>
                   )}
 
                   <Button

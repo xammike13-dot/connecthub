@@ -195,6 +195,16 @@ export const SocketProvider = ({ children }) => {
         await fetchUnreadCount();
       });
 
+      newSocket.on('role:approved', (data) => {
+        console.log('[SocketContext] role:approved received:', data);
+        window.dispatchEvent(new CustomEvent('olafasta:role-approved', { detail: data }));
+      });
+
+      newSocket.on('role:updated', (data) => {
+        console.log('[SocketContext] role:updated received:', data);
+        window.dispatchEvent(new CustomEvent('olafasta:role-updated', { detail: data }));
+      });
+
       newSocket.on('ride_request', (data) => {
         console.log('[SocketContext] ride_request received:', data);
         fetchUnreadCount();
