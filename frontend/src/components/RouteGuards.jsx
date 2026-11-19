@@ -6,10 +6,11 @@ import { useAuth, OLA_ROLES } from '../context/AuthContext';
 import LoadingSpinner from './LoadingSpinner';
 
 /**
- * Map of user roles to their primary default dashboard route
+ * Map of user roles to their primary default dashboard route.
+ * Customers stay on the homepage — their account is accessed via the Account icon.
  */
 export const ROLE_DASHBOARDS = {
-  [OLA_ROLES.CUSTOMER]: '/customer/dashboard',
+  [OLA_ROLES.CUSTOMER]: '/',
   [OLA_ROLES.BUSINESS]: '/business/dashboard',
   [OLA_ROLES.RIDER]: '/rider/dashboard',
   [OLA_ROLES.ADMIN]: '/admin',

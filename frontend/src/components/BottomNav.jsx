@@ -18,7 +18,8 @@ export default function BottomNav() {
     if (!isAuthenticated || !user) return '/login';
     switch (user.role) {
       case 'customer':
-        return '/customer/dashboard';
+        // Customers access their account page, not the dashboard
+        return '/account';
       case 'landlord':
         return '/landlord/dashboard';
       case 'business':
@@ -30,7 +31,7 @@ export default function BottomNav() {
       case 'caretaker':
         return '/caretaker/dashboard';
       default:
-        return '/customer/dashboard';
+        return '/account';
     }
   };
 
@@ -66,11 +67,12 @@ export default function BottomNav() {
     },
     {
       id: 'profile',
-      label: isAuthenticated ? 'Profile' : 'Sign In',
+      label: isAuthenticated ? 'Account' : 'Sign In',
       icon: User,
       route: getProfileRoute(),
       isActive:
-        location.pathname.includes('/dashboard') ||
+        location.pathname === '/account' ||
+        location.pathname.includes('/customer/dashboard') ||
         location.pathname === '/login' ||
         location.pathname === '/profile',
     },

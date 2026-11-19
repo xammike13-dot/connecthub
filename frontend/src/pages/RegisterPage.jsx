@@ -37,9 +37,9 @@ export default function RegisterPage() {
   const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
-  // Auto-redirect if already signed in
+  // Auto-redirect if already signed in — customers go to the homepage
   if (isAuthenticated) {
-    navigate('/customer/dashboard', { replace: true });
+    navigate('/', { replace: true });
     return null;
   }
 
@@ -118,8 +118,9 @@ export default function RegisterPage() {
       });
 
       if (result.success) {
-        // Direct seamless onboarding: customer lands straight into their dashboard
-        navigate('/customer/dashboard', { replace: true });
+        // Customer stays on the homepage after registration.
+        // They can access their account anytime via the Account icon in the bottom nav.
+        navigate('/', { replace: true });
       } else {
         setError(result.message || 'Registration failed. Please try again.');
       }

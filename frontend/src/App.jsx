@@ -72,6 +72,7 @@ import AssistantInvitePage from './pages/AssistantInvitePage';
 import BusinessAssistantsPage from './pages/BusinessAssistantsPage';
 import AssistantDashboard from './pages/AssistantDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import { ProtectedRoute } from './components/RouteGuards';
 
 
 function App() {
@@ -106,6 +107,15 @@ function App() {
                   <Route path="c/:slug" element={<CategoryPage />} />
                   <Route path="product/:productId" element={<ProductDetailsPage />} />
                   <Route path="p/:productId" element={<ProductDetailsPage />} />
+                  {/* Customer Account Page — accessible via "Account" icon in bottom nav */}
+                  <Route
+                    path="account"
+                    element={
+                      <ProtectedRoute>
+                        <CustomerDashboard />
+                      </ProtectedRoute>
+                    }
+                  />
                 </Route>
 
                 {/* Auth Routes */}

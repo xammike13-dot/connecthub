@@ -24,7 +24,7 @@ const LoginPage = () => {
     ? fromLocation?.state
     : undefined;
 
-  // If already authenticated, redirect to appropriate dashboard or setup page
+  // If already authenticated, redirect to appropriate page or setup page
   if (isAuthenticated && user) {
     const setupPages = {
       landlord: '/setup/landlord',
@@ -37,7 +37,8 @@ const LoginPage = () => {
       targetPath = setupPages[user.role] || '/';
     } else {
       const dashboardMap = {
-        customer: '/customer/dashboard',
+        // Customers stay on the homepage; account accessible via Account icon
+        customer: '/',
         landlord: '/landlord/dashboard',
         business: '/business/dashboard',
         rider: '/rider/dashboard',
@@ -130,14 +131,15 @@ const LoginPage = () => {
           business: '/setup/business',
           rider: '/setup/rider',
         };
-        navigate(setupPages[result.user.role] || '/customer/dashboard', { replace: true });
+        navigate(setupPages[result.user.role] || '/', { replace: true });
         setLoading(false);
         return;
       }
 
-      // Determine redirect destination
+      // Determine redirect destination:
+      // Customers always land on the homepage; they access their account via the Account icon.
       const dashboardMap = {
-        customer: '/customer/dashboard',
+        customer: '/',
         landlord: '/landlord/dashboard',
         business: '/business/dashboard',
         rider: '/rider/dashboard',
@@ -146,7 +148,7 @@ const LoginPage = () => {
         caretaker: '/caretaker/dashboard',
       };
       
-      // Use the return URL if available, otherwise use role-based dashboard
+      // Use the return URL if available, otherwise use role-based destination
       const targetPath = from || dashboardMap[result.user?.role] || '/';
       
       // Navigate to the target path
