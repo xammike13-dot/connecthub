@@ -1,5 +1,5 @@
 // frontend/src/pages/CustomerProfilePage.jsx
-// Dedicated Customer Profile & Account Management Page for Connect Hub
+// Dedicated Customer Profile & Account Management Page for Olafasta
 
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -205,7 +205,7 @@ export default function CustomerProfilePage() {
             className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-gray-600 hover:text-[#FF5E00] transition-colors"
           >
             <ArrowLeft size={16} />
-            <span>Back to Connect Hub</span>
+            <span>Back to Olafasta</span>
           </Link>
           <div className="inline-flex items-center gap-1 text-[11px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
             <CheckCircle2 size={12} />
@@ -589,7 +589,7 @@ export default function CustomerProfilePage() {
         {/* ── 5. Sign Out Section ───────────────────────────────────────────── */}
         <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-200/80 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
-            <h2 className="text-base font-black text-gray-900">Sign Out of Connect Hub</h2>
+            <h2 className="text-base font-black text-gray-900">Sign Out of Olafasta</h2>
             <p className="text-xs text-gray-500">Sign out of your account on this device. You can sign back in anytime.</p>
           </div>
           <button

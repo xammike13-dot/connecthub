@@ -1,7 +1,7 @@
 {
-  "name": "ConnectHub",
-  "short_name": "ConnectHub",
-  "description": "ConnectHub Marketplace & Transport Services",
+  "name": "Olafasta",
+  "short_name": "Olafasta",
+  "description": "Olafasta Marketplace & Transport Services",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -34,7 +34,7 @@
       "name": "Marketplace",
       "short_name": "Market",
       "url": "/marketplace",
-      "description": "Shop the ConnectHub marketplace"
+      "description": "Shop the Olafasta marketplace"
     },
     {
       "name": "Rentals",

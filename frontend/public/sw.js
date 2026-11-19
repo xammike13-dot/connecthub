@@ -73,7 +73,7 @@ self.addEventListener("push", (event) => {
   console.log("[Service Worker] Push event received");
 
   let data = {
-    title: "ConnectHub",
+    title: "Olafasta",
     body: "You have a new update",
     icon: "/icon-192.png",
     badge: "/icon-192.png",
@@ -86,7 +86,7 @@ self.addEventListener("push", (event) => {
     } catch (e) {
       console.log("[Service Worker] Push data is text, not JSON:", event.data.text());
       data = {
-        title: "ConnectHub",
+        title: "Olafasta",
         body: event.data.text(),
         icon: "/icon-192.png",
         badge: "/icon-192.png",
@@ -102,7 +102,7 @@ self.addEventListener("push", (event) => {
     vibrate: [120, 80, 120],
     data: data.data || { url: "/" },
     actions: [
-      { action: "open", title: "Open ConnectHub" },
+      { action: "open", title: "Open Olafasta" },
       { action: "close", title: "Dismiss" }
     ]
   };

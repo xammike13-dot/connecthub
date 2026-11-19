@@ -29,7 +29,7 @@ const HomePage = () => {
   useEffect(() => {
     if (isAuthenticated && user) {
       if (user.role === 'customer') {
-        // Customer remains on the main Connect Hub homepage
+        // Customer remains on the main Olafasta homepage
         return;
       }
       const map = {
