@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Flame, ArrowRight, Compass, Sparkles } from 'lucide-react';
 import PromoCarousel from '../components/PromoCarousel';
@@ -9,11 +9,14 @@ import ProductFeed from '../components/ProductFeed';
 import ServiceBanners from '../components/ServiceBanners';
 import OLA_CATEGORIES, { CATEGORY_ICONS } from '../config/categories.js';
 import { useFlashDeals, useProductsByCategory } from '../hooks/useProducts';
+import JoinTeamModal from '../components/JoinTeamModal';
 
 // ─── HomePage Component ───────────────────────────────────────────────────────
 const HomePage = () => {
   const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [joinModalOpen, setJoinModalOpen] = useState(false);
 
   // ── 1. Asynchronous Dynamic Product Queries (TanStack React Query) ──────────
   const { data: flashProducts = [], isLoading: loadingFlash } = useFlashDeals(8);
@@ -43,6 +46,18 @@ const HomePage = () => {
       navigate(map[user.role] || '/', { replace: true });
     }
   }, [isAuthenticated, user, navigate]);
+
+  // Open Join Team modal when ?join=true is in the query string
+  useEffect(() => {
+    if (searchParams.get('join') === 'true') {
+      setJoinModalOpen(true);
+      // Clean up the URL param without re-navigating
+      setSearchParams(prev => {
+        prev.delete('join');
+        return prev;
+      }, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col font-sans">
@@ -261,6 +276,12 @@ const HomePage = () => {
           <ProductFeed />
         </div>
       </section>
+
+      {/* Join Team Modal — triggered by ?join=true or ServiceBanners */}
+      <JoinTeamModal
+        isOpen={joinModalOpen}
+        onClose={() => setJoinModalOpen(false)}
+      />
 
     </div>
   );

@@ -11,6 +11,7 @@ import {
   sendPasswordResetEmail,
   sendPasswordResetConfirmation
 } from '../services/emailService.js';
+import { getIO } from '../utils/socket.js';
 
 // Generate JWT Token
 const generateToken = (id) => {
@@ -102,6 +103,7 @@ const handleLoginSuccess = async (user, password, req, res) => {
     token,
     user: {
       id: user._id,
+      _id: user._id,
       name: user.name,
       email: user.email,
       phone: user.phone,
@@ -113,6 +115,10 @@ const handleLoginSuccess = async (user, password, req, res) => {
       setupCompleted: user.setupCompleted,
       onboardingCompleted: user.onboardingCompleted,
       roleApplication: user.roleApplication,
+      riderProfile: user.riderProfile,
+      businessProfile: user.businessProfile,
+      landlordProfile: user.landlordProfile,
+      assistantProfile: user.assistantProfile,
     },
   });
 };
@@ -203,7 +209,28 @@ export const register = async (req, res, next) => {
       });
     }
 
-    // 4. Create user - strictly hardcoding role: 'customer' (ignores any requested role to prevent privilege-escalation)
+    // 4. Handle optional partner track application during onboarding
+    let initialRoleApplication = {
+      requestedRole: null,
+      status: 'none',
+      details: {},
+      appliedAt: null,
+      reviewedAt: null,
+    };
+
+    const validRoles = ['rider', 'business', 'landlord', 'assistant'];
+    const requestedRole = req.body.requestedRole;
+    if (requestedRole && validRoles.includes(requestedRole)) {
+      initialRoleApplication = {
+        requestedRole,
+        status: 'pending',
+        details: req.body.roleDetails && typeof req.body.roleDetails === 'object' ? req.body.roleDetails : {},
+        appliedAt: new Date(),
+        reviewedAt: null,
+      };
+    }
+
+    // 5. Create user - strictly hardcoding role: 'customer' (ignores any requested role to prevent privilege-escalation)
     const user = await User.create({
       name: name.trim(),
       email,
@@ -216,7 +243,28 @@ export const register = async (req, res, next) => {
       isVerified: true,
       setupCompleted: true,
       onboardingCompleted: true,
+      roleApplication: initialRoleApplication,
     });
+
+    // Notify admin channel if partner track application was submitted
+    if (initialRoleApplication.status === 'pending') {
+      try {
+        const io = getIO();
+        if (io) {
+          io.to('admin_channel').emit('admin:new_application', {
+            userId: user._id,
+            name: user.name,
+            email: user.email,
+            phone: user.phone,
+            requestedRole: initialRoleApplication.requestedRole,
+            details: initialRoleApplication.details,
+            appliedAt: initialRoleApplication.appliedAt,
+          });
+        }
+      } catch (socketErr) {
+        console.warn('[REGISTER] Socket notification notice:', socketErr.message);
+      }
+    }
 
     // Create user wallet
     try {
@@ -246,6 +294,11 @@ export const register = async (req, res, next) => {
         role: user.role,
         avatar: user.avatar || '',
         emailVerified: user.emailVerified,
+        roleApplication: user.roleApplication,
+        riderProfile: user.riderProfile,
+        businessProfile: user.businessProfile,
+        landlordProfile: user.landlordProfile,
+        assistantProfile: user.assistantProfile,
       },
     });
   } catch (error) {
@@ -340,6 +393,7 @@ export const getProfile = async (req, res, next) => {
         riderProfile: user.riderProfile,
         businessProfile: user.businessProfile,
         landlordProfile: user.landlordProfile,
+        assistantProfile: user.assistantProfile,
         customerProfile: user.customerProfile,
         setupCompleted: user.setupCompleted,
         onboardingCompleted: user.onboardingCompleted,

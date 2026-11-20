@@ -30,7 +30,35 @@ import {
   Home,
   ChevronRight,
   ArrowLeft,
+  ArrowRight,
+  Bike,
+  Store,
+  Users,
+  XCircle,
 } from 'lucide-react';
+
+const DASHBOARD_MAP = {
+  rider: '/rider/dashboard',
+  business: '/business/dashboard',
+  landlord: '/landlord/dashboard',
+  assistant: '/assistant/dashboard',
+  caretaker: '/caretaker/dashboard',
+};
+
+const ROLE_LABELS = {
+  rider: 'Olafasta Rider',
+  business: 'Campus Vendor',
+  landlord: 'Landlord / Agent',
+  assistant: 'Campus Assistant',
+  caretaker: 'Caretaker',
+};
+
+const ROLE_ICONS = {
+  rider: Bike,
+  business: Store,
+  landlord: Home,
+  assistant: Users,
+};
 
 export default function CustomerProfilePage() {
   const { user, logout, refreshProfile } = useAuth();
@@ -41,6 +69,9 @@ export default function CustomerProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileMessage, setProfileMessage] = useState({ type: '', text: '' });
+
+  // Partner section state
+  const [showJoinModal, setShowJoinModal] = useState(false);
 
   // Profile Form State
   const [profileForm, setProfileForm] = useState({
@@ -455,6 +486,137 @@ export default function CustomerProfilePage() {
             <ChevronRight size={18} className="text-gray-400 group-hover:text-pink-600 transition-colors" />
           </Link>
         </div>
+
+        {/* ── 3b. Partner / Earn Section ─────────────────────────────────────── */}
+        {(() => {
+          const application = user?.roleApplication;
+          const appStatus = application?.status;
+          const isPartnerRole = user?.role && user.role !== 'customer';
+          const partnerDash = DASHBOARD_MAP[user?.role];
+
+          // Already a full partner with an active role
+          if (isPartnerRole && partnerDash) {
+            return (
+              <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-sm border border-gray-200/80">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-orange-50 text-[#FF5E00] flex items-center justify-center">
+                      <Sparkles size={18} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-gray-900">Partner Dashboard</p>
+                      <p className="text-xs text-gray-500 capitalize">{ROLE_LABELS[user.role] || user.role} Account</p>
+                    </div>
+                  </div>
+                  <Link
+                    to={partnerDash}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#FF5E00] text-white hover:bg-orange-600 transition-colors"
+                  >
+                    Open Dashboard
+                    <ChevronRight size={14} />
+                  </Link>
+                </div>
+              </div>
+            );
+          }
+
+          // Has a pending application
+          if (appStatus === 'pending') {
+            return (
+              <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-sm border border-amber-200">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center flex-shrink-0">
+                    <Clock size={18} className="animate-pulse" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-black text-gray-900">Application Under Review</p>
+                    <p className="text-xs text-gray-500 mt-0.5 capitalize">
+                      {ROLE_LABELS[application.requestedRole] || application.requestedRole} application pending approval
+                    </p>
+                    <Link
+                      to="/application-status"
+                      className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
+                    >
+                      View Application Status
+                      <ChevronRight size={13} />
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          // Has a rejected application
+          if (appStatus === 'rejected') {
+            return (
+              <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-sm border border-red-200">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center flex-shrink-0">
+                    <AlertCircle size={18} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-black text-gray-900">Application Not Approved</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {application?.notes || 'Your partner application was not approved. You may apply again.'}
+                    </p>
+                    <Link
+                      to="/?join=true"
+                      className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#FF5E00] text-white hover:bg-orange-600 transition-colors"
+                    >
+                      <Sparkles size={13} />
+                      Reapply Now
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          // No application — show Join Us & Earn CTA
+          return (
+            <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-3xl p-5 sm:p-6 shadow-sm border border-orange-200/60 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-orange-200/30 to-transparent rounded-bl-full pointer-events-none" />
+              <div className="relative">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-9 h-9 rounded-xl bg-[#FF5E00] text-white flex items-center justify-center">
+                    <Sparkles size={18} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-black text-gray-900">Join Us & Earn</p>
+                    <p className="text-xs text-gray-500">Become an Olafasta partner today</p>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-600 font-medium mb-4 leading-relaxed">
+                  Earn daily by delivering parcels, selling on campus, listing properties, or becoming a campus ambassador.
+                </p>
+                <div className="grid grid-cols-2 gap-2 mb-4">
+                  {[
+                    { icon: Bike, label: 'Rider', sub: 'Boda / Delivery' },
+                    { icon: Store, label: 'Vendor', sub: 'Kibanda / Shop' },
+                    { icon: Home, label: 'Landlord', sub: 'Hostels & Rentals' },
+                    { icon: Users, label: 'Assistant', sub: 'Ambassador' },
+                  ].map(({ icon: Icon, label, sub }) => (
+                    <div key={label} className="flex items-center gap-2 p-2 rounded-xl bg-white/70 border border-orange-100">
+                      <Icon size={14} className="text-[#FF5E00] flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-gray-800 leading-tight">{label}</p>
+                        <p className="text-[10px] text-gray-400 leading-tight truncate">{sub}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <Link
+                  to="/?join=true"
+                  className="w-full flex items-center justify-center gap-2 py-3 px-5 rounded-2xl bg-[#FF5E00] hover:bg-orange-600 text-white font-bold text-sm shadow-sm transition-all active:scale-[0.98]"
+                >
+                  <Sparkles size={15} />
+                  Apply to Join Olafasta Team
+                  <ChevronRight size={15} />
+                </Link>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ── 4. Account Settings: Change Password ──────────────────────────── */}
         <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-200/80">

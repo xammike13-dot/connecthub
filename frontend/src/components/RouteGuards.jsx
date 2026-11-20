@@ -68,7 +68,9 @@ export const RoleRoute = ({ allowedRoles = [], children }) => {
     user?.onboardingCompleted === true ||
     user?.setupCompleted === true ||
     user?.roleApplication?.status === 'approved' ||
-    user?.businessProfile?.isApproved === true;
+    user?.businessProfile?.isApproved === true ||
+    role === 'assistant' ||
+    role === 'caretaker';
 
   if (user && role !== OLA_ROLES.CUSTOMER && !isApprovedPartner) {
     const setupPages = {

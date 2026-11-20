@@ -73,6 +73,7 @@ import BusinessAssistantsPage from './pages/BusinessAssistantsPage';
 import AssistantDashboard from './pages/AssistantDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import CustomerProfilePage from './pages/CustomerProfilePage';
+import ApplicationStatusPage from './pages/ApplicationStatusPage';
 import { ProtectedRoute } from './components/RouteGuards';
 
 
@@ -138,6 +139,16 @@ function App() {
                 <Route path="/setup/landlord" element={<LandlordSetupPage />} />
                 <Route path="/setup/business" element={<BusinessSetupPage />} />
                 <Route path="/setup/rider" element={<RiderSetupPage />} />
+
+                {/* Partner Application Status — protected, available to all authenticated users */}
+                <Route
+                  path="/application-status"
+                  element={
+                    <ProtectedRoute>
+                      <ApplicationStatusPage />
+                    </ProtectedRoute>
+                  }
+                />
 
                 {/* Cart & Checkout */}
                 <Route path="/cart" element={<CartPage />} />

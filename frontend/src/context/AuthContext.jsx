@@ -161,7 +161,14 @@ export const AuthProvider = ({ children }) => {
       if (activeToken) {
         const res = await fetchUserProfile(activeToken);
         const upgradedRole = detail.role || detail.requestedRole || res.user?.role;
-        const targetUrl = detail.dashboardUrl || (upgradedRole ? `/${upgradedRole}/dashboard` : '/');
+        const dashboardMap = {
+          rider: '/rider/dashboard',
+          business: '/business/dashboard',
+          landlord: '/landlord/dashboard',
+          assistant: '/assistant/dashboard',
+          caretaker: '/caretaker/dashboard',
+        };
+        const targetUrl = detail.dashboardUrl || dashboardMap[upgradedRole] || '/';
 
         // Trigger celebratory toast with one-click dashboard link
         window.dispatchEvent(
@@ -177,6 +184,13 @@ export const AuthProvider = ({ children }) => {
             },
           })
         );
+
+        // Auto-navigate to the new dashboard after a brief moment to show the toast
+        setTimeout(() => {
+          if (window.location.pathname !== targetUrl) {
+            window.location.href = targetUrl;
+          }
+        }, 1500);
       }
     };
 

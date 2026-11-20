@@ -34,11 +34,17 @@ const LoginPage = () => {
 
     let targetPath;
     if (user.role === 'customer') {
-      // Customers stay on the homepage; account accessible via Account icon in bottom nav
-      const allowedReturnPaths = ['/cart', '/checkout', '/account', '/profile'];
-      const isAllowedReturn = from && allowedReturnPaths.some((p) => from.startsWith(p));
-      targetPath = isAllowedReturn ? from : '/';
-    } else if (user.role !== 'assistant' && (!user.setupCompleted || !user.onboardingCompleted)) {
+      // Check if there is a pending/rejected role application → send to status page
+      const appStatus = user.roleApplication?.status;
+      if (appStatus === 'pending' || appStatus === 'rejected') {
+        targetPath = '/application-status';
+      } else {
+        // Customers stay on the homepage; account accessible via Account icon in bottom nav
+        const allowedReturnPaths = ['/cart', '/checkout', '/account', '/profile'];
+        const isAllowedReturn = from && allowedReturnPaths.some((p) => from.startsWith(p));
+        targetPath = isAllowedReturn ? from : '/';
+      }
+    } else if (user.role !== 'assistant' && user.role !== 'caretaker' && (!user.setupCompleted || !user.onboardingCompleted)) {
       targetPath = setupPages[user.role] || '/';
     } else {
       const dashboardMap = {
