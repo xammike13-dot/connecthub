@@ -856,7 +856,24 @@ export const getNearbyRiders = asyncHandler(async (req, res) => {
  * 5. Display "No Active Riders Right Now" only when database genuinely returns zero eligible riders.
  */
 export const getAvailableBodaRiders = asyncHandler(async (req, res) => {
-  const { pickup } = req.query;
+  const { pickup, latitude, longitude, lat, lng } = req.query;
+
+  const custLat = latitude !== undefined ? parseFloat(latitude) : (lat !== undefined ? parseFloat(lat) : null);
+  const custLng = longitude !== undefined ? parseFloat(longitude) : (lng !== undefined ? parseFloat(lng) : null);
+  const hasCustCoords = custLat !== null && custLng !== null && !isNaN(custLat) && !isNaN(custLng);
+
+  const haversineKm = (lat1, lon1, lat2, lon2) => {
+    const R = 6371;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  };
 
   // 1. Fetch active riders currently occupied on a ride
   const activeRideRiderIds = await RideRequest.distinct('rider', {
@@ -905,6 +922,29 @@ export const getAvailableBodaRiders = asyncHandler(async (req, res) => {
 
     const workingAreas = profile.workingArea?.selectedWorkingAreas || [];
 
+    // Extract rider coordinates from profile.currentLocation
+    const riderLoc = profile.currentLocation;
+    let rLat = null;
+    let rLng = null;
+    let distanceInKm = null;
+    let sortDistance = null;
+
+    if (riderLoc && Array.isArray(riderLoc.coordinates) && riderLoc.coordinates.length >= 2) {
+      rLng = riderLoc.coordinates[0];
+      rLat = riderLoc.coordinates[1];
+      if (rLng >= -10 && rLng <= 10 && rLat >= 30 && rLat <= 45) {
+        [rLng, rLat] = [rLat, rLng];
+      }
+
+      if (hasCustCoords && rLat !== null && rLng !== null && !isNaN(rLat) && !isNaN(rLng)) {
+        const calcDist = haversineKm(custLat, custLng, rLat, rLng);
+        if (!isNaN(calcDist)) {
+          sortDistance = calcDist;
+          distanceInKm = parseFloat(calcDist.toFixed(2));
+        }
+      }
+    }
+
     availableRiders.push({
       _id: rider._id,
       id: rider._id,
@@ -923,9 +963,14 @@ export const getAvailableBodaRiders = asyncHandler(async (req, res) => {
         plateNumber: profile.vehicleNumber || '',
       },
       registrationNumber: profile.motorcycle?.plateNumber || profile.vehicleNumber || '',
-      distance: null,
-      sortDistance: null,
-      estimatedArrival: null,
+      lat: rLat,
+      lng: rLng,
+      latitude: rLat,
+      longitude: rLng,
+      currentLocation: profile.currentLocation || null,
+      distance: distanceInKm,
+      sortDistance,
+      estimatedArrival: distanceInKm !== null ? Math.max(1, Math.round(distanceInKm * 3)) : null,
       availabilityStatus: 'available',
       isOnline: true,
       workingAreas,
@@ -933,8 +978,20 @@ export const getAvailableBodaRiders = asyncHandler(async (req, res) => {
     });
   }
 
-  // Sort by rating descending or total trips
-  availableRiders.sort((a, b) => b.rating - a.rating || b.totalTrips - a.totalTrips);
+  // Sort: If customer coordinates provided, sort closest riders first (and those without distance by rating)
+  if (hasCustCoords) {
+    availableRiders.sort((a, b) => {
+      if (a.sortDistance !== null && b.sortDistance !== null) {
+        return a.sortDistance - b.sortDistance || b.rating - a.rating;
+      }
+      if (a.sortDistance !== null) return -1;
+      if (b.sortDistance !== null) return 1;
+      return b.rating - a.rating || b.totalTrips - a.totalTrips;
+    });
+  } else {
+    // Sort by rating descending or total trips
+    availableRiders.sort((a, b) => b.rating - a.rating || b.totalTrips - a.totalTrips);
+  }
 
   res.status(200).json({
     success: true,

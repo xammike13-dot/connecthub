@@ -36,6 +36,56 @@ import {
   normalizeArea,
 } from '../utils/fixedFareCalculator';
 
+// Accurate geographical distance calculation using the Haversine formula (in km)
+const haversineKm = (lat1, lon1, lat2, lon2) => {
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return null;
+  const nLat1 = Number(lat1);
+  const nLon1 = Number(lon1);
+  const nLat2 = Number(lat2);
+  const nLon2 = Number(lon2);
+  if (isNaN(nLat1) || isNaN(nLon1) || isNaN(nLat2) || isNaN(nLon2)) return null;
+  const R = 6371; // Earth's radius in kilometers
+  const dLat = ((nLat2 - nLat1) * Math.PI) / 180;
+  const dLon = ((nLon2 - nLon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((nLat1 * Math.PI) / 180) *
+      Math.cos((nLat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+// Format distance string for the available riders list (e.g. "450 m away", "1.2 km away")
+const formatRiderDistanceAway = (distanceInKm) => {
+  if (distanceInKm === null || distanceInKm === undefined || isNaN(distanceInKm) || !isFinite(distanceInKm)) {
+    return 'Distance unavailable';
+  }
+  const meters = distanceInKm * 1000;
+  if (meters < 10) {
+    return '< 10 m away';
+  }
+  if (meters < 1000) {
+    return `${Math.round(meters)} m away`;
+  }
+  return `${distanceInKm.toFixed(1)} km away`;
+};
+
+// Format distance string for the assigned rider section (e.g. "450 m", "1.2 km")
+const formatRiderDistanceText = (distanceInKm) => {
+  if (distanceInKm === null || distanceInKm === undefined || isNaN(distanceInKm) || !isFinite(distanceInKm)) {
+    return 'Distance unavailable';
+  }
+  const meters = distanceInKm * 1000;
+  if (meters < 10) {
+    return '< 10 m';
+  }
+  if (meters < 1000) {
+    return `${Math.round(meters)} m`;
+  }
+  return `${distanceInKm.toFixed(1)} km`;
+};
+
 // Payment status constants
 const PAYMENT_STATUS = {
   IDLE: 'idle',
@@ -71,6 +121,8 @@ const BodabodaPage = () => {
   const [bookingStep, setBookingStep] = useState(BOOKING_STEP.LOCATION);
   const [nearbyRiders, setNearbyRiders] = useState([]);
   const [pickupCoordinates, setPickupCoordinates] = useState(null);
+  const [customerLocation, setCustomerLocation] = useState(null);
+  const [locationPermissionStatus, setLocationPermissionStatus] = useState('prompt'); // 'prompt' | 'granted' | 'denied' | 'unavailable'
   const [loadingRiders, setLoadingRiders] = useState(false);
   const [ridersLoaded, setRidersLoaded] = useState(false);
   const [selectedRider, setSelectedRider] = useState(null);
@@ -90,6 +142,169 @@ const BodabodaPage = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const riderFetchSequence = useRef(0);
   const pickupCoordinatesRef = useRef(null);
+  const customerLocationRef = useRef(null);
+
+  // Request customer device GPS coordinates and manage permissions
+  const requestCustomerLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      setLocationPermissionStatus('unavailable');
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const coords = {
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+        };
+        setCustomerLocation(coords);
+        customerLocationRef.current = coords;
+        setPickupCoordinates(coords);
+        pickupCoordinatesRef.current = coords;
+        setLocationPermissionStatus('granted');
+      },
+      (err) => {
+        console.warn('[BodabodaPage] Geolocation error:', err);
+        if (err.code === err.PERMISSION_DENIED) {
+          setLocationPermissionStatus('denied');
+        } else if (err.code === err.POSITION_UNAVAILABLE) {
+          setLocationPermissionStatus('unavailable');
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+    );
+  }, []);
+
+  // Initialize GPS tracking & listen for permission changes
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setLocationPermissionStatus('unavailable');
+      return;
+    }
+
+    if (navigator.permissions?.query) {
+      navigator.permissions.query({ name: 'geolocation' }).then((status) => {
+        if (status.state === 'denied') {
+          setLocationPermissionStatus('denied');
+        } else if (status.state === 'granted') {
+          setLocationPermissionStatus('granted');
+        }
+        status.onchange = () => {
+          if (status.state === 'denied') {
+            setLocationPermissionStatus('denied');
+          } else if (status.state === 'granted') {
+            setLocationPermissionStatus('granted');
+            requestCustomerLocation();
+          }
+        };
+      }).catch(() => {});
+    }
+
+    requestCustomerLocation();
+
+    // Continuous location tracking to keep distances accurate as customer or rider moves
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const coords = {
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+        };
+        setCustomerLocation(coords);
+        customerLocationRef.current = coords;
+        setPickupCoordinates(coords);
+        pickupCoordinatesRef.current = coords;
+        setLocationPermissionStatus('granted');
+      },
+      (err) => {
+        if (err.code === err.PERMISSION_DENIED) {
+          setLocationPermissionStatus('denied');
+        }
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, [requestCustomerLocation]);
+
+  // Compute live distance between customer and a specific rider
+  const getRiderDistanceKm = useCallback((rider) => {
+    if (!rider) return null;
+    const rLat = rider.latitude ?? rider.lat ?? rider.currentLocation?.coordinates?.[1];
+    const rLng = rider.longitude ?? rider.lng ?? rider.currentLocation?.coordinates?.[0];
+
+    const cLat = customerLocation?.latitude ?? pickupCoordinates?.latitude;
+    const cLng = customerLocation?.longitude ?? pickupCoordinates?.longitude;
+
+    if (cLat != null && cLng != null && rLat != null && rLng != null) {
+      const dist = haversineKm(cLat, cLng, rLat, rLng);
+      if (dist !== null && !isNaN(dist) && isFinite(dist)) {
+        return dist;
+      }
+    }
+
+    // Fall back to pre-calculated backend distance if available
+    if (rider.distance !== null && rider.distance !== undefined && Number.isFinite(Number(rider.distance))) {
+      return Number(rider.distance);
+    }
+
+    return null;
+  }, [customerLocation, pickupCoordinates]);
+
+  // Real-time socket listener for rider location updates
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleRiderLocationUpdate = (data) => {
+      if (!data?.riderId || !data?.location) return;
+      const { riderId, location } = data;
+      const newLat = location.latitude ?? location.lat;
+      const newLng = location.longitude ?? location.lng;
+      if (newLat == null || newLng == null) return;
+
+      setNearbyRiders((prevRiders) =>
+        prevRiders.map((r) => {
+          const id = r._id || r.id;
+          if (id === riderId || id?.toString() === riderId?.toString()) {
+            return {
+              ...r,
+              latitude: newLat,
+              longitude: newLng,
+              lat: newLat,
+              lng: newLng,
+            };
+          }
+          return r;
+        })
+      );
+
+      setSelectedRider((prev) => {
+        if (!prev) return prev;
+        const id = prev._id || prev.id;
+        if (id === riderId || id?.toString() === riderId?.toString()) {
+          return {
+            ...prev,
+            latitude: newLat,
+            longitude: newLng,
+            lat: newLat,
+            lng: newLng,
+          };
+        }
+        return prev;
+      });
+    };
+
+    socket.on('rider_location_update', handleRiderLocationUpdate);
+    socket.on('ride:location_update', handleRiderLocationUpdate);
+
+    return () => {
+      socket.off('rider_location_update', handleRiderLocationUpdate);
+      socket.off('ride:location_update', handleRiderLocationUpdate);
+    };
+  }, [socket]);
 
   // Pre-fill phone number when user profile loads
   useEffect(() => {
@@ -139,7 +354,14 @@ const BodabodaPage = () => {
       setLoadingRiders(true);
       setRidersLoaded(false);
 
-      const response = await riderAPI.getAvailableBodaRiders({ pickup });
+      const params = { pickup };
+      const coords = customerLocationRef.current || pickupCoordinatesRef.current;
+      if (coords?.latitude != null && coords?.longitude != null) {
+        params.latitude = coords.latitude;
+        params.longitude = coords.longitude;
+      }
+
+      const response = await riderAPI.getAvailableBodaRiders(params);
 
       if (requestId !== riderFetchSequence.current) return;
 
@@ -180,8 +402,6 @@ const BodabodaPage = () => {
     riderFetchSequence.current += 1;
     setLoadingRiders(false);
     setSelectedPickup(pickupId);
-    pickupCoordinatesRef.current = null;
-    setPickupCoordinates(null);
     setSelectedRider(null);
     setNearbyRiders([]);
     setRidersLoaded(false);
@@ -832,8 +1052,8 @@ const BodabodaPage = () => {
                       Available Boda Riders
                     </h2>
                     <p className="text-xs text-slate-400 mt-0.5">
-                      {pickupCoordinates
-                        ? 'Sorted by live distance from your GPS pickup'
+                      {customerLocation || pickupCoordinates
+                        ? 'Sorted by live distance from your GPS location'
                         : 'Select a verified rider in your pickup area; GPS distance is unavailable'}
                     </p>
                   </div>
@@ -848,6 +1068,28 @@ const BodabodaPage = () => {
                     Refresh
                   </Button>
                 </div>
+
+                {locationPermissionStatus === 'denied' && (
+                  <div className="mb-5 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
+                    <div className="flex items-start sm:items-center gap-2.5">
+                      <AlertCircle size={18} className="text-amber-400 flex-shrink-0 mt-0.5 sm:mt-0" />
+                      <div>
+                        <p className="font-bold text-amber-200">Location permission is disabled</p>
+                        <p className="text-slate-300 mt-0.5">
+                          Please enable location access in your browser to see how far available riders are from you.
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={requestCustomerLocation}
+                      className="text-amber-300 border-amber-500/40 hover:bg-amber-500/20 text-xs self-start sm:self-auto flex-shrink-0"
+                    >
+                      Enable Location
+                    </Button>
+                  </div>
+                )}
 
                 {loadingRiders ? (
                   <div className="py-16 text-center">
@@ -928,16 +1170,15 @@ const BodabodaPage = () => {
                             className="w-full h-24 object-cover rounded-xl mb-3"
                           />
                         )}
-                        <div className="flex items-center justify-between text-[11px] text-slate-400 mb-3">
-                          <span>
-                            {rider.distance !== null && rider.distance !== undefined && Number.isFinite(Number(rider.distance))
-                              ? `${rider.distance} km away`
-                              : 'Distance unavailable'}
+                        <div className="flex items-center justify-between text-xs mb-3 py-1.5 px-3 rounded-xl bg-slate-800/80 border border-slate-700/80">
+                          <span className="flex items-center gap-1.5 font-bold text-amber-400">
+                            <Navigation size={13} className="text-[#FF5E00] flex-shrink-0" />
+                            <span>{formatRiderDistanceAway(getRiderDistanceKm(rider))}</span>
                           </span>
-                          <span>
+                          <span className="text-slate-400 text-[11px]">
                             {rider.estimatedArrival !== null && rider.estimatedArrival !== undefined
                               ? `~${rider.estimatedArrival} min away`
-                              : 'ETA unavailable'}
+                              : 'ETA on request'}
                           </span>
                         </div>
 
@@ -990,8 +1231,8 @@ const BodabodaPage = () => {
                 </div>
 
                 {/* Selected Rider Details */}
-                <div className="py-4 border-b border-slate-700 flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full overflow-hidden bg-slate-700 border border-slate-600 flex items-center justify-center text-white font-bold">
+                <div className="py-4 border-b border-slate-700 flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-full overflow-hidden bg-slate-700 border border-slate-600 flex items-center justify-center text-white font-bold flex-shrink-0">
                     {selectedRider?.avatar || selectedRider?.profilePhoto ? (
                       <img
                         src={selectedRider.avatar || selectedRider.profilePhoto}
@@ -1002,12 +1243,18 @@ const BodabodaPage = () => {
                       selectedRider?.name?.charAt(0) || 'R'
                     )}
                   </div>
-                  <div>
+                  <div className="flex-1 min-w-0">
                     <p className="text-xs text-slate-400">Assigned Rider</p>
-                    <p className="font-bold text-white text-base">{selectedRider?.name}</p>
-                    <p className="text-xs text-slate-400">
-                      {selectedRider?.motorcycle?.brand || selectedRider?.vehicleType || 'Boda Boda'}
+                    <p className="font-bold text-white text-base truncate">{selectedRider?.name}</p>
+                    <p className="text-xs text-slate-400 truncate">
+                      {selectedRider?.motorcycle?.brand || selectedRider?.vehicleType || 'Motorcycle'}
                       {selectedRider?.motorcycle?.plateNumber ? ` • ${selectedRider.motorcycle.plateNumber}` : ''}
+                    </p>
+                    <p className="text-xs text-amber-400 font-semibold mt-1 flex items-center gap-1.5">
+                      <Navigation size={13} className="text-[#FF5E00] flex-shrink-0" />
+                      <span>
+                        Distance from you: {formatRiderDistanceText(getRiderDistanceKm(selectedRider))}
+                      </span>
                     </p>
                   </div>
                 </div>
@@ -1062,21 +1309,36 @@ const BodabodaPage = () => {
                 </div>
 
                 {/* M-Pesa Phone Input */}
-                <div className="pt-4 space-y-3">
+                <div className="pt-4 space-y-2">
                   {!rideAlreadyPaid && (
                     <>
-                      <label className="block text-xs font-bold uppercase text-slate-300 tracking-wider">
+                      <label 
+                        htmlFor="mpesa-phone-input"
+                        className="block text-xs font-bold uppercase text-slate-300 tracking-wider"
+                      >
                         M-Pesa Phone Number
                       </label>
-                      <Input
-                        type="tel"
-                        placeholder="0712345678"
-                        value={mpesaPhone}
-                        onChange={(e) => setMpesaPhone(e.target.value)}
-                        className="w-full bg-slate-900 border-slate-700 text-white placeholder-slate-500 font-mono text-base"
-                      />
+                      <div className="relative">
+                        <input
+                          id="mpesa-phone-input"
+                          type="tel"
+                          inputMode="numeric"
+                          placeholder="e.g. 0712345678 or 0112345678"
+                          value={mpesaPhone}
+                          onChange={(e) => {
+                            setMpesaPhone(e.target.value);
+                            if (paymentError) setPaymentError(null);
+                          }}
+                          style={{
+                            color: '#000000',
+                            backgroundColor: '#FFFFFF',
+                          }}
+                          className="w-full bg-white text-black placeholder:text-gray-500 border-2 border-slate-300 focus:border-[#FF5E00] focus:ring-2 focus:ring-[#FF5E00]/30 rounded-xl px-4 py-3 sm:py-3.5 text-base sm:text-lg font-mono font-bold tracking-wide focus:outline-none transition-all shadow-sm"
+                          autoComplete="tel"
+                        />
+                      </div>
                       <p className="text-[11px] text-slate-400">
-                        Enter the Safaricom number where you will enter your M-Pesa PIN.
+                        Enter the Safaricom number (e.g. 07XXXXXXXX or 01XXXXXXXX) where you will enter your M-Pesa PIN.
                       </p>
                     </>
                   )}
