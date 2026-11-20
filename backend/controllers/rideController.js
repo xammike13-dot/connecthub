@@ -756,7 +756,7 @@ export const confirmRideCompletion = asyncHandler(async (req, res) => {
   }
 
   // Notify rider about ride completion confirmation and payment release
-  const io = req.app.get('io');
+  const io = req.app?.get('io') || global.io;
   if (io && ride.rider) {
     const riderId = ride.rider._id || ride.rider;
     io.to(`rider_${riderId}`).emit('ride_completed_confirmed', {
@@ -804,7 +804,6 @@ export const confirmRideCompletion = asyncHandler(async (req, res) => {
     console.error('[Customer completion notification failed]', err);
   }
 
-  const io = req.app?.get('io') || global.io;
   if (io && ride.rider) {
     io.emit('rider_availability_changed', {
       riderId: ride.rider.toString(),
