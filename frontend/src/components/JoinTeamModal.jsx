@@ -1,8 +1,8 @@
 // frontend/src/components/JoinTeamModal.jsx
-// Partner & Team Onboarding Application Modal for Comrades
+// Partner & Team Onboarding Registration Modal for Comrades
 // - Fully responsive (mobile / tablet / desktop)
-// - Shows existing pending/approved/rejected application state
-// - After successful submission redirects to ApplicationStatusPage
+// - Shows existing active/approved role state
+// - After successful submission redirects directly to their respective dashboard
 
 import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -17,9 +17,7 @@ import {
   AlertCircle,
   Sparkles,
   Briefcase,
-  Clock,
   ArrowRight,
-  RefreshCw,
 } from 'lucide-react';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
@@ -147,15 +145,7 @@ export default function JoinTeamModal({ isOpen, onClose, initialRole = 'rider' }
   const [campusArea, setCampusArea] = useState('');
   const [pitch, setPitch] = useState('');
 
-  // Existing application state
-  const existingApp = user?.roleApplication;
-  const hasActiveApplication =
-    existingApp && existingApp.status && existingApp.status !== 'none';
-  const isPendingApp = existingApp?.status === 'pending';
-  const isApproved = existingApp?.status === 'approved';
-  const isRejected = existingApp?.status === 'rejected';
-
-  // If the user's role itself is already a non-customer role (approved), close and redirect
+  // If the user's role itself is already a non-customer role (active partner), close and redirect
   const isAlreadyPartner = user?.role && user.role !== 'customer';
 
   // Synchronize initial role
@@ -209,20 +199,24 @@ export default function JoinTeamModal({ isOpen, onClose, initialRole = 'rider' }
       return res.data;
     },
     onSuccess: async (data) => {
+      const targetRole = selectedRole;
+      const targetDashboard = DASHBOARD_MAP[targetRole] || data.dashboardUrl || '/';
+      const roleName = ROLES.find((r) => r.id === targetRole)?.name || targetRole;
       toastSuccess?.(
-        data.message ||
-          'Application submitted! Our campus admin team will review it within 24 hours.'
+        data.message || `Welcome! Your ${roleName} dashboard is ready.`
       );
       queryClient.invalidateQueries({ queryKey: ['user-profile'] });
-      if (refreshProfile) await refreshProfile();
+      if (refreshProfile) {
+        await refreshProfile();
+      }
       handleClose();
-      // Redirect to application status page
-      navigate('/application-status');
+      // Redirect directly to their respective dashboard
+      navigate(targetDashboard, { replace: true });
     },
     onError: (err) => {
       const msg =
         err.response?.data?.message ||
-        'Failed to submit application. Please check your details and try again.';
+        'Failed to complete registration. Please check your details and try again.';
       setErrorMsg(msg);
       toastError?.(msg);
     },
@@ -321,95 +315,6 @@ export default function JoinTeamModal({ isOpen, onClose, initialRole = 'rider' }
     );
   }
 
-  // ── If there's an existing application, show its status ───────────────────
-  if (hasActiveApplication) {
-    const AppRoleConfig = ROLES.find(r => r.id === existingApp.requestedRole) || ROLES[0];
-    const AppRoleIcon = AppRoleConfig.icon;
-    return (
-      <div
-        className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm"
-        onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
-      >
-        <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl border border-gray-100 overflow-hidden">
-          {/* Header */}
-          <div className="flex items-center justify-between p-5 border-b border-gray-100">
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-xl ${AppRoleConfig.bgColor} ${AppRoleConfig.color} flex items-center justify-center`}>
-                <AppRoleIcon size={20} />
-              </div>
-              <div>
-                <p className="font-black text-gray-900 text-sm">Your Application</p>
-                <p className="text-xs text-gray-400">{AppRoleConfig.label}</p>
-              </div>
-            </div>
-            <button onClick={handleClose} className="w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
-              <X size={18} className="text-gray-500" />
-            </button>
-          </div>
-
-          <div className="p-5 sm:p-6 space-y-4">
-            {isPendingApp && (
-              <>
-                <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
-                  <Clock size={20} className="text-amber-600 animate-pulse flex-shrink-0" />
-                  <div>
-                    <p className="font-bold text-sm text-amber-800">Under Review</p>
-                    <p className="text-xs text-amber-600">Olafasta admin will review your application within 24 hours</p>
-                  </div>
-                </div>
-                <p className="text-xs text-gray-500 font-medium text-center">
-                  You'll receive an in-app notification when your application is approved.
-                </p>
-                <button
-                  onClick={() => { handleClose(); navigate('/application-status'); }}
-                  className="w-full py-3 px-6 rounded-2xl border-2 border-orange-200 bg-orange-50 text-orange-700 font-bold text-sm transition-all flex items-center justify-center gap-2 hover:border-orange-400"
-                >
-                  <RefreshCw size={15} />
-                  View Application Status
-                </button>
-              </>
-            )}
-
-            {isApproved && (
-              <>
-                <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-2xl">
-                  <CheckCircle2 size={20} className="text-green-600 flex-shrink-0" />
-                  <div>
-                    <p className="font-bold text-sm text-green-800">Approved! 🎉</p>
-                    <p className="text-xs text-green-600">Your partner account is now active</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => { handleClose(); navigate(DASHBOARD_MAP[existingApp.requestedRole] || '/'); }}
-                  className="w-full py-3 px-6 rounded-2xl bg-[#FF5E00] hover:bg-orange-600 text-white font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2"
-                >
-                  <Sparkles size={15} />
-                  Go to My Dashboard
-                  <ArrowRight size={15} />
-                </button>
-              </>
-            )}
-
-            {isRejected && (
-              <>
-                <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-2xl">
-                  <AlertCircle size={20} className="text-red-600 flex-shrink-0" />
-                  <div>
-                    <p className="font-bold text-sm text-red-800">Not Approved</p>
-                    <p className="text-xs text-red-600">{existingApp?.notes || 'Please contact support for details'}</p>
-                  </div>
-                </div>
-                <p className="text-xs text-gray-500 text-center font-medium">
-                  You can submit a new application for the same or a different role.
-                </p>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // ── Main Registration Form ────────────────────────────────────────────────
   return (
     <div
@@ -432,20 +337,20 @@ export default function JoinTeamModal({ isOpen, onClose, initialRole = 'rider' }
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-base sm:text-lg font-black text-gray-900 tracking-tight leading-tight">
-                  Join Olafasta Team
+                  Join Olafasta &amp; Earn
                 </h2>
                 <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-orange-100 text-[#FF5E00] border border-orange-200/60 whitespace-nowrap">
-                  Earn Daily
+                  Direct Access
                 </span>
               </div>
               <p className="text-xs text-gray-400 font-medium mt-0.5">
-                Apply to become an approved partner on campus
+                Complete your details and get immediate dashboard access
               </p>
             </div>
           </div>
           <button
             onClick={handleClose}
-            className="w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 active:scale-95 transition-all flex-shrink-0 ml-2"
+            className="w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 active:scale-95 transition-all flex-shrink-0 ml-2 cursor-pointer"
             aria-label="Close"
           >
             <X size={18} />
@@ -757,22 +662,23 @@ export default function JoinTeamModal({ isOpen, onClose, initialRole = 'rider' }
             <button
               type="submit"
               disabled={applyMutation.isPending}
-              className="w-full py-4 px-6 rounded-2xl bg-[#FF5E00] hover:bg-orange-600 active:bg-orange-700 text-white font-bold text-sm shadow-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full py-4 px-6 rounded-2xl bg-[#FF5E00] hover:bg-orange-600 active:bg-orange-700 text-white font-bold text-sm shadow-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
             >
               {applyMutation.isPending ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Submitting Application...</span>
+                  <span>Activating Account...</span>
                 </>
               ) : (
                 <>
                   <Sparkles size={16} />
-                  <span>Submit Partner Application</span>
+                  <span>Register as {activeRoleConfig.name} &amp; Open Dashboard</span>
+                  <ArrowRight size={16} />
                 </>
               )}
             </button>
             <p className="text-[11px] text-center text-gray-400 mt-2 font-medium">
-              Reviewed by Olafasta founding admins within 24 hours.
+              Instant activation · Direct access to your {activeRoleConfig.name} dashboard.
             </p>
           </div>
         </form>

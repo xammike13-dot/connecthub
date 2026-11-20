@@ -24,37 +24,23 @@ const LoginPage = () => {
     ? fromLocation?.state
     : undefined;
 
-  // If already authenticated, redirect to appropriate page or setup page
+  // If already authenticated, redirect to appropriate role-based dashboard
   if (isAuthenticated && user) {
-    const setupPages = {
-      landlord: '/setup/landlord',
-      business: '/setup/business',
-      rider: '/setup/rider',
+    const dashboardMap = {
+      landlord: '/landlord/dashboard',
+      business: '/business/dashboard',
+      rider: '/rider/dashboard',
+      admin: '/',
+      assistant: '/assistant/dashboard',
+      caretaker: '/caretaker/dashboard',
     };
 
     let targetPath;
     if (user.role === 'customer') {
-      // Check if there is a pending/rejected role application → send to status page
-      const appStatus = user.roleApplication?.status;
-      if (appStatus === 'pending' || appStatus === 'rejected') {
-        targetPath = '/application-status';
-      } else {
-        // Customers stay on the homepage; account accessible via Account icon in bottom nav
-        const allowedReturnPaths = ['/cart', '/checkout', '/account', '/profile'];
-        const isAllowedReturn = from && allowedReturnPaths.some((p) => from.startsWith(p));
-        targetPath = isAllowedReturn ? from : '/';
-      }
-    } else if (user.role !== 'assistant' && user.role !== 'caretaker' && (!user.setupCompleted || !user.onboardingCompleted)) {
-      targetPath = setupPages[user.role] || '/';
+      const allowedReturnPaths = ['/cart', '/checkout', '/account', '/profile'];
+      const isAllowedReturn = from && allowedReturnPaths.some((p) => from.startsWith(p));
+      targetPath = isAllowedReturn ? from : '/';
     } else {
-      const dashboardMap = {
-        landlord: '/landlord/dashboard',
-        business: '/business/dashboard',
-        rider: '/rider/dashboard',
-        admin: '/',
-        assistant: '/assistant/dashboard',
-        caretaker: '/caretaker/dashboard',
-      };
       targetPath = from || dashboardMap[user.role] || '/';
     }
 
@@ -133,20 +119,8 @@ const LoginPage = () => {
     }
 
     if (result.success) {
-      // Check if user needs setup / onboarding
-      if (result.user.role !== 'customer' && result.user.role !== 'assistant' && (!result.user.setupCompleted || !result.user.onboardingCompleted)) {
-        const setupPages = {
-          landlord: '/setup/landlord',
-          business: '/setup/business',
-          rider: '/setup/rider',
-        };
-        navigate(setupPages[result.user.role] || '/', { replace: true });
-        setLoading(false);
-        return;
-      }
-
       // Determine redirect destination:
-      // Customers always land on the homepage (connecthub.website); they access their account via the Account icon.
+      // Customers land on the homepage; partner roles go directly to their respective dashboards.
       let targetPath;
       if (result.user?.role === 'customer') {
         const allowedReturnPaths = ['/cart', '/checkout', '/account', '/profile'];
@@ -164,7 +138,7 @@ const LoginPage = () => {
         targetPath = from || dashboardMap[result.user?.role] || '/';
       }
       
-      // Navigate to the target path
+      // Navigate directly to the dashboard
       navigate(targetPath, { replace: true, state: returnState });
     } else {
       setError(result.message);

@@ -209,7 +209,11 @@ export const register = async (req, res, next) => {
       });
     }
 
-    // 4. Handle optional partner track application during onboarding
+    // 4. Handle direct role assignment during registration (no pending approval required)
+    const validRoles = ['rider', 'business', 'landlord', 'assistant'];
+    const requestedRole = req.body.requestedRole;
+    const assignedRole = (requestedRole && validRoles.includes(requestedRole)) ? requestedRole : 'customer';
+
     let initialRoleApplication = {
       requestedRole: null,
       status: 'none',
@@ -218,25 +222,24 @@ export const register = async (req, res, next) => {
       reviewedAt: null,
     };
 
-    const validRoles = ['rider', 'business', 'landlord', 'assistant'];
-    const requestedRole = req.body.requestedRole;
-    if (requestedRole && validRoles.includes(requestedRole)) {
+    if (assignedRole !== 'customer') {
+      const details = req.body.roleDetails && typeof req.body.roleDetails === 'object' ? req.body.roleDetails : {};
       initialRoleApplication = {
-        requestedRole,
-        status: 'pending',
-        details: req.body.roleDetails && typeof req.body.roleDetails === 'object' ? req.body.roleDetails : {},
+        requestedRole: assignedRole,
+        status: 'approved',
+        details,
         appliedAt: new Date(),
-        reviewedAt: null,
+        reviewedAt: new Date(),
       };
     }
 
-    // 5. Create user - strictly hardcoding role: 'customer' (ignores any requested role to prevent privilege-escalation)
+    // 5. Create user with assigned role and initialized profile metadata
     const user = await User.create({
       name: name.trim(),
       email,
       phone: phone.trim(),
       password,
-      role: 'customer',
+      role: assignedRole,
       emailVerified: true,
       isActive: true,
       accountActive: true,
@@ -244,14 +247,46 @@ export const register = async (req, res, next) => {
       setupCompleted: true,
       onboardingCompleted: true,
       roleApplication: initialRoleApplication,
+      ...(assignedRole === 'business' ? {
+        businessProfile: {
+          isApproved: true,
+          businessName: req.body.roleDetails?.businessName || name.trim(),
+          campusLocation: req.body.roleDetails?.campusLocation || 'Stage',
+          mpesaB2CPhone: req.body.roleDetails?.mpesaNumber || phone.trim(),
+          businessCategory: req.body.roleDetails?.category || 'Daily Shops & Groceries',
+        }
+      } : {}),
+      ...(assignedRole === 'rider' ? {
+        riderProfile: {
+          isOnline: false,
+          status: 'offline',
+          vehicleType: req.body.roleDetails?.isFootRunner ? 'Foot Runner' : 'Motorcycle',
+          vehicleNumber: req.body.roleDetails?.bikePlate || '',
+          workingArea: {
+            town: req.body.roleDetails?.primaryStage || 'Stage',
+            selectedWorkingAreas: [req.body.roleDetails?.primaryStage || 'Stage'],
+          },
+        }
+      } : {}),
+      ...(assignedRole === 'landlord' ? {
+        landlordProfile: {
+          propertyName: req.body.roleDetails?.propertyName || '',
+          propertyLocation: req.body.roleDetails?.location || '',
+        }
+      } : {}),
+      ...(assignedRole === 'assistant' ? {
+        assistantProfile: {
+          status: 'active',
+        }
+      } : {}),
     });
 
-    // Notify admin channel if partner track application was submitted
-    if (initialRoleApplication.status === 'pending') {
+    // Notify admin channel of new partner registration
+    if (assignedRole !== 'customer') {
       try {
         const io = getIO();
         if (io) {
-          io.to('admin_channel').emit('admin:new_application', {
+          io.to('admin_channel').emit('admin:new_partner', {
             userId: user._id,
             name: user.name,
             email: user.email,

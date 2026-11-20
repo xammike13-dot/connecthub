@@ -1,4 +1,5 @@
 import User from '../models/User.js';
+import Wallet from '../models/Wallet.js';
 import { asyncHandler, ResponseError } from '../middleware/error.js';
 import { getIO } from '../utils/socket.js';
 
@@ -275,7 +276,7 @@ export const approveVendor = asyncHandler(async (req, res) => {
 
 
 /**
- * Customer Endpoint: Apply for a partner role
+ * Customer Endpoint: Register/Activate partner role immediately
  * POST /api/users/apply-role
  */
 export const applyRole = asyncHandler(async (req, res) => {
@@ -294,75 +295,139 @@ export const applyRole = asyncHandler(async (req, res) => {
     throw new ResponseError('User not found', 404);
   }
 
-  // Prevent duplicate submissions if already pending
-  if (user.roleApplication && user.roleApplication.status === 'pending') {
-    throw new ResponseError(
-      `You already have an active pending application for ${user.roleApplication.requestedRole}. Please wait for admin review.`,
-      400
-    );
-  }
-
   const trimmedDetails = details && typeof details === 'object' ? { ...details } : {};
 
   // Validate role-specific details
   if (requestedRole === 'rider') {
     if (!trimmedDetails.primaryStage) {
-      throw new ResponseError('Primary stage is required for rider applications (e.g., Kesses, Stage, Mabs)', 400);
+      throw new ResponseError('Primary stage is required for rider registration (e.g., Kesses, Stage, Mabs)', 400);
     }
     if (!trimmedDetails.isFootRunner && !trimmedDetails.bikePlate) {
       throw new ResponseError('Bike plate registration number or foot runner option is required', 400);
     }
   } else if (requestedRole === 'business') {
     if (!trimmedDetails.businessName) {
-      throw new ResponseError('Business or shop name is required for vendor applications', 400);
+      throw new ResponseError('Business or shop name is required for vendor registration', 400);
     }
     if (!trimmedDetails.campusLocation) {
       throw new ResponseError('Campus location is required (e.g., Stage, Kesses, Chebarus)', 400);
     }
   } else if (requestedRole === 'landlord') {
     if (!trimmedDetails.propertyName) {
-      throw new ResponseError('Property or hostel name is required for landlord applications', 400);
+      throw new ResponseError('Property or hostel name is required for landlord registration', 400);
     }
     if (!trimmedDetails.location) {
       throw new ResponseError('Property location is required', 400);
     }
   } else if (requestedRole === 'assistant') {
-    if (!trimmedDetails.yearOfStudy && !trimmedDetails.campusArea) {
-      throw new ResponseError('Year of study or campus area is required for campus assistants', 400);
+    if (!trimmedDetails.yearOfStudy && !trimmedDetails.campusArea && !trimmedDetails.pitch) {
+      throw new ResponseError('Details required for campus assistant registration', 400);
     }
   }
 
-  // Save the application
+  // 1. Assign selected role immediately
+  user.role = requestedRole;
+
+  // 2. Populate role-specific profile metadata
+  if (requestedRole === 'business') {
+    if (!user.businessProfile) user.businessProfile = {};
+    user.businessProfile.isApproved = true;
+    if (trimmedDetails.businessName) user.businessProfile.businessName = trimmedDetails.businessName;
+    if (trimmedDetails.campusLocation) user.businessProfile.campusLocation = trimmedDetails.campusLocation;
+    if (trimmedDetails.mpesaNumber) user.businessProfile.mpesaB2CPhone = trimmedDetails.mpesaNumber;
+    if (trimmedDetails.category) user.businessProfile.businessCategory = trimmedDetails.category;
+  } else if (requestedRole === 'rider') {
+    if (!user.riderProfile) user.riderProfile = {};
+    user.riderProfile.vehicleType = trimmedDetails.isFootRunner ? 'Foot Runner' : 'Motorcycle';
+    if (trimmedDetails.bikePlate) user.riderProfile.vehicleNumber = trimmedDetails.bikePlate;
+    if (trimmedDetails.primaryStage) {
+      user.riderProfile.workingArea = {
+        ...user.riderProfile.workingArea,
+        town: trimmedDetails.primaryStage,
+        selectedWorkingAreas: [trimmedDetails.primaryStage],
+      };
+    }
+    if (user.riderProfile.isOnline === undefined) user.riderProfile.isOnline = false;
+    if (!user.riderProfile.status) user.riderProfile.status = 'offline';
+  } else if (requestedRole === 'landlord') {
+    if (!user.landlordProfile) user.landlordProfile = {};
+    if (trimmedDetails.propertyName) user.landlordProfile.propertyName = trimmedDetails.propertyName;
+    if (trimmedDetails.location) user.landlordProfile.propertyLocation = trimmedDetails.location;
+    if (trimmedDetails.units) user.landlordProfile.totalProperties = parseInt(trimmedDetails.units, 10) || 1;
+  } else if (requestedRole === 'assistant') {
+    if (!user.assistantProfile) user.assistantProfile = {};
+    user.assistantProfile.status = 'active';
+  }
+
+  // 3. Complete onboarding & activate account
+  user.onboardingCompleted = true;
+  user.setupCompleted = true;
+  user.isVerified = true;
+  user.accountActive = true;
+  user.isActive = true;
+
+  // 4. Save roleApplication record marked approved
   user.roleApplication = {
     requestedRole,
-    status: 'pending',
+    status: 'approved',
     details: trimmedDetails,
-    appliedAt: new Date(),
-    reviewedAt: null,
+    appliedAt: user.roleApplication?.appliedAt || new Date(),
+    reviewedAt: new Date(),
   };
+
+  // 5. Ensure user wallet exists
+  try {
+    let wallet = await Wallet.findOne({ user: user._id });
+    if (!wallet) {
+      await Wallet.create({ user: user._id });
+    }
+  } catch (wErr) {
+    console.warn('[applyRole] Wallet initialization warning:', wErr.message);
+  }
 
   await user.save();
 
-  // Real-time socket alert to admin_channel
+  const dashboardMap = {
+    rider: '/rider/dashboard',
+    business: '/business/dashboard',
+    landlord: '/landlord/dashboard',
+    assistant: '/assistant/dashboard',
+  };
+  const dashboardUrl = dashboardMap[requestedRole] || '/';
+
+  // Real-time socket alerts
   const io = getIO();
   if (io) {
-    io.to('admin_channel').emit('admin:new_application', {
+    io.to(`user_${user._id}`).emit('role:approved', {
+      role: user.role,
+      requestedRole,
+      name: user.name,
+      dashboardUrl,
+      message: `Congratulations! Your Olafasta ${requestedRole} account is now active.`,
+    });
+    io.to(`user_${user._id}`).emit('role:updated', {
+      role: user.role,
+      dashboardUrl,
+    });
+    io.to('admin_channel').emit('admin:new_partner', {
       userId: user._id,
       name: user.name,
       email: user.email,
       phone: user.phone,
-      requestedRole,
+      role: user.role,
       details: trimmedDetails,
-      appliedAt: user.roleApplication.appliedAt,
+      registeredAt: new Date(),
     });
   }
 
   res.status(200).json({
     success: true,
-    message: `Your application to join Olafasta as a ${requestedRole} has been submitted successfully!`,
+    message: `Your ${requestedRole} registration is complete! Accessing your dashboard now...`,
+    dashboardUrl,
     data: {
-      roleApplication: user.roleApplication,
       role: user.role,
+      roleApplication: user.roleApplication,
+      user,
     },
   });
 });

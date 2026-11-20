@@ -564,32 +564,7 @@ const CustomerDashboard = () => {
       {activeTab === 'overview' && (
         <div className="space-y-6">
 
-          {/* PENDING APPLICATION BANNER (Minimal & Non-intrusive) */}
-          {user?.roleApplication?.status === 'pending' && (
-            <div className="p-3.5 rounded-2xl bg-amber-50/90 border border-amber-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold flex-shrink-0 shadow-2xs">
-                  <Clock size={16} />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
-                      Partner Application Under Review
-                    </span>
-                    <span className="text-xs text-gray-500 font-medium">
-                      Role: <strong className="text-gray-900 capitalize">{user?.roleApplication?.requestedRole}</strong>
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-600 mt-0.5">
-                    Your application is being vetted by campus admins. Your dashboard will auto-upgrade upon approval.
-                  </p>
-                </div>
-              </div>
-              <span className="text-[11px] font-bold text-amber-800 bg-white px-3 py-1 rounded-lg border border-amber-200/80 self-start sm:self-center shadow-2xs">
-                Verification in Progress
-              </span>
-            </div>
-          )}
+          {/* Role Registration Complete — Direct dashboard access active */}
 
           {/* Stats Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

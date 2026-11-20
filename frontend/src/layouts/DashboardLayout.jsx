@@ -28,26 +28,7 @@ const DashboardLayout = ({ allowedRoles }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // 3. Onboarding guard: ensure vendors and riders complete profile setup
-  const isApprovedPartner =
-    user?.onboardingCompleted === true ||
-    user?.setupCompleted === true ||
-    user?.roleApplication?.status === 'approved' ||
-    user?.businessProfile?.isApproved === true ||
-    role === 'assistant' ||
-    role === 'caretaker';
-
-  if (user && role !== OLA_ROLES.CUSTOMER && role !== OLA_ROLES.ADMIN && !isApprovedPartner) {
-    const setupPages = {
-      [OLA_ROLES.BUSINESS]: '/setup/business',
-      [OLA_ROLES.RIDER]: '/setup/rider',
-      landlord: '/setup/landlord',
-    };
-    const targetSetup = setupPages[role];
-    if (targetSetup && location.pathname !== targetSetup) {
-      return <Navigate to={targetSetup} replace />;
-    }
-  }
+  // 3. Direct Dashboard Access: No blocking application-review or setup redirects required for dashboard access
 
   // 4. Role Authorization Guard: verify if user role is permitted for this dashboard sub-tree
   if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(role)) {

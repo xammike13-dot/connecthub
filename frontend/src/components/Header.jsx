@@ -456,15 +456,9 @@ export default function Header() {
                         Join Olafasta Team &amp; Earn
                       </span>
                     </div>
-                    {user?.roleApplication?.status === 'pending' ? (
-                      <span className="px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] font-black uppercase tracking-wider flex-shrink-0 border border-amber-300">
-                        Pending
-                      </span>
-                    ) : (
-                      <span className="text-olaOrange-DEFAULT font-black text-xs flex-shrink-0 flex items-center gap-0.5">
+                    <span className="text-olaOrange-DEFAULT font-black text-xs flex-shrink-0 flex items-center gap-0.5">
                         Earn <ArrowRight size={12} />
                       </span>
-                    )}
                   </button>
                 </div>
               )}

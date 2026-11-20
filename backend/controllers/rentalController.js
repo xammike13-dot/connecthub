@@ -11,7 +11,7 @@ import mpesaService from '../services/mpesaService.js';
 
 const getActiveLandlordId = (user) => {
   if (!user) return null;
-  if (user.role === 'landlord') return user._id;
+  if (user.role === 'landlord' || user.role === 'business') return user._id;
   if (user.role === 'caretaker' && user.caretakerProfile?.status === 'active') {
     return user.caretakerProfile.landlord;
   }
@@ -22,8 +22,8 @@ const getActiveLandlordId = (user) => {
  * Create Rental
  */
 export const createRental = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'landlord' && req.user.role !== 'caretaker') {
-    throw new ResponseError('Only landlords and caretakers can create rentals', 403);
+  if (req.user.role !== 'landlord' && req.user.role !== 'caretaker' && req.user.role !== 'business') {
+    throw new ResponseError('Only landlords, campus vendors, and caretakers can create rentals', 403);
   }
 
   const {

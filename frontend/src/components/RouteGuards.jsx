@@ -63,27 +63,6 @@ export const RoleRoute = ({ allowedRoles = [], children }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Prevent users from skipping mandatory onboarding
-  const isApprovedPartner =
-    user?.onboardingCompleted === true ||
-    user?.setupCompleted === true ||
-    user?.roleApplication?.status === 'approved' ||
-    user?.businessProfile?.isApproved === true ||
-    role === 'assistant' ||
-    role === 'caretaker';
-
-  if (user && role !== OLA_ROLES.CUSTOMER && !isApprovedPartner) {
-    const setupPages = {
-      business: '/setup/business',
-      rider: '/setup/rider',
-      landlord: '/setup/landlord',
-    };
-    const targetSetup = setupPages[role];
-    if (targetSetup && location.pathname !== targetSetup) {
-      return <Navigate to={targetSetup} replace />;
-    }
-  }
-
   // Verify role authorization
   const isAuthorized = allowedRoles.length === 0 || allowedRoles.includes(role);
 

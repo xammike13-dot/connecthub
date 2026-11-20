@@ -520,30 +520,33 @@ export default function CustomerProfilePage() {
             );
           }
 
-          // Has a pending application
-          if (appStatus === 'pending') {
-            return (
-              <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-sm border border-amber-200">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center flex-shrink-0">
-                    <Clock size={18} className="animate-pulse" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-black text-gray-900">Application Under Review</p>
-                    <p className="text-xs text-gray-500 mt-0.5 capitalize">
-                      {ROLE_LABELS[application.requestedRole] || application.requestedRole} application pending approval
-                    </p>
-                    <Link
-                      to="/application-status"
-                      className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
-                    >
-                      View Application Status
-                      <ChevronRight size={13} />
-                    </Link>
+          // Has an approved application — link to dashboard
+          if (appStatus === 'approved' && application.requestedRole) {
+            const dash = DASHBOARD_MAP[application.requestedRole];
+            if (dash) {
+              return (
+                <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-sm border border-green-200">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-green-50 text-green-600 flex items-center justify-center flex-shrink-0">
+                      <Sparkles size={18} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-black text-gray-900">Registration Complete!</p>
+                      <p className="text-xs text-gray-500 mt-0.5 capitalize">
+                        {ROLE_LABELS[application.requestedRole] || application.requestedRole} account is active
+                      </p>
+                      <Link
+                        to={dash}
+                        className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#FF5E00] text-white hover:bg-orange-600 transition-colors"
+                      >
+                        Go to Dashboard
+                        <ChevronRight size={13} />
+                      </Link>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
+              );
+            }
           }
 
           // Has a rejected application

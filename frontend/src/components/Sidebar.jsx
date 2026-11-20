@@ -276,9 +276,9 @@ const Sidebar = ({ isOpen, onClose }) => {
                   <span className="text-base leading-none">⚡</span>
                   <span className="truncate">Join Team &amp; Earn</span>
                 </div>
-                {user?.roleApplication?.status === 'pending' ? (
-                  <span className="px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] font-black uppercase flex-shrink-0">
-                    Pending
+                {user?.roleApplication?.status === 'approved' ? (
+                  <span className="px-1.5 py-0.5 rounded-md bg-green-100 text-green-800 text-[10px] font-black uppercase flex-shrink-0">
+                    Active
                   </span>
                 ) : (
                   <span className="px-1.5 py-0.5 rounded-md bg-olaOrange-DEFAULT text-white text-[10px] font-black uppercase flex-shrink-0">
