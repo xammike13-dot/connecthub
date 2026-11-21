@@ -14,6 +14,7 @@ import { formatDistance, distanceToKm } from '../utils/distanceFormatter.js';
 import { asyncHandler, ResponseError } from '../middleware/error.js';
 import { createRideNotification } from './notificationController.js';
 import { releaseEscrow } from '../utils/walletService.js';
+import { releaseEscrowSecure, disputeEscrowSecure } from '../utils/escrowLedger.js';
 import {
   emitRideRequestToRider,
   getRideRequestTimeoutDate,
@@ -536,15 +537,34 @@ export const updateRideStatus = asyncHandler(async (req, res) => {
   const { status } = req.body;
   const userId = req.user._id;
 
-  const validStatuses = ['pending_payment', 'waiting_rider', 'accepted', 'in_progress', 'awaiting_customer_confirmation', 'completed', 'cancelled', 'declined', 'no_rider_available'];
+  const validStatuses = [
+    'pending_payment',
+    'waiting_rider',
+    'accepted',
+    'going_to_pickup',
+    'arrived_at_pickup',
+    'in_progress',
+    'arrived',
+    'arrived_at_destination',
+    'awaiting_customer_confirmation',
+    'completed',
+    'cancelled',
+    'declined',
+    'no_rider_available',
+  ];
   if (!validStatuses.includes(status)) {
     throw new ResponseError('Invalid status', 400);
   }
 
-  // Prevent invalid status 'arrived' - use 'awaiting_customer_confirmation' instead
-  if (status === 'arrived') {
-    throw new ResponseError('Invalid status. Use "awaiting_customer_confirmation" instead.', 400);
+  // Prevent rider from directly releasing funds / marking completed
+  if (status === 'completed' && req.user.role === 'rider') {
+    throw new ResponseError('Riders cannot directly mark ride completed. Set to awaiting_customer_confirmation so customer can confirm arrival.', 403);
   }
+
+  // Map 'arrived' or 'arrived_at_destination' smoothly
+  const targetStatus = (status === 'arrived' || status === 'arrived_at_destination')
+    ? 'awaiting_customer_confirmation'
+    : status;
 
   const ride = await RideRequest.findById(rideId);
 
@@ -562,17 +582,21 @@ export const updateRideStatus = asyncHandler(async (req, res) => {
 
   console.log('[RIDE STATUS TRANSITION]', {
     previousStatus: ride.status,
-    newStatus: status,
+    newStatus: targetStatus,
     rideId: ride._id,
     userId: userId,
     event: 'ride_status_updated'
   });
 
-  ride.status = status;
-  if (status === 'completed') {
+  ride.status = targetStatus;
+  if (targetStatus === 'completed') {
     ride.completedAt = new Date();
-  } else if (status === 'in_progress') {
+  } else if (targetStatus === 'in_progress') {
     ride.startedAt = new Date();
+  } else if (targetStatus === 'going_to_pickup') {
+    ride.goingToPickupAt = new Date();
+  } else if (targetStatus === 'arrived_at_pickup') {
+    ride.arrivedAtPickupAt = new Date();
   }
 
   await ride.save();
@@ -585,7 +609,7 @@ export const updateRideStatus = asyncHandler(async (req, res) => {
       status: ride.status,
     });
 
-    if (status === 'awaiting_customer_confirmation') {
+    if (targetStatus === 'awaiting_customer_confirmation') {
       io.to(`user_${ride.customer}`).emit('ride_awaiting_confirmation', {
         rideId: ride._id,
         message: 'Your rider has marked you as arrived. Please confirm your arrival.',
@@ -596,7 +620,7 @@ export const updateRideStatus = asyncHandler(async (req, res) => {
 
   // Create notification for customer
   try {
-    await createRideNotification(ride.customer, ride, status, 'customer', req);
+    await createRideNotification(ride.customer, ride, targetStatus, 'customer', req);
   } catch (err) {
     console.error('[Customer ride status notification failed]', err);
   }
@@ -604,7 +628,7 @@ export const updateRideStatus = asyncHandler(async (req, res) => {
   // Create notification for rider
   if (ride.rider) {
     try {
-      await createRideNotification(ride.rider, ride, status, 'rider', req);
+      await createRideNotification(ride.rider, ride, targetStatus, 'rider', req);
     } catch (err) {
       console.error('[Rider ride status notification failed]', err);
     }
@@ -818,6 +842,67 @@ export const confirmRideCompletion = asyncHandler(async (req, res) => {
     message: 'Ride completion confirmed successfully. Payment has been released to the rider.',
     data: ride,
   });
+});
+
+/**
+ * Dispute a ride (customer only)
+ * Freezes escrow funds pending admin review
+ */
+export const disputeRide = asyncHandler(async (req, res) => {
+  const { rideId } = req.params;
+  const { reason, details } = req.body;
+  const customerId = req.user._id;
+
+  if (req.user.role !== 'customer') {
+    throw new ResponseError('Only customers can dispute a ride', 403);
+  }
+  if (!reason) throw new ResponseError('Dispute reason is required', 400);
+
+  const ride = await RideRequest.findById(rideId);
+  if (!ride) throw new ResponseError('Ride not found', 404);
+  if (ride.customer.toString() !== customerId.toString()) {
+    throw new ResponseError('Not authorized', 403);
+  }
+  if (['completed', 'cancelled', 'declined'].includes(ride.status)) {
+    throw new ResponseError('Cannot dispute a completed or cancelled ride', 400);
+  }
+
+  // Find transaction and freeze escrow
+  const transaction = await Transaction.findOne({
+    customer: customerId,
+    relatedEntity: rideId,
+    relatedEntityType: 'RideRequest',
+    status: { $in: ['paid', 'paid_in_escrow', 'completed'] },
+  });
+
+  if (transaction) {
+    await disputeEscrowSecure({ transactionId: transaction._id, reason, reportedBy: customerId });
+  }
+
+  ride.status = 'disputed';
+  ride.dispute = { isDisputed: true, reason, details, reportedBy: customerId, reportedAt: new Date() };
+  await ride.save();
+
+  const io = req.app.get('io');
+  if (io) {
+    if (ride.rider) io.to(`user_${ride.rider}`).emit('ride_disputed', { rideId: ride._id, reason });
+    io.to('admin_channel').emit('ride_disputed', { rideId: ride._id, reason, customerId });
+  }
+
+  const { createNotification } = await import('./notificationController.js');
+  try {
+    await createNotification({
+      recipient: ride.rider || customerId,
+      type: 'ride_disputed',
+      title: 'Ride Disputed',
+      message: `A dispute has been opened: ${reason}`,
+      relatedEntity: rideId,
+      relatedEntityType: 'RideRequest',
+      req,
+    });
+  } catch(e) { console.error(e); }
+
+  res.status(200).json({ success: true, message: 'Dispute opened. Escrow funds frozen pending admin review.' });
 });
 
 /**

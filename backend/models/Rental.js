@@ -118,8 +118,35 @@ const rentalSchema = new mongoose.Schema(
         },
         status: {
           type: String,
-          enum: ['pending', 'confirmed', 'out_for_handover', 'active', 'completed', 'cancelled'],
+          enum: [
+            'pending',
+            'paid_in_escrow',
+            'confirmed',
+            'preparing_accommodation',
+            'accommodation_ready',
+            'customer_arrived',
+            'out_for_handover',
+            'move_in_confirmed',
+            'active',
+            'completed',
+            'cancelled',
+            'declined',
+            'disputed',
+          ],
           default: 'pending',
+        },
+        stage: {
+          type: String,
+          enum: [
+            'booking_received',
+            'booking_accepted',
+            'preparing_accommodation',
+            'accommodation_ready',
+            'customer_arrived',
+            'move_in_confirmed',
+            'completed',
+          ],
+          default: 'booking_received',
         },
         paymentStatus: {
           type: String,
@@ -174,7 +201,7 @@ const rentalSchema = new mongoose.Schema(
         // Escrow fields for payment holding
         escrowStatus: {
           type: String,
-          enum: ['held', 'released'],
+          enum: ['held', 'released', 'refunded', 'disputed'],
           default: 'held',
         },
         fundsReleased: {
@@ -183,6 +210,33 @@ const rentalSchema = new mongoose.Schema(
         },
         fundsReleasedAt: {
           type: Date,
+        },
+        // Dispute management
+        dispute: {
+          isDisputed: {
+            type: Boolean,
+            default: false,
+            index: true,
+          },
+          reason: String,
+          details: String,
+          status: {
+            type: String,
+            enum: ['none', 'open', 'resolved_refunded', 'resolved_released', 'rejected'],
+            default: 'none',
+          },
+          reportedAt: Date,
+          reportedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+          },
+          resolutionNote: String,
+          resolvedAt: Date,
+        },
+        // Transaction communication thread reference
+        conversation: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Conversation',
         },
       },
     ],

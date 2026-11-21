@@ -8,6 +8,12 @@ import {
   updateOnlineStatus,
   getEarningsTrend,
 } from '../controllers/riderController.js';
+import {
+  getRiderDeliveries,
+  riderAcceptDelivery,
+  riderDeclineDelivery,
+  updateDeliveryStage,
+} from '../controllers/orderController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -32,5 +38,19 @@ router.get('/analytics/earnings-trend', getEarningsTrend);
 
 // Online status
 router.post('/status/online', updateOnlineStatus);
+
+// Delivery management routes for riders
+router.get('/deliveries', getRiderDeliveries);
+router.get('/deliveries/available', (req, res, next) => {
+  req.query.type = 'available';
+  return getRiderDeliveries(req, res, next);
+});
+router.get('/deliveries/my-deliveries', (req, res, next) => {
+  req.query.type = 'my_active';
+  return getRiderDeliveries(req, res, next);
+});
+router.post('/deliveries/:orderId/accept', riderAcceptDelivery);
+router.post('/deliveries/:orderId/decline', riderDeclineDelivery);
+router.put('/deliveries/:orderId/stage', updateDeliveryStage);
 
 export default router;

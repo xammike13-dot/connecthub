@@ -196,13 +196,15 @@ const handleOrderPaymentSuccess = async (transaction, orderId, req) => {
     status: order.status
   });
 
-  // Only update payment-related fields, do NOT change order status
-  // Order status should remain 'pending' (waiting for business to accept)
+  // Update payment-related fields and set escrow status
   order.paymentStatus = 'paid';
+  order.status = 'paid';
+  order.escrowStatus = 'held';
   order.paymentId = transaction.mpesaReceiptNumber;
   order.mpesaReceiptNumber = transaction.mpesaReceiptNumber;
   order.transaction = transaction._id;
-  // order.status = 'paid'; // REMOVED: Don't change order status
+  transaction.escrowStatus = 'held';
+  await transaction.save();
   await order.save();
 
   // Deduct inventory for all ordered products and variants
@@ -216,7 +218,8 @@ const handleOrderPaymentSuccess = async (transaction, orderId, req) => {
   const updatedOrder = await Order.findById(order._id);
   console.log('[ORDER AFTER SAVE]', {
     paymentStatus: updatedOrder.paymentStatus,
-    status: updatedOrder.status
+    status: updatedOrder.status,
+    escrowStatus: updatedOrder.escrowStatus,
   });
 
   const businessId = order.business?._id || order.business;
@@ -225,53 +228,92 @@ const handleOrderPaymentSuccess = async (transaction, orderId, req) => {
     await creditPendingEscrow(businessId, providerAmount, 'marketplace_payment');
   }
 
-  // Transaction is already linked in the callback, skip redundant linking
-  // transaction.relatedEntity = order._id;
-  // transaction.relatedEntityType = 'order';
-  // await transaction.save();
+  const io = req?.app?.get('io') || getIO();
 
-  const io = req?.app?.get('io');
+  // Find active business assistants to notify them as well
+  let activeAssistants = [];
+  try {
+    activeAssistants = await User.find({
+      role: 'assistant',
+      'assistantProfile.business': businessId,
+      'assistantProfile.status': 'active',
+    });
+  } catch (asstErr) {
+    console.error('[Failed to query business assistants]', asstErr);
+  }
+
+  const orderNumber = order._id.toString().slice(-6).toUpperCase();
+  const customerName = transaction.customer?.name || order.customer?.name || 'Customer';
+  const customerPhone = transaction.customer?.phone || order.customer?.phone || order.deliveryAddress?.phone || '';
+
+  const orderNotificationPayload = {
+    orderId: order._id,
+    orderNumber,
+    customer: {
+      _id: transaction.customer?._id || order.customer?._id,
+      name: customerName,
+      phone: customerPhone,
+    },
+    items: order.items,
+    totalAmount: order.totalAmount,
+    finalAmount: order.finalAmount,
+    deliveryFee: order.deliveryFee,
+    deliveryAddress: order.deliveryAddress,
+    deliveryInstructions: order.notes || '',
+    paymentStatus: order.paymentStatus,
+    escrowStatus: order.escrowStatus,
+    status: order.status,
+    createdAt: order.createdAt,
+  };
+
   if (io && businessId) {
     console.log('[EMITTING NEW ORDER]', {
       businessId,
       orderId: order._id,
-      room: `business_${businessId}`
+      room: `business_${businessId}`,
     });
 
-    io.to(`business_${businessId}`).emit('new_order', {
-      orderId: order._id,
-      customer: transaction.customer,
-      items: order.items,
-      totalAmount: order.totalAmount,
-      finalAmount: order.finalAmount,
-      paymentStatus: order.paymentStatus,
-      status: order.status,
-      deliveryAddress: order.deliveryAddress,
+    // Notify Business Owner
+    io.to(`business_${businessId}`).emit('new_order', orderNotificationPayload);
+    io.to(`user_${businessId}`).emit('new_order', orderNotificationPayload);
+
+    // Notify Active Business Assistants
+    activeAssistants.forEach((assistant) => {
+      io.to(`user_${assistant._id}`).emit('new_order', orderNotificationPayload);
     });
 
-    console.log('[EMITTING CUSTOMER UPDATE]', {
-      customerId: order.customer,
+    // Notify Customer
+    io.to(`user_${order.customer._id || order.customer}`).emit('order_created', {
       orderId: order._id,
-      room: `user_${order.customer}`,
-      status: order.status
-    });
-
-    io.to(`user_${order.customer}`).emit('order_created', {
-      orderId: order._id,
+      orderNumber,
       status: order.status,
       paymentStatus: order.paymentStatus,
+      escrowStatus: order.escrowStatus,
     });
+
+    // If delivery is needed, broadcast delivery opportunity to available riders
+    if (order.deliveryFee > 0 || order.deliveryAddress?.address) {
+      io.emit('delivery_available', {
+        orderId: order._id,
+        orderNumber,
+        businessName: order.business?.name || 'Business Partner',
+        deliveryAddress: order.deliveryAddress,
+        deliveryFee: order.deliveryFee,
+        itemsCount: order.items?.length || 0,
+      });
+    }
 
     console.log('[SOCKET EVENTS EMITTED]');
 
+    // Create DB Notification for Business Owner
     try {
       await createNotification(
         businessId,
         'new_order',
         'New Paid Order Received',
-        `You have a new paid order #${order._id.toString().slice(-6).toUpperCase()} from ${transaction.customer?.name || 'a customer'}. Amount: KSh ${order.finalAmount}.`,
-        { orderId: order._id, customerId: transaction.customer._id, amount: order.finalAmount },
-        `/business/orders/${order._id}`,
+        `New paid order #${orderNumber} from ${customerName}. Products: ${order.items?.map(i => `${i.quantity}x ${i.name}`).join(', ')}. Amount: KSh ${order.finalAmount}.`,
+        orderNotificationPayload,
+        `/business/orders`,
         '/business/orders',
         req,
         'business'
@@ -279,20 +321,39 @@ const handleOrderPaymentSuccess = async (transaction, orderId, req) => {
     } catch (err) {
       console.error('[Order notification failed]', err);
     }
+
+    // Create DB Notification for Each Active Assistant
+    for (const assistant of activeAssistants) {
+      try {
+        await createNotification(
+          assistant._id,
+          'new_order',
+          'New Paid Order Received (Assigned)',
+          `New paid order #${orderNumber} received for your business from ${customerName}. Products: ${order.items?.map(i => `${i.quantity}x ${i.name}`).join(', ')}. Amount: KSh ${order.finalAmount}.`,
+          orderNotificationPayload,
+          `/assistant/orders`,
+          '/assistant/orders',
+          req,
+          'assistant'
+        );
+      } catch (asstNotifErr) {
+        console.error('[Assistant notification failed]', asstNotifErr);
+      }
+    }
   }
 
   try {
     await createNotification(
       transaction.customer._id,
       'order_payment_confirmed',
-      'Order Payment Confirmed',
-      `Your payment of KSh ${transaction.amount.totalAmount} for order #${order._id.toString().slice(-6).toUpperCase()} has been confirmed. The business has been notified.`,
-    { orderId: order._id, transactionId: transaction._id },
-    `/customer/orders/${order._id}`,
-    '/customer/orders',
-    req,
-    'customer'
-  );
+      'Order Payment Confirmed (In Escrow)',
+      `Your payment of KSh ${transaction.amount.totalAmount} for order #${orderNumber} is confirmed and held in secure escrow. The business has been notified to prepare your order.`,
+      { orderId: order._id, transactionId: transaction._id, orderNumber },
+      `/customer/orders`,
+      '/customer/orders',
+      req,
+      'customer'
+    );
   } catch (err) {
     console.error('[Customer order notification failed]', err);
   }
@@ -366,22 +427,13 @@ const handleRentalPaymentSuccess = async (transaction, pendingEntityData, req) =
 
   // Update booking with payment confirmation
   booking.paymentStatus = 'paid';
+  booking.status = 'confirmed';
+  booking.stage = 'booking_received';
   booking.transaction = transaction._id;
   booking.escrowStatus = 'held'; // Money held in escrow until move-in confirmed
   booking.fundsReleased = false;
 
   await rental.save();
-
-  console.log('[RENTAL PAYMENT SUCCESS] Booking updated:', {
-    bookingId: booking._id,
-    rentalId: rental._id,
-    customerId,
-    paymentStatus: booking.paymentStatus,
-    status: booking.status,
-    escrowStatus: booking.escrowStatus,
-    bookingStartDate: booking.bookingStartDate,
-    nextRentDueDate: booking.nextRentDueDate,
-  });
 
   // Credit pending escrow to landlord wallet
   const landlordId = rental.landlord?._id || rental.landlord;
@@ -392,22 +444,64 @@ const handleRentalPaymentSuccess = async (transaction, pendingEntityData, req) =
     console.log('[RENTAL PAYMENT SUCCESS] Credited pending escrow:', { landlordId, amount: providerReceives });
   }
 
-  console.log('[RENTAL PAYMENT SUCCESS] Money held in escrow until move-in confirmation');
-
   transaction.relatedEntity = rental._id;
   transaction.relatedEntityType = 'rental';
+  transaction.escrowStatus = 'held';
   await transaction.save();
 
-  const io = req?.app?.get('io');
+  // Find assigned caretaker or landlord's caretakers
+  let caretakerUsers = [];
+  try {
+    if (rental.caretaker) {
+      caretakerUsers = await User.find({ _id: rental.caretaker, role: 'caretaker', 'caretakerProfile.status': 'active' });
+    } else if (landlordId) {
+      caretakerUsers = await User.find({ role: 'caretaker', 'caretakerProfile.landlord': landlordId, 'caretakerProfile.status': 'active' });
+    }
+  } catch (ctErr) {
+    console.error('[Failed to find caretakers]', ctErr);
+  }
+
+  const customerName = transaction.customer?.name || 'Customer';
+  const customerPhone = transaction.customer?.phone || '';
+  const moveInDateStr = booking.moveInDate ? new Date(booking.moveInDate).toLocaleDateString() : 'Pending confirmation';
+
+  const bookingNotificationPayload = {
+    rentalId: rental._id,
+    bookingId: booking._id,
+    rentalName: rental.rentalName,
+    rentalType: rental.rentalType,
+    customer: {
+      _id: customerId,
+      name: customerName,
+      phone: customerPhone,
+    },
+    monthlyPrice: rental.monthlyPrice,
+    totalPrice: booking.totalPrice,
+    bookingDuration: `${booking.months || 1} month(s)`,
+    moveInDate: booking.moveInDate,
+    paymentStatus: booking.paymentStatus,
+    escrowStatus: booking.escrowStatus,
+    stage: booking.stage,
+  };
+
+  const io = req?.app?.get('io') || getIO();
   if (io && landlordId) {
+    // Notify landlord
+    io.to(`user_${landlordId}`).emit('new_booking', bookingNotificationPayload);
+
+    // Notify assigned caretakers
+    caretakerUsers.forEach((ct) => {
+      io.to(`user_${ct._id}`).emit('new_booking', bookingNotificationPayload);
+    });
+
     try {
       await createNotification(
         landlordId,
         'new_booking',
-        'New Rental Booking Received',
-        `You have a new paid booking for ${rental.rentalName}. Amount: KSh ${transaction.amount.totalAmount}. Please accept or decline this booking.`,
-        { rentalId: rental._id, bookingId: booking?._id },
-        `/landlord/dashboard`,
+        'New Rental Booking Received (In Escrow)',
+        `New paid booking for ${rental.rentalName} from ${customerName}. Move-in: ${moveInDateStr}. Amount: KSh ${transaction.amount.totalAmount}. Please accept or decline.`,
+        bookingNotificationPayload,
+        `/landlord/bookings`,
         '/landlord/bookings',
         req,
         'landlord'
@@ -416,26 +510,37 @@ const handleRentalPaymentSuccess = async (transaction, pendingEntityData, req) =
       console.error('[Landlord booking notification failed]', err);
     }
 
-    io.to(`user_${landlordId}`).emit('new_booking', {
-      rentalId: rental._id,
-      bookingId: booking?._id,
-      message: 'New rental booking received. Please accept or decline.',
-      action: 'accept_decline',
-    });
+    for (const ct of caretakerUsers) {
+      try {
+        await createNotification(
+          ct._id,
+          'new_booking',
+          'New Rental Booking Received (Caretaker)',
+          `New paid booking for ${rental.rentalName} from ${customerName}. Move-in: ${moveInDateStr}. Amount: KSh ${transaction.amount.totalAmount}.`,
+          bookingNotificationPayload,
+          `/caretaker/bookings`,
+          '/caretaker/bookings',
+          req,
+          'caretaker'
+        );
+      } catch (ctNotifErr) {
+        console.error('[Caretaker notification failed]', ctNotifErr);
+      }
+    }
   }
 
   try {
     await createNotification(
       customerId,
       'order_payment_confirmed',
-    'Rental Payment Confirmed',
-    `Your payment of KSh ${transaction.amount.totalAmount} for ${rental.rentalName} has been confirmed. Your booking is pending landlord acceptance.`,
-    { rentalId: rental._id, transactionId: transaction._id },
-    `/customer/bookings`,
-    '/customer/rentals',
-    req,
-    'customer'
-  );
+      'Rental Payment Confirmed (In Escrow)',
+      `Your payment of KSh ${transaction.amount.totalAmount} for ${rental.rentalName} is held in secure escrow. The landlord has been notified.`,
+      { rentalId: rental._id, bookingId: booking._id, transactionId: transaction._id },
+      `/customer/bookings`,
+      '/customer/rentals',
+      req,
+      'customer'
+    );
   } catch (err) {
     console.error('[Customer rental notification failed]', err);
   }

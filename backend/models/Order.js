@@ -80,9 +80,56 @@ const orderSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['pending_payment', 'paid', 'preparing', 'ready_for_pickup', 'out_for_delivery', 'delivered', 'cancelled', 'pending', 'processing', 'completed', 'refunded'],
+      enum: [
+        'pending_payment',
+        'paid_in_escrow',
+        'awaiting_acceptance',
+        'accepted',
+        'preparing',
+        'ready_for_pickup',
+        'rider_assigned',
+        'going_to_pickup',
+        'arrived_at_pickup',
+        'package_collected',
+        'in_transit',
+        'arrived_at_destination',
+        'awaiting_customer_confirmation',
+        'out_for_delivery',
+        'delivered',
+        'completed',
+        'released',
+        'declined',
+        'refund_pending',
+        'refunded',
+        'disputed',
+        'pending',
+        'paid',
+        'processing',
+        'cancelled',
+      ],
       default: 'pending_payment',
       index: true,
+    },
+    escrowStatus: {
+      type: String,
+      enum: ['none', 'held', 'released', 'refunded', 'disputed'],
+      default: 'none',
+      index: true,
+    },
+    deliveryStage: {
+      type: String,
+      enum: [
+        'unassigned',
+        'assigned',
+        'going_to_pickup',
+        'arrived_at_pickup',
+        'package_collected',
+        'in_transit',
+        'arrived_at_destination',
+        'delivered',
+        'completed',
+      ],
+      default: 'unassigned',
     },
     paymentMethod: {
       type: String,
@@ -148,11 +195,42 @@ const orderSchema = new mongoose.Schema(
     // Business response fields
     businessResponse: {
       type: String,
-      enum: ['accepted', 'cancelled', null],
+      enum: ['accepted', 'cancelled', 'declined', null],
       default: null,
     },
     estimatedDeliveryTime: String, // e.g., "2 hours", "1 day", "3 days"
     cancellationReason: String,
+    declineReason: String,
+    riderAcceptedAt: Date,
+
+    // Dispute management
+    dispute: {
+      isDisputed: {
+        type: Boolean,
+        default: false,
+        index: true,
+      },
+      reason: String,
+      details: String,
+      status: {
+        type: String,
+        enum: ['none', 'open', 'resolved_refunded', 'resolved_released', 'rejected'],
+        default: 'none',
+      },
+      reportedAt: Date,
+      reportedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+      resolutionNote: String,
+      resolvedAt: Date,
+    },
+
+    // Transaction communication thread reference
+    conversation: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Conversation',
+    },
 
     // Customer delivery confirmation fields
     deliveryConfirmedBy: {

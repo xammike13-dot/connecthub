@@ -44,7 +44,23 @@ const rideRequestSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['pending_payment', 'waiting_rider', 'accepted', 'in_progress', 'awaiting_customer_confirmation', 'completed', 'declined', 'cancelled', 'no_rider_available'],
+      enum: [
+        'pending_payment',
+        'paid_in_escrow',
+        'waiting_rider',
+        'accepted',
+        'going_to_pickup',
+        'arrived_at_pickup',
+        'in_progress',
+        'arrived_at_destination',
+        'awaiting_customer_confirmation',
+        'completed',
+        'released',
+        'declined',
+        'cancelled',
+        'no_rider_available',
+        'disputed',
+      ],
       default: 'pending_payment',
     },
     rideType: {
@@ -165,7 +181,7 @@ const rideRequestSchema = new mongoose.Schema(
     // Escrow system for payment holding
     escrowStatus: {
       type: String,
-      enum: ['none', 'held', 'released', 'refunded'],
+      enum: ['none', 'held', 'released', 'refunded', 'disputed'],
       default: 'none',
     },
     fundsReleased: {
@@ -176,6 +192,33 @@ const rideRequestSchema = new mongoose.Schema(
     customerConfirmedArrival: {
       type: Boolean,
       default: false,
+    },
+    // Dispute management
+    dispute: {
+      isDisputed: {
+        type: Boolean,
+        default: false,
+        index: true,
+      },
+      reason: String,
+      details: String,
+      status: {
+        type: String,
+        enum: ['none', 'open', 'resolved_refunded', 'resolved_released', 'rejected'],
+        default: 'none',
+      },
+      reportedAt: Date,
+      reportedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+      resolutionNote: String,
+      resolvedAt: Date,
+    },
+    // Transaction communication thread reference
+    conversation: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Conversation',
     },
     rating: {
       customerRating: {

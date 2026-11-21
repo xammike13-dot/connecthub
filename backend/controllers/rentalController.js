@@ -5,6 +5,7 @@ import { calculateRentalPayment } from '../utils/paymentCalculator.js';
 import { asyncHandler, ResponseError } from '../middleware/error.js';
 import { createRentalNotification } from './notificationController.js';
 import { releaseEscrow, creditPendingEscrow } from '../utils/walletService.js';
+import { disputeEscrowSecure, releaseEscrowSecure } from '../utils/escrowLedger.js';
 import Wishlist from '../models/Wishlist.js';
 import User from '../models/User.js';
 import mpesaService from '../services/mpesaService.js';
@@ -654,7 +655,7 @@ export const updateBookingStatus = asyncHandler(async (req, res) => {
   }
 
   // Landlord can only set these statuses - 'active' requires customer move-in confirmation
-  const validStatuses = ['pending', 'confirmed', 'out_for_handover', 'cancelled'];
+  const validStatuses = ['pending', 'confirmed', 'preparing_accommodation', 'accommodation_ready', 'customer_arrived', 'out_for_handover', 'cancelled'];
   if (status && !validStatuses.includes(status)) {
     throw new ResponseError('Invalid status. Landlord cannot mark booking as active - customer must confirm move-in.', 400);
   }
@@ -735,11 +736,171 @@ export const updateBookingStatus = asyncHandler(async (req, res) => {
     }
   }
 
+  // Notify customer for all stage changes via socket
+  if (io && booking.customer) {
+    const customerId = booking.customer._id || booking.customer;
+    const stageMessages = {
+      preparing_accommodation: 'Your accommodation is being prepared.',
+      accommodation_ready: 'Your accommodation is ready! Please arrive.',
+      customer_arrived: 'Your arrival has been noted by the landlord.',
+    };
+    if (stageMessages[status]) {
+      io.to(`user_${customerId}`).emit('booking_stage_update', {
+        rentalId: rental._id,
+        bookingId: booking._id,
+        status,
+        stage: status,
+        message: stageMessages[status],
+      });
+    }
+  }
+
   res.status(200).json({
     success: true,
     message: `Booking updated to ${status}. ${status === 'out_for_handover' ? 'Customer must confirm move-in to complete the booking.' : ''}`,
     data: { rental, booking },
   });
+});
+
+/**
+ * Update booking stage (Landlord/Caretaker - detailed stage updates)
+ */
+export const updateBookingStage = asyncHandler(async (req, res) => {
+  const { rentalId, bookingId } = req.params;
+  const { stage } = req.body;
+
+  if (req.user.role !== 'landlord' && req.user.role !== 'caretaker') {
+    throw new ResponseError('Only landlords and caretakers can update booking stage', 403);
+  }
+
+  const validStages = [
+    'booking_received',
+    'booking_accepted',
+    'preparing_accommodation',
+    'accommodation_ready',
+    'customer_arrived',
+    'move_in_confirmed',
+    'completed',
+  ];
+
+  if (!validStages.includes(stage)) {
+    throw new ResponseError(`Invalid stage. Valid stages: ${validStages.join(', ')}`, 400);
+  }
+
+  const rental = await Rental.findById(rentalId);
+  if (!rental) throw new ResponseError('Rental not found', 404);
+
+  const landlordId = getActiveLandlordId(req.user);
+  if (!landlordId || rental.landlord.toString() !== landlordId.toString()) {
+    throw new ResponseError('Not authorized to update this booking', 403);
+  }
+
+  const booking = rental.bookings.id(bookingId);
+  if (!booking) throw new ResponseError('Booking not found', 404);
+
+  // move_in_confirmed and completed can only be set by customer via confirmMoveIn
+  if (['move_in_confirmed', 'completed'].includes(stage)) {
+    throw new ResponseError('This stage can only be set by the customer confirming move-in', 403);
+  }
+
+  booking.stage = stage;
+
+  // Map stage to status
+  const stageToStatus = {
+    booking_received: 'pending',
+    booking_accepted: 'confirmed',
+    preparing_accommodation: 'preparing_accommodation',
+    accommodation_ready: 'accommodation_ready',
+    customer_arrived: 'customer_arrived',
+  };
+  if (stageToStatus[stage]) booking.status = stageToStatus[stage];
+
+  await rental.save();
+
+  // Emit socket event to customer
+  const io = req.app.get('io');
+  if (io && booking.customer) {
+    const customerId = booking.customer._id || booking.customer;
+    const stageMessages = {
+      booking_received: `Your booking for ${rental.rentalName} has been received.`,
+      booking_accepted: `Your booking for ${rental.rentalName} has been accepted!`,
+      preparing_accommodation: `Your accommodation at ${rental.rentalName} is being prepared.`,
+      accommodation_ready: `Your accommodation at ${rental.rentalName} is ready! Please proceed to move in.`,
+      customer_arrived: `Your arrival at ${rental.rentalName} has been noted.`,
+    };
+    io.to(`user_${customerId}`).emit('booking_stage_update', {
+      rentalId: rental._id,
+      bookingId: booking._id,
+      stage,
+      status: booking.status,
+      message: stageMessages[stage] || `Booking stage updated to ${stage}`,
+    });
+  }
+
+  // Create notification for customer
+  try {
+    await createRentalNotification(booking.customer, rental, booking, `booking_stage_${stage}`, 'customer', req);
+  } catch (err) {
+    console.error('[Rental stage notification failed]', err);
+  }
+
+  res.status(200).json({
+    success: true,
+    message: `Booking stage updated to ${stage}`,
+    data: { stage, status: booking.status },
+  });
+});
+
+/**
+ * Open a dispute for a rental booking (Customer)
+ */
+export const disputeRental = asyncHandler(async (req, res) => {
+  const { rentalId, bookingId } = req.params;
+  const { reason, details } = req.body;
+  const customerId = req.user._id;
+
+  if (req.user.role !== 'customer') {
+    throw new ResponseError('Only customers can dispute a booking', 403);
+  }
+  if (!reason) throw new ResponseError('Dispute reason is required', 400);
+
+  const rental = await Rental.findById(rentalId);
+  if (!rental) throw new ResponseError('Rental not found', 404);
+
+  const booking = rental.bookings.id(bookingId);
+  if (!booking) throw new ResponseError('Booking not found', 404);
+
+  if (booking.customer.toString() !== customerId.toString()) {
+    throw new ResponseError('Not authorized', 403);
+  }
+
+  if (['active', 'cancelled', 'expired'].includes(booking.status)) {
+    throw new ResponseError('Cannot dispute a completed or cancelled booking', 400);
+  }
+
+  // Freeze escrow
+  const transaction = await Transaction.findOne({
+    customer: customerId,
+    relatedEntity: rentalId,
+    relatedEntityType: 'Rental',
+    status: { $in: ['paid', 'paid_in_escrow', 'completed'] },
+  });
+
+  if (transaction) {
+    await disputeEscrowSecure({ transactionId: transaction._id, reason, reportedBy: customerId });
+  }
+
+  booking.status = 'disputed';
+  booking.dispute = { isDisputed: true, reason, details, reportedBy: customerId, reportedAt: new Date() };
+  await rental.save();
+
+  const io = req.app.get('io');
+  if (io) {
+    io.to(`user_${rental.landlord}`).emit('booking_disputed', { rentalId, bookingId, reason });
+    io.to('admin_channel').emit('booking_disputed', { rentalId, bookingId, reason, customerId });
+  }
+
+  res.status(200).json({ success: true, message: 'Dispute opened. Escrow funds frozen pending admin review.' });
 });
 
 /**
@@ -847,6 +1008,15 @@ export const confirmMoveIn = asyncHandler(async (req, res) => {
     throw new ResponseError('Booking is not ready for move-in confirmation', 400);
   }
 
+  // Idempotency guard — if already confirmed, return success without double-processing
+  if (booking.moveInConfirmed === true) {
+    return res.status(200).json({
+      success: true,
+      message: 'Move-in already confirmed',
+      data: { rental, booking },
+    });
+  }
+
   // Update booking to active status and release escrow
   booking.status = 'active';
   booking.moveInConfirmed = true;
@@ -892,7 +1062,7 @@ export const confirmMoveIn = asyncHandler(async (req, res) => {
       const landlordId = rental.landlord._id || rental.landlord;
 
       // Release to available balance (pending escrow already credited on payment success)
-      await releaseEscrow(landlordId, providerReceives, 'rental_move_in_confirmed');
+      await releaseEscrowSecure({ transactionId: transaction._id, landlordId, amount: providerReceives, reason: 'rental_move_in_confirmed' });
       console.log('[ESCROW RELEASED] Released to available balance:', { landlordId, amount: providerReceives });
     }
   }

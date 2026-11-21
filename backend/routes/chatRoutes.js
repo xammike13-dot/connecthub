@@ -7,6 +7,7 @@ import {
   markAsRead,
   deleteMessage,
   getDirectMessages,
+  createOrGetTransactionConversation,
 } from '../controllers/chatController.js';
 import { protect } from '../middleware/auth.js';
 
@@ -31,5 +32,8 @@ router.get('/direct/:otherUserId', getDirectMessages);
 // Message actions
 router.put('/:messageId/read', markAsRead);
 router.delete('/:messageId', deleteMessage);
+
+// Transaction-based conversation
+router.post('/transaction', protect, createOrGetTransactionConversation);
 
 export default router;

@@ -61,7 +61,15 @@ const conversationSchema = new mongoose.Schema(
     },
     relatedEntityType: {
       type: String,
-      enum: ['Order', 'Rental', 'RideRequest'],
+      enum: ['Order', 'Rental', 'RideRequest', 'order', 'rental', 'ride', 'rideRequest'],
+    },
+    transactionRef: {
+      type: String,
+      index: true,
+    },
+    title: {
+      type: String,
+      default: '',
     },
     unreadCounts: {
       type: Map,

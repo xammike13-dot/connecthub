@@ -18,19 +18,30 @@ export const sendMessage = asyncHandler(async (req, res) => {
 
   // Check payment requirement
   if (entityType && entityId) {
-    const transaction = await Transaction.findOne({
+    // Check if sender is the customer on the transaction
+    const txAsCustomer = await Transaction.findOne({
       customer: senderId,
       relatedEntity: entityId,
       relatedEntityType: entityType,
-      status: { $in: ['paid', 'completed'] },
+      status: { $in: ['paid', 'paid_in_escrow', 'completed', 'disputed'] },
     });
 
-    if (!transaction) {
-      return res.status(403).json({
-        success: false,
-        message: 'Payment required to unlock communication',
-        requiresPayment: true,
+    if (!txAsCustomer) {
+      // Check if sender is the provider on the transaction (business, rider, landlord, caretaker, assistant)
+      const txAsProvider = await Transaction.findOne({
+        provider: senderId,
+        relatedEntity: entityId,
+        relatedEntityType: entityType,
+        status: { $in: ['paid', 'paid_in_escrow', 'completed', 'disputed'] },
       });
+
+      if (!txAsProvider) {
+        return res.status(403).json({
+          success: false,
+          message: 'Payment required to unlock communication',
+          requiresPayment: true,
+        });
+      }
     }
   }
 
@@ -354,5 +365,55 @@ export const getDirectMessages = asyncHandler(async (req, res) => {
       pages: Math.ceil(total / limit),
       currentPage: parseInt(page),
     },
+  });
+});
+
+/**
+ * Get or create a conversation tied to a specific transaction
+ */
+export const createOrGetTransactionConversation = asyncHandler(async (req, res) => {
+  const senderId = req.user._id;
+  const { entityType, entityId, providerId } = req.body;
+
+  if (!entityType || !entityId || !providerId) {
+    throw new ResponseError('entityType, entityId, and providerId are required', 400);
+  }
+
+  // Verify the requester has access to this transaction
+  const transaction = await Transaction.findOne({
+    $or: [
+      { customer: senderId, relatedEntity: entityId, relatedEntityType: entityType },
+      { provider: senderId, relatedEntity: entityId, relatedEntityType: entityType },
+    ],
+    status: { $in: ['paid', 'paid_in_escrow', 'completed', 'disputed'] },
+  });
+
+  if (!transaction) {
+    throw new ResponseError('No valid transaction found. Payment required to unlock communication.', 403);
+  }
+
+  const provider = await User.findById(providerId);
+  if (!provider) throw new ResponseError('Provider not found', 404);
+
+  // Find existing conversation for this entity
+  let conversation = await Conversation.findOne({
+    participants: { $all: [senderId, providerId] },
+    relatedEntity: new mongoose.Types.ObjectId(entityId),
+    relatedEntityType: entityType,
+  });
+
+  if (!conversation) {
+    conversation = await Conversation.create({
+      participants: [senderId, providerId],
+      relatedEntity: entityId,
+      relatedEntityType: entityType,
+      lastMessageAt: new Date(),
+    });
+  }
+
+  res.status(200).json({
+    success: true,
+    data: conversation,
+    message: conversation.isNew ? 'Conversation created' : 'Conversation found',
   });
 });

@@ -42,13 +42,63 @@ const transactionSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['pending', 'paid', 'completed', 'failed', 'refunded'],
+      enum: ['pending', 'paid', 'paid_in_escrow', 'completed', 'failed', 'refunded', 'disputed', 'declined'],
       default: 'pending',
     },
     paymentStatus: {
       type: String,
-      enum: ['pending', 'paid', 'failed'],
+      enum: ['pending', 'paid', 'failed', 'refunded', 'disputed'],
       default: 'pending',
+    },
+    escrowStatus: {
+      type: String,
+      enum: ['none', 'held', 'released', 'refunded', 'disputed'],
+      default: 'none',
+      index: true,
+    },
+    idempotencyKey: {
+      type: String,
+      sparse: true,
+      index: true,
+    },
+    escrowReleases: [{
+      recipient: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+      recipientRole: String,
+      amount: Number,
+      releasedAt: {
+        type: Date,
+        default: Date.now,
+      },
+      status: {
+        type: String,
+        default: 'RELEASED',
+      },
+      idempotencyKey: String,
+      transactionRef: String,
+    }],
+    dispute: {
+      isDisputed: {
+        type: Boolean,
+        default: false,
+        index: true,
+      },
+      reason: String,
+      details: String,
+      status: {
+        type: String,
+        enum: ['none', 'open', 'resolved_refunded', 'resolved_released', 'rejected'],
+        default: 'none',
+      },
+      reportedAt: Date,
+      reportedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+      resolutionNote: String,
+      resolvedAt: Date,
     },
 
     paymentMethod: {

@@ -612,6 +612,94 @@ export const getUsers = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Get all disputed transactions for admin review
+ */
+export const getDisputes = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 20, entityType } = req.query;
+  const skip = (page - 1) * limit;
+
+  const query = {
+    $or: [
+      { status: 'disputed' },
+      { 'dispute.isDisputed': true },
+    ],
+  };
+  if (entityType) query.relatedEntityType = entityType;
+
+  const disputes = await Transaction.find(query)
+    .populate('customer', 'name email phone')
+    .populate('provider', 'name email phone')
+    .sort('-createdAt')
+    .skip(skip)
+    .limit(parseInt(limit));
+
+  const total = await Transaction.countDocuments(query);
+
+  res.status(200).json({
+    success: true,
+    data: disputes,
+    pagination: { total, pages: Math.ceil(total / limit), currentPage: parseInt(page) },
+  });
+});
+
+/**
+ * Resolve a dispute — admin force releases or refunds escrow
+ */
+export const resolveDispute = asyncHandler(async (req, res) => {
+  const { transactionId } = req.params;
+  const { action, adminNote } = req.body; // action: 'release' | 'refund'
+
+  if (!['release', 'refund'].includes(action)) {
+    throw new ResponseError('Action must be "release" or "refund"', 400);
+  }
+
+  const transaction = await Transaction.findById(transactionId)
+    .populate('customer', 'name email')
+    .populate('provider', 'name email');
+
+  if (!transaction) throw new ResponseError('Transaction not found', 404);
+
+  const { releaseEscrowSecure, refundEscrowSecure } = await import('../utils/escrowLedger.js');
+
+  if (action === 'release') {
+    await releaseEscrowSecure({
+      transactionId: transaction._id,
+      releasedBy: req.user._id,
+      adminOverride: true,
+      idempotencyKey: `admin_release_${transaction._id}`,
+    });
+    transaction.adminNote = adminNote;
+    transaction.resolvedAt = new Date();
+    transaction.resolvedBy = req.user._id;
+    await transaction.save();
+  } else {
+    await refundEscrowSecure({
+      transactionId: transaction._id,
+      refundedBy: req.user._id,
+      adminOverride: true,
+      idempotencyKey: `admin_refund_${transaction._id}`,
+      reason: adminNote || 'Admin refund',
+    });
+    transaction.adminNote = adminNote;
+    transaction.resolvedAt = new Date();
+    transaction.resolvedBy = req.user._id;
+    await transaction.save();
+  }
+
+  // Notify both parties
+  const io = req.app.get('io');
+  if (io) {
+    const msg = action === 'release'
+      ? 'Admin has resolved the dispute. Payment released to provider.'
+      : 'Admin has resolved the dispute. Payment refunded to customer.';
+    if (transaction.customer) io.to(`user_${transaction.customer._id}`).emit('dispute_resolved', { transactionId, action, message: msg });
+    if (transaction.provider) io.to(`user_${transaction.provider._id}`).emit('dispute_resolved', { transactionId, action, message: msg });
+  }
+
+  res.status(200).json({ success: true, message: `Dispute resolved: ${action}`, data: transaction });
+});
+
+/**
  * Get user details along with activity summary
  */
 export const getUser = asyncHandler(async (req, res) => {
@@ -761,6 +849,94 @@ export const getAdminOrders = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Get all disputed transactions for admin review
+ */
+export const getDisputes = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 20, entityType } = req.query;
+  const skip = (page - 1) * limit;
+
+  const query = {
+    $or: [
+      { status: 'disputed' },
+      { 'dispute.isDisputed': true },
+    ],
+  };
+  if (entityType) query.relatedEntityType = entityType;
+
+  const disputes = await Transaction.find(query)
+    .populate('customer', 'name email phone')
+    .populate('provider', 'name email phone')
+    .sort('-createdAt')
+    .skip(skip)
+    .limit(parseInt(limit));
+
+  const total = await Transaction.countDocuments(query);
+
+  res.status(200).json({
+    success: true,
+    data: disputes,
+    pagination: { total, pages: Math.ceil(total / limit), currentPage: parseInt(page) },
+  });
+});
+
+/**
+ * Resolve a dispute — admin force releases or refunds escrow
+ */
+export const resolveDispute = asyncHandler(async (req, res) => {
+  const { transactionId } = req.params;
+  const { action, adminNote } = req.body; // action: 'release' | 'refund'
+
+  if (!['release', 'refund'].includes(action)) {
+    throw new ResponseError('Action must be "release" or "refund"', 400);
+  }
+
+  const transaction = await Transaction.findById(transactionId)
+    .populate('customer', 'name email')
+    .populate('provider', 'name email');
+
+  if (!transaction) throw new ResponseError('Transaction not found', 404);
+
+  const { releaseEscrowSecure, refundEscrowSecure } = await import('../utils/escrowLedger.js');
+
+  if (action === 'release') {
+    await releaseEscrowSecure({
+      transactionId: transaction._id,
+      releasedBy: req.user._id,
+      adminOverride: true,
+      idempotencyKey: `admin_release_${transaction._id}`,
+    });
+    transaction.adminNote = adminNote;
+    transaction.resolvedAt = new Date();
+    transaction.resolvedBy = req.user._id;
+    await transaction.save();
+  } else {
+    await refundEscrowSecure({
+      transactionId: transaction._id,
+      refundedBy: req.user._id,
+      adminOverride: true,
+      idempotencyKey: `admin_refund_${transaction._id}`,
+      reason: adminNote || 'Admin refund',
+    });
+    transaction.adminNote = adminNote;
+    transaction.resolvedAt = new Date();
+    transaction.resolvedBy = req.user._id;
+    await transaction.save();
+  }
+
+  // Notify both parties
+  const io = req.app.get('io');
+  if (io) {
+    const msg = action === 'release'
+      ? 'Admin has resolved the dispute. Payment released to provider.'
+      : 'Admin has resolved the dispute. Payment refunded to customer.';
+    if (transaction.customer) io.to(`user_${transaction.customer._id}`).emit('dispute_resolved', { transactionId, action, message: msg });
+    if (transaction.provider) io.to(`user_${transaction.provider._id}`).emit('dispute_resolved', { transactionId, action, message: msg });
+  }
+
+  res.status(200).json({ success: true, message: `Dispute resolved: ${action}`, data: transaction });
+});
+
+/**
  * Update order status or Flag / Review an Order
  */
 export const updateAdminOrder = asyncHandler(async (req, res) => {
@@ -839,6 +1015,94 @@ export const getAdminProperties = asyncHandler(async (req, res) => {
       currentPage: parseInt(page),
     },
   });
+});
+
+/**
+ * Get all disputed transactions for admin review
+ */
+export const getDisputes = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 20, entityType } = req.query;
+  const skip = (page - 1) * limit;
+
+  const query = {
+    $or: [
+      { status: 'disputed' },
+      { 'dispute.isDisputed': true },
+    ],
+  };
+  if (entityType) query.relatedEntityType = entityType;
+
+  const disputes = await Transaction.find(query)
+    .populate('customer', 'name email phone')
+    .populate('provider', 'name email phone')
+    .sort('-createdAt')
+    .skip(skip)
+    .limit(parseInt(limit));
+
+  const total = await Transaction.countDocuments(query);
+
+  res.status(200).json({
+    success: true,
+    data: disputes,
+    pagination: { total, pages: Math.ceil(total / limit), currentPage: parseInt(page) },
+  });
+});
+
+/**
+ * Resolve a dispute — admin force releases or refunds escrow
+ */
+export const resolveDispute = asyncHandler(async (req, res) => {
+  const { transactionId } = req.params;
+  const { action, adminNote } = req.body; // action: 'release' | 'refund'
+
+  if (!['release', 'refund'].includes(action)) {
+    throw new ResponseError('Action must be "release" or "refund"', 400);
+  }
+
+  const transaction = await Transaction.findById(transactionId)
+    .populate('customer', 'name email')
+    .populate('provider', 'name email');
+
+  if (!transaction) throw new ResponseError('Transaction not found', 404);
+
+  const { releaseEscrowSecure, refundEscrowSecure } = await import('../utils/escrowLedger.js');
+
+  if (action === 'release') {
+    await releaseEscrowSecure({
+      transactionId: transaction._id,
+      releasedBy: req.user._id,
+      adminOverride: true,
+      idempotencyKey: `admin_release_${transaction._id}`,
+    });
+    transaction.adminNote = adminNote;
+    transaction.resolvedAt = new Date();
+    transaction.resolvedBy = req.user._id;
+    await transaction.save();
+  } else {
+    await refundEscrowSecure({
+      transactionId: transaction._id,
+      refundedBy: req.user._id,
+      adminOverride: true,
+      idempotencyKey: `admin_refund_${transaction._id}`,
+      reason: adminNote || 'Admin refund',
+    });
+    transaction.adminNote = adminNote;
+    transaction.resolvedAt = new Date();
+    transaction.resolvedBy = req.user._id;
+    await transaction.save();
+  }
+
+  // Notify both parties
+  const io = req.app.get('io');
+  if (io) {
+    const msg = action === 'release'
+      ? 'Admin has resolved the dispute. Payment released to provider.'
+      : 'Admin has resolved the dispute. Payment refunded to customer.';
+    if (transaction.customer) io.to(`user_${transaction.customer._id}`).emit('dispute_resolved', { transactionId, action, message: msg });
+    if (transaction.provider) io.to(`user_${transaction.provider._id}`).emit('dispute_resolved', { transactionId, action, message: msg });
+  }
+
+  res.status(200).json({ success: true, message: `Dispute resolved: ${action}`, data: transaction });
 });
 
 /**
@@ -970,6 +1234,94 @@ export const getAdminRides = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Get all disputed transactions for admin review
+ */
+export const getDisputes = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 20, entityType } = req.query;
+  const skip = (page - 1) * limit;
+
+  const query = {
+    $or: [
+      { status: 'disputed' },
+      { 'dispute.isDisputed': true },
+    ],
+  };
+  if (entityType) query.relatedEntityType = entityType;
+
+  const disputes = await Transaction.find(query)
+    .populate('customer', 'name email phone')
+    .populate('provider', 'name email phone')
+    .sort('-createdAt')
+    .skip(skip)
+    .limit(parseInt(limit));
+
+  const total = await Transaction.countDocuments(query);
+
+  res.status(200).json({
+    success: true,
+    data: disputes,
+    pagination: { total, pages: Math.ceil(total / limit), currentPage: parseInt(page) },
+  });
+});
+
+/**
+ * Resolve a dispute — admin force releases or refunds escrow
+ */
+export const resolveDispute = asyncHandler(async (req, res) => {
+  const { transactionId } = req.params;
+  const { action, adminNote } = req.body; // action: 'release' | 'refund'
+
+  if (!['release', 'refund'].includes(action)) {
+    throw new ResponseError('Action must be "release" or "refund"', 400);
+  }
+
+  const transaction = await Transaction.findById(transactionId)
+    .populate('customer', 'name email')
+    .populate('provider', 'name email');
+
+  if (!transaction) throw new ResponseError('Transaction not found', 404);
+
+  const { releaseEscrowSecure, refundEscrowSecure } = await import('../utils/escrowLedger.js');
+
+  if (action === 'release') {
+    await releaseEscrowSecure({
+      transactionId: transaction._id,
+      releasedBy: req.user._id,
+      adminOverride: true,
+      idempotencyKey: `admin_release_${transaction._id}`,
+    });
+    transaction.adminNote = adminNote;
+    transaction.resolvedAt = new Date();
+    transaction.resolvedBy = req.user._id;
+    await transaction.save();
+  } else {
+    await refundEscrowSecure({
+      transactionId: transaction._id,
+      refundedBy: req.user._id,
+      adminOverride: true,
+      idempotencyKey: `admin_refund_${transaction._id}`,
+      reason: adminNote || 'Admin refund',
+    });
+    transaction.adminNote = adminNote;
+    transaction.resolvedAt = new Date();
+    transaction.resolvedBy = req.user._id;
+    await transaction.save();
+  }
+
+  // Notify both parties
+  const io = req.app.get('io');
+  if (io) {
+    const msg = action === 'release'
+      ? 'Admin has resolved the dispute. Payment released to provider.'
+      : 'Admin has resolved the dispute. Payment refunded to customer.';
+    if (transaction.customer) io.to(`user_${transaction.customer._id}`).emit('dispute_resolved', { transactionId, action, message: msg });
+    if (transaction.provider) io.to(`user_${transaction.provider._id}`).emit('dispute_resolved', { transactionId, action, message: msg });
+  }
+
+  res.status(200).json({ success: true, message: `Dispute resolved: ${action}`, data: transaction });
+});
+
+/**
  * Update ride details or monitor cancelled rides
  */
 export const updateAdminRide = asyncHandler(async (req, res) => {
@@ -1047,6 +1399,94 @@ export const getAdminReports = asyncHandler(async (req, res) => {
       currentPage: parseInt(page),
     },
   });
+});
+
+/**
+ * Get all disputed transactions for admin review
+ */
+export const getDisputes = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 20, entityType } = req.query;
+  const skip = (page - 1) * limit;
+
+  const query = {
+    $or: [
+      { status: 'disputed' },
+      { 'dispute.isDisputed': true },
+    ],
+  };
+  if (entityType) query.relatedEntityType = entityType;
+
+  const disputes = await Transaction.find(query)
+    .populate('customer', 'name email phone')
+    .populate('provider', 'name email phone')
+    .sort('-createdAt')
+    .skip(skip)
+    .limit(parseInt(limit));
+
+  const total = await Transaction.countDocuments(query);
+
+  res.status(200).json({
+    success: true,
+    data: disputes,
+    pagination: { total, pages: Math.ceil(total / limit), currentPage: parseInt(page) },
+  });
+});
+
+/**
+ * Resolve a dispute — admin force releases or refunds escrow
+ */
+export const resolveDispute = asyncHandler(async (req, res) => {
+  const { transactionId } = req.params;
+  const { action, adminNote } = req.body; // action: 'release' | 'refund'
+
+  if (!['release', 'refund'].includes(action)) {
+    throw new ResponseError('Action must be "release" or "refund"', 400);
+  }
+
+  const transaction = await Transaction.findById(transactionId)
+    .populate('customer', 'name email')
+    .populate('provider', 'name email');
+
+  if (!transaction) throw new ResponseError('Transaction not found', 404);
+
+  const { releaseEscrowSecure, refundEscrowSecure } = await import('../utils/escrowLedger.js');
+
+  if (action === 'release') {
+    await releaseEscrowSecure({
+      transactionId: transaction._id,
+      releasedBy: req.user._id,
+      adminOverride: true,
+      idempotencyKey: `admin_release_${transaction._id}`,
+    });
+    transaction.adminNote = adminNote;
+    transaction.resolvedAt = new Date();
+    transaction.resolvedBy = req.user._id;
+    await transaction.save();
+  } else {
+    await refundEscrowSecure({
+      transactionId: transaction._id,
+      refundedBy: req.user._id,
+      adminOverride: true,
+      idempotencyKey: `admin_refund_${transaction._id}`,
+      reason: adminNote || 'Admin refund',
+    });
+    transaction.adminNote = adminNote;
+    transaction.resolvedAt = new Date();
+    transaction.resolvedBy = req.user._id;
+    await transaction.save();
+  }
+
+  // Notify both parties
+  const io = req.app.get('io');
+  if (io) {
+    const msg = action === 'release'
+      ? 'Admin has resolved the dispute. Payment released to provider.'
+      : 'Admin has resolved the dispute. Payment refunded to customer.';
+    if (transaction.customer) io.to(`user_${transaction.customer._id}`).emit('dispute_resolved', { transactionId, action, message: msg });
+    if (transaction.provider) io.to(`user_${transaction.provider._id}`).emit('dispute_resolved', { transactionId, action, message: msg });
+  }
+
+  res.status(200).json({ success: true, message: `Dispute resolved: ${action}`, data: transaction });
 });
 
 /**
@@ -1280,6 +1720,94 @@ export const getTransactions = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Get all disputed transactions for admin review
+ */
+export const getDisputes = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 20, entityType } = req.query;
+  const skip = (page - 1) * limit;
+
+  const query = {
+    $or: [
+      { status: 'disputed' },
+      { 'dispute.isDisputed': true },
+    ],
+  };
+  if (entityType) query.relatedEntityType = entityType;
+
+  const disputes = await Transaction.find(query)
+    .populate('customer', 'name email phone')
+    .populate('provider', 'name email phone')
+    .sort('-createdAt')
+    .skip(skip)
+    .limit(parseInt(limit));
+
+  const total = await Transaction.countDocuments(query);
+
+  res.status(200).json({
+    success: true,
+    data: disputes,
+    pagination: { total, pages: Math.ceil(total / limit), currentPage: parseInt(page) },
+  });
+});
+
+/**
+ * Resolve a dispute — admin force releases or refunds escrow
+ */
+export const resolveDispute = asyncHandler(async (req, res) => {
+  const { transactionId } = req.params;
+  const { action, adminNote } = req.body; // action: 'release' | 'refund'
+
+  if (!['release', 'refund'].includes(action)) {
+    throw new ResponseError('Action must be "release" or "refund"', 400);
+  }
+
+  const transaction = await Transaction.findById(transactionId)
+    .populate('customer', 'name email')
+    .populate('provider', 'name email');
+
+  if (!transaction) throw new ResponseError('Transaction not found', 404);
+
+  const { releaseEscrowSecure, refundEscrowSecure } = await import('../utils/escrowLedger.js');
+
+  if (action === 'release') {
+    await releaseEscrowSecure({
+      transactionId: transaction._id,
+      releasedBy: req.user._id,
+      adminOverride: true,
+      idempotencyKey: `admin_release_${transaction._id}`,
+    });
+    transaction.adminNote = adminNote;
+    transaction.resolvedAt = new Date();
+    transaction.resolvedBy = req.user._id;
+    await transaction.save();
+  } else {
+    await refundEscrowSecure({
+      transactionId: transaction._id,
+      refundedBy: req.user._id,
+      adminOverride: true,
+      idempotencyKey: `admin_refund_${transaction._id}`,
+      reason: adminNote || 'Admin refund',
+    });
+    transaction.adminNote = adminNote;
+    transaction.resolvedAt = new Date();
+    transaction.resolvedBy = req.user._id;
+    await transaction.save();
+  }
+
+  // Notify both parties
+  const io = req.app.get('io');
+  if (io) {
+    const msg = action === 'release'
+      ? 'Admin has resolved the dispute. Payment released to provider.'
+      : 'Admin has resolved the dispute. Payment refunded to customer.';
+    if (transaction.customer) io.to(`user_${transaction.customer._id}`).emit('dispute_resolved', { transactionId, action, message: msg });
+    if (transaction.provider) io.to(`user_${transaction.provider._id}`).emit('dispute_resolved', { transactionId, action, message: msg });
+  }
+
+  res.status(200).json({ success: true, message: `Dispute resolved: ${action}`, data: transaction });
+});
+
+/**
  * Get all withdrawals
  */
 export const getWithdrawals = asyncHandler(async (req, res) => {
@@ -1308,6 +1836,94 @@ export const getWithdrawals = asyncHandler(async (req, res) => {
       currentPage: parseInt(page),
     },
   });
+});
+
+/**
+ * Get all disputed transactions for admin review
+ */
+export const getDisputes = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 20, entityType } = req.query;
+  const skip = (page - 1) * limit;
+
+  const query = {
+    $or: [
+      { status: 'disputed' },
+      { 'dispute.isDisputed': true },
+    ],
+  };
+  if (entityType) query.relatedEntityType = entityType;
+
+  const disputes = await Transaction.find(query)
+    .populate('customer', 'name email phone')
+    .populate('provider', 'name email phone')
+    .sort('-createdAt')
+    .skip(skip)
+    .limit(parseInt(limit));
+
+  const total = await Transaction.countDocuments(query);
+
+  res.status(200).json({
+    success: true,
+    data: disputes,
+    pagination: { total, pages: Math.ceil(total / limit), currentPage: parseInt(page) },
+  });
+});
+
+/**
+ * Resolve a dispute — admin force releases or refunds escrow
+ */
+export const resolveDispute = asyncHandler(async (req, res) => {
+  const { transactionId } = req.params;
+  const { action, adminNote } = req.body; // action: 'release' | 'refund'
+
+  if (!['release', 'refund'].includes(action)) {
+    throw new ResponseError('Action must be "release" or "refund"', 400);
+  }
+
+  const transaction = await Transaction.findById(transactionId)
+    .populate('customer', 'name email')
+    .populate('provider', 'name email');
+
+  if (!transaction) throw new ResponseError('Transaction not found', 404);
+
+  const { releaseEscrowSecure, refundEscrowSecure } = await import('../utils/escrowLedger.js');
+
+  if (action === 'release') {
+    await releaseEscrowSecure({
+      transactionId: transaction._id,
+      releasedBy: req.user._id,
+      adminOverride: true,
+      idempotencyKey: `admin_release_${transaction._id}`,
+    });
+    transaction.adminNote = adminNote;
+    transaction.resolvedAt = new Date();
+    transaction.resolvedBy = req.user._id;
+    await transaction.save();
+  } else {
+    await refundEscrowSecure({
+      transactionId: transaction._id,
+      refundedBy: req.user._id,
+      adminOverride: true,
+      idempotencyKey: `admin_refund_${transaction._id}`,
+      reason: adminNote || 'Admin refund',
+    });
+    transaction.adminNote = adminNote;
+    transaction.resolvedAt = new Date();
+    transaction.resolvedBy = req.user._id;
+    await transaction.save();
+  }
+
+  // Notify both parties
+  const io = req.app.get('io');
+  if (io) {
+    const msg = action === 'release'
+      ? 'Admin has resolved the dispute. Payment released to provider.'
+      : 'Admin has resolved the dispute. Payment refunded to customer.';
+    if (transaction.customer) io.to(`user_${transaction.customer._id}`).emit('dispute_resolved', { transactionId, action, message: msg });
+    if (transaction.provider) io.to(`user_${transaction.provider._id}`).emit('dispute_resolved', { transactionId, action, message: msg });
+  }
+
+  res.status(200).json({ success: true, message: `Dispute resolved: ${action}`, data: transaction });
 });
 
 /**
@@ -1457,7 +2073,10 @@ export const getDisputeReport = asyncHandler(async (req, res) => {
   const skip = (page - 1) * limit;
 
   const disputes = await Transaction.find({
-    status: { $in: ['refunded', 'failed'] },
+    $or: [
+      { status: { $in: ['refunded', 'failed', 'disputed'] } },
+      { 'dispute.isDisputed': true },
+    ],
   })
     .populate('customer', 'name email')
     .populate('provider', 'name email')
@@ -1466,7 +2085,10 @@ export const getDisputeReport = asyncHandler(async (req, res) => {
     .limit(parseInt(limit));
 
   const total = await Transaction.countDocuments({
-    status: { $in: ['refunded', 'failed'] },
+    $or: [
+      { status: { $in: ['refunded', 'failed', 'disputed'] } },
+      { 'dispute.isDisputed': true },
+    ],
   });
 
   res.status(200).json({
@@ -1478,4 +2100,92 @@ export const getDisputeReport = asyncHandler(async (req, res) => {
       currentPage: parseInt(page),
     },
   });
+});
+
+/**
+ * Get all disputed transactions for admin review
+ */
+export const getDisputes = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 20, entityType } = req.query;
+  const skip = (page - 1) * limit;
+
+  const query = {
+    $or: [
+      { status: 'disputed' },
+      { 'dispute.isDisputed': true },
+    ],
+  };
+  if (entityType) query.relatedEntityType = entityType;
+
+  const disputes = await Transaction.find(query)
+    .populate('customer', 'name email phone')
+    .populate('provider', 'name email phone')
+    .sort('-createdAt')
+    .skip(skip)
+    .limit(parseInt(limit));
+
+  const total = await Transaction.countDocuments(query);
+
+  res.status(200).json({
+    success: true,
+    data: disputes,
+    pagination: { total, pages: Math.ceil(total / limit), currentPage: parseInt(page) },
+  });
+});
+
+/**
+ * Resolve a dispute — admin force releases or refunds escrow
+ */
+export const resolveDispute = asyncHandler(async (req, res) => {
+  const { transactionId } = req.params;
+  const { action, adminNote } = req.body; // action: 'release' | 'refund'
+
+  if (!['release', 'refund'].includes(action)) {
+    throw new ResponseError('Action must be "release" or "refund"', 400);
+  }
+
+  const transaction = await Transaction.findById(transactionId)
+    .populate('customer', 'name email')
+    .populate('provider', 'name email');
+
+  if (!transaction) throw new ResponseError('Transaction not found', 404);
+
+  const { releaseEscrowSecure, refundEscrowSecure } = await import('../utils/escrowLedger.js');
+
+  if (action === 'release') {
+    await releaseEscrowSecure({
+      transactionId: transaction._id,
+      releasedBy: req.user._id,
+      adminOverride: true,
+      idempotencyKey: `admin_release_${transaction._id}`,
+    });
+    transaction.adminNote = adminNote;
+    transaction.resolvedAt = new Date();
+    transaction.resolvedBy = req.user._id;
+    await transaction.save();
+  } else {
+    await refundEscrowSecure({
+      transactionId: transaction._id,
+      refundedBy: req.user._id,
+      adminOverride: true,
+      idempotencyKey: `admin_refund_${transaction._id}`,
+      reason: adminNote || 'Admin refund',
+    });
+    transaction.adminNote = adminNote;
+    transaction.resolvedAt = new Date();
+    transaction.resolvedBy = req.user._id;
+    await transaction.save();
+  }
+
+  // Notify both parties
+  const io = req.app.get('io');
+  if (io) {
+    const msg = action === 'release'
+      ? 'Admin has resolved the dispute. Payment released to provider.'
+      : 'Admin has resolved the dispute. Payment refunded to customer.';
+    if (transaction.customer) io.to(`user_${transaction.customer._id}`).emit('dispute_resolved', { transactionId, action, message: msg });
+    if (transaction.provider) io.to(`user_${transaction.provider._id}`).emit('dispute_resolved', { transactionId, action, message: msg });
+  }
+
+  res.status(200).json({ success: true, message: `Dispute resolved: ${action}`, data: transaction });
 });
