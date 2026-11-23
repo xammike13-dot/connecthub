@@ -96,10 +96,10 @@ export default function MaintenancePage() {
             </p>
 
             <div className="space-y-3">
-              {/* Desk 1 (0707841747) */}
+              {/* Mulleyz Creatives (0707841747) */}
               <div className="p-3 rounded-2xl bg-gray-50/80 border border-gray-200/80">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-gray-900">Desk 1 ({desk1Number})</span>
+                  <span className="text-xs font-bold text-gray-900">Mulleyz Creatives ({desk1Number})</span>
                   <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/70">
                     Online
                   </span>
