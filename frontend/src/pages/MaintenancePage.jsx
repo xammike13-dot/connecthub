@@ -1,13 +1,18 @@
-import { RefreshCw, MessageSquare, Phone, ArrowUpRight, CheckCircle2, ShieldCheck, Clock } from 'lucide-react';
+import { RefreshCw, MessageSquare, Phone, CheckCircle2, ShieldCheck, Clock } from 'lucide-react';
 
 export default function MaintenancePage() {
   const handleRefresh = () => {
     window.location.reload();
   };
 
-  const contactNumber = "0707841747";
-  const whatsappUrl = `https://wa.me/254707841747?text=${encodeURIComponent(
-    'Hi Olafasta Support, I am reaching out from the website regarding an urgent inquiry.'
+  const desk1Number = "0707841747";
+  const kingMikeNumber = "0748459757";
+
+  const desk1WhatsApp = `https://wa.me/254707841747?text=${encodeURIComponent(
+    'Hi Olafasta Support, I am reaching out regarding an urgent inquiry.'
+  )}`;
+  const kingMikeWhatsApp = `https://wa.me/254748459757?text=${encodeURIComponent(
+    'Hi King Mike, I am reaching out regarding an urgent Olafasta inquiry.'
   )}`;
 
   return (
@@ -20,7 +25,7 @@ export default function MaintenancePage() {
       />
 
       {/* ── Top Header ────────────────────────────────────────────── */}
-      <header className="max-w-3xl mx-auto w-full flex items-center justify-between py-4 border-b border-gray-200/70">
+      <header className="max-w-3xl mx-auto w-full flex items-center justify-start py-4 border-b border-gray-200/70">
         <div className="flex items-center gap-2.5 select-none">
           <div className="w-9 h-9 rounded-xl bg-olaGreen-DEFAULT flex items-center justify-center text-white font-black text-base shadow-xs">
             O
@@ -35,15 +40,10 @@ export default function MaintenancePage() {
             </span>
           </div>
         </div>
-
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white border border-gray-200 text-gray-600 text-xs font-medium shadow-2xs">
-          <span className="w-2 h-2 rounded-full bg-olaGreen-DEFAULT animate-pulse" />
-          <span>Moi University Operations</span>
-        </div>
       </header>
 
       {/* ── Center Content Box ─────────────────────────────────────── */}
-      <main className="max-w-xl mx-auto w-full my-auto py-10">
+      <main className="max-w-xl mx-auto w-full my-auto py-8 sm:py-10">
         <div className="bg-white rounded-3xl border border-gray-200/90 shadow-[0_10px_35px_-5px_rgba(0,0,0,0.05)] p-6 sm:p-9 relative">
           
           {/* Status Label */}
@@ -81,7 +81,7 @@ export default function MaintenancePage() {
               </div>
               <div className="flex items-start gap-2.5">
                 <CheckCircle2 size={16} className="text-olaGreen-DEFAULT flex-shrink-0 mt-0.5" />
-                <span><strong className="text-gray-900 font-semibold">Hostel Inquiries:</strong> Direct landlord contacts remain active during deployment.</span>
+                <span><strong className="text-gray-900 font-semibold">Pending Deliveries:</strong> Any pending deliveries are being handled and will be delivered shortly.</span>
               </div>
             </div>
           </div>
@@ -95,27 +95,62 @@ export default function MaintenancePage() {
               Our campus dispatch desk is on standby for immediate comrade assistance:
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {/* WhatsApp Button */}
-              <a
-                href={whatsappUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-olaGreen-DEFAULT hover:bg-olaGreen-deep text-white font-bold text-xs sm:text-sm shadow-xs transition-colors group"
-              >
-                <MessageSquare size={16} />
-                <span>WhatsApp: {contactNumber}</span>
-                <ArrowUpRight size={13} className="text-white/70 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-              </a>
+            <div className="space-y-3">
+              {/* Desk 1 (0707841747) */}
+              <div className="p-3 rounded-2xl bg-gray-50/80 border border-gray-200/80">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-gray-900">Desk 1 ({desk1Number})</span>
+                  <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/70">
+                    Online
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <a
+                    href={desk1WhatsApp}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-olaGreen-DEFAULT hover:bg-olaGreen-deep text-white font-bold text-xs shadow-2xs transition-colors"
+                  >
+                    <MessageSquare size={14} />
+                    <span>WhatsApp</span>
+                  </a>
+                  <a
+                    href={`tel:+254707841747`}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-gray-100 text-gray-800 border border-gray-200 font-bold text-xs shadow-2xs transition-colors"
+                  >
+                    <Phone size={13} className="text-gray-500" />
+                    <span>Call</span>
+                  </a>
+                </div>
+              </div>
 
-              {/* Direct Phone Call Button */}
-              <a
-                href={`tel:${contactNumber}`}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white hover:bg-gray-50 text-gray-800 border border-gray-200/90 font-bold text-xs sm:text-sm shadow-2xs transition-colors"
-              >
-                <Phone size={15} className="text-gray-500" />
-                <span>Call {contactNumber}</span>
-              </a>
+              {/* King Mike (0748459757) */}
+              <div className="p-3 rounded-2xl bg-gray-50/80 border border-gray-200/80">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-gray-900">King Mike ({kingMikeNumber})</span>
+                  <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/70">
+                    Online
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <a
+                    href={kingMikeWhatsApp}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-olaGreen-DEFAULT hover:bg-olaGreen-deep text-white font-bold text-xs shadow-2xs transition-colors"
+                  >
+                    <MessageSquare size={14} />
+                    <span>WhatsApp</span>
+                  </a>
+                  <a
+                    href={`tel:+254748459757`}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-gray-100 text-gray-800 border border-gray-200 font-bold text-xs shadow-2xs transition-colors"
+                  >
+                    <Phone size={13} className="text-gray-500" />
+                    <span>Call</span>
+                  </a>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -153,7 +188,8 @@ export default function MaintenancePage() {
               className="font-bold text-gray-800 hover:text-olaOrange-DEFAULT transition-colors underline decoration-gray-300 hover:decoration-olaOrange-DEFAULT underline-offset-2"
             >
               Mulleyz Creatives
-            </a>
+            </a>{' '}
+            x King Mike
           </span>
         </div>
       </footer>
