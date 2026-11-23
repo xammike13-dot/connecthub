@@ -74,10 +74,19 @@ import AssistantDashboard from './pages/AssistantDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import CustomerProfilePage from './pages/CustomerProfilePage';
 import ApplicationStatusPage from './pages/ApplicationStatusPage';
+import MaintenancePage from './pages/MaintenancePage';
 import { ProtectedRoute } from './components/RouteGuards';
 
 
 function App() {
+  const hostname = window.location.hostname.toLowerCase();
+  const isPublicDomain = hostname === 'olafasta.com' || hostname === 'www.olafasta.com';
+  const isMaintenanceEnabled = import.meta.env.VITE_MAINTENANCE_MODE !== 'false'; // Defaults to true until turned off
+
+  if (isPublicDomain && isMaintenanceEnabled) {
+    return <MaintenancePage />;
+  }
+
   return (
     <AuthProvider>
       <CartProvider>
