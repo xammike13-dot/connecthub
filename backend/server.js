@@ -160,6 +160,7 @@ import verificationRoutes from './routes/verificationRoutes.js';
 import setupRoutes from './routes/setupRoutes.js';
 import caretakerRoutes from './routes/caretakerRoutes.js';
 import assistantRoutes from './routes/assistantRoutes.js';
+import settingsRoutes from './routes/settingsRoutes.js';
 
 // Database connection is initialized in startServer()
 
@@ -313,6 +314,7 @@ app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/caretakers', caretakerRoutes);
 app.use('/api/assistants', assistantRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Serve frontend static assets in production
 const frontendDistPath = path.resolve(__dirname, '../frontend/dist');
