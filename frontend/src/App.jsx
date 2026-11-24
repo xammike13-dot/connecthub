@@ -81,7 +81,7 @@ import { ProtectedRoute } from './components/RouteGuards';
 function App() {
   const hostname = window.location.hostname.toLowerCase();
   const isPublicDomain = hostname === 'olafasta.com' || hostname === 'www.olafasta.com';
-  const isMaintenanceEnabled = import.meta.env.VITE_MAINTENANCE_MODE !== 'false'; // Defaults to true until turned off
+  const isMaintenanceEnabled = import.meta.env.VITE_MAINTENANCE_MODE === 'true'; // Inactive by default; enabled only when explicitly set to 'true'
 
   if (isPublicDomain && isMaintenanceEnabled) {
     return <MaintenancePage />;
