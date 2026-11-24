@@ -13,6 +13,8 @@ import {
   Truck,
   Info,
   Trash2,
+  ShieldCheck,
+  AlertTriangle,
 } from 'lucide-react';
 import { businessAPI, orderAPI } from '../services/api';
 import { useSocket } from '../context/SocketContext';
@@ -24,9 +26,16 @@ import LoadingSpinner from '../components/LoadingSpinner';
 
 const statusConfig = {
   pending: { label: 'Pending', color: 'bg-yellow-100 text-yellow-700', icon: Clock },
+  paid: { label: 'Paid (Escrow)', color: 'bg-indigo-100 text-indigo-700', icon: ShieldCheck },
+  accepted: { label: 'Accepted', color: 'bg-blue-100 text-blue-700', icon: Package },
   processing: { label: 'Processing', color: 'bg-blue-100 text-blue-700', icon: Package },
-  delivered: { label: 'Delivered', color: 'bg-green-100 text-green-700', icon: Truck },
+  preparing: { label: 'Preparing', color: 'bg-blue-100 text-blue-700', icon: Package },
+  ready_for_pickup: { label: 'Packed / Ready', color: 'bg-purple-100 text-purple-700', icon: Package },
+  out_for_delivery: { label: 'Out for Delivery', color: 'bg-amber-100 text-amber-700', icon: Truck },
+  delivered: { label: 'Delivered (Awaiting Confirmation)', color: 'bg-orange-100 text-orange-800', icon: Truck },
+  awaiting_customer_confirmation: { label: 'Awaiting Confirmation', color: 'bg-orange-100 text-orange-800', icon: Clock },
   completed: { label: 'Completed', color: 'bg-green-200 text-green-800', icon: CheckCircle },
+  disputed: { label: 'Disputed', color: 'bg-red-100 text-red-700', icon: AlertTriangle },
   cancelled: { label: 'Cancelled', color: 'bg-red-100 text-red-700', icon: AlertCircle },
 };
 
@@ -176,9 +185,9 @@ const BusinessOrdersPage = () => {
   // Status filter map for client-side filtering
   const statusFilterMap = {
     all: null,
-    pending: ['pending', 'paid', 'processing'],
-    completed: ['completed', 'delivered'],
-    cancelled: ['cancelled'],
+    pending: ['pending', 'paid', 'processing', 'accepted', 'preparing', 'ready_for_pickup', 'out_for_delivery', 'package_collected', 'in_transit'],
+    completed: ['completed', 'delivered', 'awaiting_customer_confirmation'],
+    cancelled: ['cancelled', 'disputed'],
   };
 
   const filteredOrders = orders.filter((order) => {
@@ -334,9 +343,19 @@ const BusinessOrdersPage = () => {
     return order.status === 'pending' || order.status === 'paid';
   };
 
-  // Check if order can be marked as delivered (processing status)
+  // Check if order can be marked as delivered (ready/dispatched and paid)
   const canMarkDelivered = (order) => {
-    return order.status === 'processing';
+    const eligibleStatuses = [
+      'processing',
+      'accepted',
+      'preparing',
+      'ready_for_pickup',
+      'out_for_delivery',
+      'package_collected',
+      'in_transit',
+    ];
+    const isPaid = order.paymentStatus === 'paid' || order.paymentStatus === 'held_in_escrow' || order.status === 'paid' || order.status === 'paid_in_escrow';
+    return eligibleStatuses.includes(order.status) && isPaid;
   };
 
   // Check if order can be cancelled by business
@@ -471,6 +490,36 @@ const BusinessOrdersPage = () => {
                           <Clock size={12} />
                           Est. delivery: {order.estimatedDeliveryTime}
                         </p>
+                      )}
+
+                      {(order.status === 'delivered' || order.status === 'awaiting_customer_confirmation') && (
+                        <div className="mt-2.5 p-2.5 bg-amber-50 rounded-xl border border-amber-200 text-xs space-y-1">
+                          <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                            <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+                            <span>Marked Delivered — Waiting for Customer Confirmation</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-[11px] text-amber-700">
+                            <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Escrow Status: Held (Released once customer confirms)</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {order.status === 'completed' && (
+                        <div className="mt-1.5 flex items-center gap-1 text-xs font-semibold text-green-700">
+                          <CheckCircle className="w-3.5 h-3.5 text-green-600" />
+                          <span>Customer Confirmed — Payout Released</span>
+                        </div>
+                      )}
+
+                      {order.status === 'disputed' && (
+                        <div className="mt-2 p-2 bg-red-50 rounded-xl border border-red-200 text-xs text-red-700">
+                          <div className="flex items-center gap-1.5 font-bold text-red-800">
+                            <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
+                            <span>Customer Reported a Problem</span>
+                          </div>
+                          <p className="text-[11px] mt-0.5">Escrow funds are held pending investigation.</p>
+                        </div>
                       )}
                     </div>
                     <div className="flex gap-2 flex-wrap">
@@ -713,12 +762,19 @@ const BusinessOrdersPage = () => {
             )}
 
             {/* Status Info */}
-            {selectedOrder.status === 'delivered' && (
-              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                <p className="text-sm text-orange-800">
-                  <strong>Note:</strong> This order has been delivered. The customer needs to confirm receipt.
-                  Once confirmed, the order will be marked as completed and payment released to your wallet.
+            {(selectedOrder.status === 'delivered' || selectedOrder.status === 'awaiting_customer_confirmation') && (
+              <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 space-y-1.5">
+                <div className="flex items-center gap-2 text-amber-900 font-bold text-sm">
+                  <Clock className="w-4 h-4 text-amber-600 animate-pulse" />
+                  <span>WAITING FOR CUSTOMER CONFIRMATION</span>
+                </div>
+                <p className="text-xs text-amber-800">
+                  This order has been marked as delivered. The customer must confirm receipt of their items. Once confirmed, payment will be released to your wallet.
                 </p>
+                <div className="flex items-center gap-1.5 pt-1 text-xs font-bold text-amber-700">
+                  <ShieldCheck className="w-4 h-4 text-amber-600" />
+                  <span>Payment Status: Held in Escrow</span>
+                </div>
               </div>
             )}
 

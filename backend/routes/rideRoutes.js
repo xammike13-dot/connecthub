@@ -9,7 +9,9 @@ import {
   declineRide,
   reassignRide,
   updateRideStatus,
+  markRiderArrived,
   confirmRideCompletion,
+  disputeRide,
   updateRiderLocation,
   cancelRide,
   archiveRide,
@@ -34,12 +36,14 @@ router.get('/customer/my-rides', authorize('customer'), getCustomerRides);
 router.delete('/:rideId/cancel', cancelRide);
 router.post('/:rideId/reassign', authorize('customer'), reassignRide);
 router.put('/:rideId/archive', authorize('customer'), archiveRide);
+router.post('/:rideId/dispute', authorize('customer'), disputeRide);
 
 // Rider routes
 router.get('/rider/available', authorize('rider'), getAvailableRides);
 router.get('/rider/my-rides', authorize('rider'), getRiderRides);
 router.post('/:rideId/accept', authorize('rider'), acceptRide);
 router.post('/:rideId/decline', authorize('rider'), declineRide);
+router.post('/:rideId/mark-arrived', authorize('rider'), markRiderArrived);
 router.post('/:rideId/location', authorize('rider'), updateRiderLocation);
 router.delete('/:rideId/delete', authorize('rider'), deleteRideForRider);
 

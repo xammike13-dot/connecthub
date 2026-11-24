@@ -94,6 +94,7 @@ const orderSchema = new mongoose.Schema(
         'in_transit',
         'arrived_at_destination',
         'awaiting_customer_confirmation',
+        'delivered_pending_confirmation',
         'out_for_delivery',
         'delivered',
         'completed',
@@ -138,9 +139,14 @@ const orderSchema = new mongoose.Schema(
     },
     paymentStatus: {
       type: String,
-      enum: ['pending', 'paid', 'failed', 'refunded'],
+      enum: ['pending', 'paid', 'held_in_escrow', 'release_pending', 'released', 'refund_pending', 'refunded', 'failed', 'disputed'],
       default: 'pending',
     },
+    fundsReleased: {
+      type: Boolean,
+      default: false,
+    },
+    fundsReleasedAt: Date,
     paymentId: String,
     mpesaReceiptNumber: { type: String, index: true },
     checkoutRequestId: { type: String, index: true },

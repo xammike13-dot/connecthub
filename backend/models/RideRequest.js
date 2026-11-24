@@ -52,6 +52,7 @@ const rideRequestSchema = new mongoose.Schema(
         'going_to_pickup',
         'arrived_at_pickup',
         'in_progress',
+        'arrived',
         'arrived_at_destination',
         'awaiting_customer_confirmation',
         'completed',
@@ -154,7 +155,7 @@ const rideRequestSchema = new mongoose.Schema(
     },
     paymentStatus: {
       type: String,
-      enum: ['pending', 'paid', 'failed', 'refunded'],
+      enum: ['pending', 'paid', 'held_in_escrow', 'release_pending', 'released', 'refund_pending', 'refunded', 'failed', 'disputed'],
       default: 'pending',
     },
     paymentId: String,

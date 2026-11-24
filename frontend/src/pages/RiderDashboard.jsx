@@ -393,7 +393,24 @@ const RiderDashboard = () => {
       console.error('Failed to update ride status:', error);
       addToast(error.response?.data?.message || 'Failed to update ride status', 'error');
     } finally {
-      setRideStatus('idle');
+      setRideStatus(null);
+    }
+  };
+
+  // Mark rider arrived at destination or pickup
+  const handleMarkArrived = async () => {
+    if (!activeRide) return;
+    try {
+      setRideStatus('updating');
+      await rideAPI.markArrived(activeRide._id);
+      addToast('Marked arrived successfully. Customer notified to confirm arrival.', 'success');
+      setActiveRide(prev => prev ? { ...prev, status: 'awaiting_customer_confirmation' } : null);
+      fetchDashboardData();
+    } catch (error) {
+      console.error('Failed to mark arrived:', error);
+      addToast(error.response?.data?.message || 'Failed to mark arrived', 'error');
+    } finally {
+      setRideStatus(null);
     }
   };
 
@@ -644,47 +661,69 @@ const RiderDashboard = () => {
                     </div>
 
                     {activeRide.status === 'accepted' && (
-                      <p className="text-xs text-amber-700 font-bold bg-amber-50 p-2 rounded-lg border border-amber-200">
-                        Rider Accepted. Head to the pickup location to meet passenger.
+                      <p className="text-xs text-amber-700 font-bold bg-amber-50 p-2.5 rounded-lg border border-amber-200">
+                        Rider Accepted. Proceed to pickup location, then tap Mark Arrived when ready.
                       </p>
                     )}
                     {activeRide.status === 'in_progress' && (
-                      <p className="text-xs text-blue-700 font-bold bg-blue-50 p-2 rounded-lg border border-blue-200">
-                        Trip In Progress. Ride safely to the destination area.
+                      <p className="text-xs text-blue-700 font-bold bg-blue-50 p-2.5 rounded-lg border border-blue-200">
+                        Trip In Progress. Ride safely to the destination area, then tap Mark Arrived.
                       </p>
                     )}
-                    {activeRide.status === 'awaiting_customer_confirmation' && (
-                      <p className="text-xs text-emerald-700 font-bold bg-emerald-50 p-2 rounded-lg border border-emerald-200">
-                        Arrived at destination. Awaiting passenger confirmation.
-                      </p>
+                    {(activeRide.status === 'awaiting_customer_confirmation' || activeRide.status === 'arrived') && (
+                      <div className="bg-amber-50 border border-amber-300 rounded-xl p-3 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-amber-600 animate-pulse shrink-0" />
+                          <span className="text-xs font-black text-amber-900 uppercase">
+                            Arrival Confirmed – Waiting for Customer
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-amber-800">
+                          Customer has been notified. They must confirm arrival to release your payment of {formatCurrency(fareAmount)} from escrow.
+                        </p>
+                        <div className="flex items-center gap-1.5 pt-1 text-[11px] font-bold text-amber-700">
+                          <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                          <span>Payment Status: Held in Escrow</span>
+                        </div>
+                      </div>
+                    )}
+                    {activeRide.status === 'disputed' && (
+                      <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700 space-y-1">
+                        <div className="flex items-center gap-2 font-bold text-red-800">
+                          <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                          <span>Trip Disputed by Customer</span>
+                        </div>
+                        <p className="text-[11px]">Escrow payout is held while support reviews the report.</p>
+                      </div>
                     )}
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-neutral-100 flex gap-2 flex-wrap">
+                  <div className="mt-4 pt-3 border-t border-neutral-100 flex gap-2 flex-wrap items-center">
+                    {(activeRide.status === 'accepted' || activeRide.status === 'in_progress') && (
+                      <button
+                        onClick={handleMarkArrived}
+                        disabled={rideStatus === 'updating'}
+                        className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black text-xs uppercase tracking-wide rounded-xl shadow-md flex items-center gap-1.5 transition disabled:opacity-50"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        {rideStatus === 'updating' ? 'Marking Arrived...' : 'Mark Arrived'}
+                      </button>
+                    )}
+
                     {activeRide.status === 'accepted' && (
                       <button
                         onClick={() => updateRideStatus('in_progress')}
                         disabled={rideStatus === 'updating'}
-                        className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-black text-xs rounded-xl shadow-sm transition"
+                        className="px-3.5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs rounded-xl shadow-sm transition"
                       >
                         Start Trip
-                      </button>
-                    )}
-
-                    {activeRide.status === 'in_progress' && (
-                      <button
-                        onClick={() => updateRideStatus('awaiting_customer_confirmation')}
-                        disabled={rideStatus === 'updating'}
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-sm transition"
-                      >
-                        Mark Arrived
                       </button>
                     )}
 
                     {activeRide.customer?.phone && (
                       <button
                         onClick={() => contactCustomer(activeRide.customer?.phone)}
-                        className="px-3.5 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-bold text-xs rounded-xl flex items-center gap-1.5 transition"
+                        className="px-3.5 py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-bold text-xs rounded-xl flex items-center gap-1.5 transition"
                       >
                         <Phone size={13} className="stroke-[2.5]" />
                         Call Passenger

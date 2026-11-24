@@ -12,6 +12,8 @@ import {
   CheckCircle2,
   Trash2,
   Clock,
+  ShieldCheck,
+  AlertTriangle,
 } from 'lucide-react';
 import { customerAPI, orderAPI } from '../services/api';
 import { useSocket } from '../context/SocketContext';
@@ -26,8 +28,10 @@ import { useToast } from '../components/Toast';
 const statusConfig = {
   pending: { color: 'bg-yellow-100 text-yellow-700', label: 'Pending' },
   processing: { color: 'bg-blue-100 text-blue-700', label: 'Processing' },
-  delivered: { color: 'bg-green-100 text-green-700', label: 'Delivered' },
+  delivered: { color: 'bg-orange-100 text-orange-800', label: 'Delivered (Awaiting Confirmation)' },
+  awaiting_customer_confirmation: { color: 'bg-orange-100 text-orange-800', label: 'Awaiting Confirmation' },
   completed: { color: 'bg-green-200 text-green-800', label: 'Completed' },
+  disputed: { color: 'bg-red-100 text-red-700', label: 'Disputed' },
   cancelled: { color: 'bg-red-100 text-red-700', label: 'Cancelled' },
 };
 
@@ -76,6 +80,14 @@ const OrdersPage = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalOrders, setTotalOrders] = useState(0);
   const [deleting, setDeleting] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [orderToConfirm, setOrderToConfirm] = useState(null);
+  const [confirming, setConfirming] = useState(false);
+  const [showDisputeModal, setShowDisputeModal] = useState(false);
+  const [orderToDispute, setOrderToDispute] = useState(null);
+  const [disputeReason, setDisputeReason] = useState('Order not received');
+  const [disputeDetails, setDisputeDetails] = useState('');
+  const [submittingDispute, setSubmittingDispute] = useState(false);
 
   useEffect(() => {
     fetchOrders();
@@ -188,21 +200,56 @@ const OrdersPage = () => {
     }
   };
 
-  const handleConfirmDelivery = async (orderIdToConfirm) => {
+  const openConfirmModal = (order) => {
+    setOrderToConfirm(order);
+    setShowConfirmModal(true);
+  };
+
+  const handleConfirmDelivery = async () => {
+    if (!orderToConfirm) return;
+
     try {
-      await orderAPI.confirmDelivery(orderIdToConfirm);
-
-      toastSuccess('Delivery confirmed successfully');
-
+      setConfirming(true);
+      await orderAPI.confirmDelivery(orderToConfirm._id);
+      toastSuccess('Delivery confirmed successfully. Payment released to business.');
       fetchOrders();
+      setShowConfirmModal(false);
+      setOrderToConfirm(null);
       setShowOrderModal(false);
     } catch (error) {
       console.error('[CONFIRM DELIVERY ERROR]', error);
+      toastError(error.response?.data?.message || 'Failed to confirm delivery');
+    } finally {
+      setConfirming(false);
+    }
+  };
 
-      toastError(
-        error.response?.data?.message ||
-        'Failed to confirm delivery'
-      );
+  const openDisputeModal = (order) => {
+    setOrderToDispute(order);
+    setDisputeReason('Order not received');
+    setDisputeDetails('');
+    setShowDisputeModal(true);
+  };
+
+  const handleSubmitDispute = async () => {
+    if (!orderToDispute || !disputeReason) return;
+
+    try {
+      setSubmittingDispute(true);
+      await orderAPI.disputeOrder(orderToDispute._id, {
+        reason: disputeReason,
+        details: disputeDetails,
+      });
+      toastSuccess('Problem reported. Escrow payment is held and administrator notified.');
+      fetchOrders();
+      setShowDisputeModal(false);
+      setOrderToDispute(null);
+      setShowOrderModal(false);
+    } catch (error) {
+      console.error('Failed to submit dispute:', error);
+      toastError(error.response?.data?.message || 'Failed to report problem');
+    } finally {
+      setSubmittingDispute(false);
     }
   };
 
@@ -234,7 +281,9 @@ const OrdersPage = () => {
   };
 
   const canConfirmDelivered = (order) => {
-    return order.paymentStatus === 'paid' && order.status === 'delivered';
+    const isDelivered = order.status === 'delivered' || order.status === 'awaiting_customer_confirmation' || order.status === 'delivered_pending_confirmation';
+    const isPaid = order.paymentStatus === 'paid' || order.paymentStatus === 'held_in_escrow' || order.status === 'paid' || order.status === 'paid_in_escrow';
+    return isDelivered && isPaid;
   };
 
   const filteredOrders = orders.filter((order) => {
@@ -452,21 +501,35 @@ const OrdersPage = () => {
 
               {/* Confirm Delivery Action */}
               {canConfirmDelivered(selectedOrder) && (
-                <div className="bg-green-50 border border-green-200 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
-                    <h4 className="font-bold text-green-800 text-base">Confirm Receipt</h4>
-                    <p className="text-sm text-green-700 mt-1">
-                      Your order has been delivered. Please confirm that you have received your items in good condition.
+                    <h4 className="font-bold text-emerald-800 text-base">Confirm Receipt</h4>
+                    <p className="text-sm text-emerald-700 mt-1">
+                      Your order has been delivered. Please confirm that you have received your items in good condition to release payment to the business.
                     </p>
+                    <div className="flex items-center gap-1.5 mt-2 text-xs font-bold text-emerald-800">
+                      <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                      <span>Payment Status: Held in Escrow</span>
+                    </div>
                   </div>
-                  <Button
-                    variant="success"
-                    onClick={() => handleConfirmDelivery(selectedOrder._id)}
-                    leftIcon={<CheckCircle2 size={16} />}
-                    className="font-bold shrink-0 shadow-sm"
-                  >
-                    Confirm Delivery
-                  </Button>
+                  <div className="flex gap-2 shrink-0 flex-wrap">
+                    <Button
+                      variant="success"
+                      onClick={() => openConfirmModal(selectedOrder)}
+                      leftIcon={<CheckCircle2 size={16} />}
+                      className="font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                    >
+                      Confirm Received
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => openDisputeModal(selectedOrder)}
+                      leftIcon={<AlertTriangle size={15} className="text-red-500" />}
+                      className="border-red-200 text-red-600 hover:bg-red-50 font-bold"
+                    >
+                      Report a Problem
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
@@ -556,7 +619,7 @@ const OrdersPage = () => {
         ) : (
           <div className="space-y-4">
             {filteredOrders.map((order) => {
-              const showButton = order.paymentStatus === 'paid' && order.status === 'delivered';
+              const isReadyForConfirmation = canConfirmDelivered(order);
 
               console.log('[CUSTOMER ORDER CARD]', {
                 orderId: order._id,
@@ -573,15 +636,18 @@ const OrdersPage = () => {
                 >
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <span className="text-sm text-gray-500">
+                      <div className="flex items-center gap-3 mb-2 flex-wrap">
+                        <span className="text-sm text-gray-500 font-mono">
                           Order #{order._id?.slice(-6).toUpperCase()}
                         </span>
                         {order.orderType && (
-                          <span className="px-2 py-1 rounded text-xs bg-gray-100 text-gray-600 capitalize">
+                          <span className="px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-600 capitalize">
                             {order.orderType}
                           </span>
                         )}
+                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusConfig[order.status]?.color || 'bg-gray-100 text-gray-700'}`}>
+                          {statusConfig[order.status]?.label || order.status}
+                        </span>
                       </div>
 
                       <p className="text-gray-600 text-sm">
@@ -600,9 +666,37 @@ const OrdersPage = () => {
                           {formatCurrency(order.finalAmount || order.totalAmount || 0)}
                         </span>
                       </p>
+
+                      {/* Escrow and Delivery Status info */}
+                      {isReadyForConfirmation && (
+                        <div className="mt-2.5 p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs space-y-1">
+                          <div className="flex items-center gap-2 font-bold text-amber-900">
+                            <Clock className="w-4 h-4 text-amber-600 animate-pulse" />
+                            <span>Delivery Status: Awaiting Customer Confirmation</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-800">
+                            <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Payment Status: Held in Escrow</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {order.status === 'completed' && (
+                        <div className="mt-2 flex items-center gap-1.5 text-xs font-bold text-green-700">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
+                          <span>Delivery Status: Completed • Payment: Released</span>
+                        </div>
+                      )}
+
+                      {order.status === 'disputed' && (
+                        <div className="mt-2 flex items-center gap-1.5 text-xs font-bold text-red-700">
+                          <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
+                          <span>Disputed: Escrow Payment Frozen</span>
+                        </div>
+                      )}
                     </div>
 
-                    <div className="flex gap-2 flex-wrap">
+                    <div className="flex gap-2 flex-wrap items-center">
                       <Button
                         variant="outline"
                         size="sm"
@@ -612,15 +706,27 @@ const OrdersPage = () => {
                         View Details
                       </Button>
 
-                      {showButton && (
-                        <Button
-                          variant="success"
-                          size="sm"
-                          onClick={() => handleConfirmDelivery(order._id)}
-                          leftIcon={<CheckCircle size={14} />}
-                        >
-                          Confirm Delivery
-                        </Button>
+                      {isReadyForConfirmation && (
+                        <>
+                          <Button
+                            variant="success"
+                            size="sm"
+                            onClick={() => openConfirmModal(order)}
+                            leftIcon={<CheckCircle2 size={14} />}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                          >
+                            Confirm Received
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openDisputeModal(order)}
+                            leftIcon={<AlertTriangle size={14} className="text-red-500" />}
+                            className="border-red-200 text-red-600 hover:bg-red-50 font-bold"
+                          >
+                            Report a Problem
+                          </Button>
+                        </>
                       )}
 
                       {canDeleteOrder(order) && (
@@ -855,18 +961,41 @@ const OrdersPage = () => {
 
             {/* Confirm Delivery Action */}
             {canConfirmDelivered(selectedOrder) && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <h4 className="font-semibold text-green-800 mb-2">Confirm Receipt</h4>
-                <p className="text-sm text-green-700 mb-3">
-                  Your order has been delivered. Please confirm that you have received your items.
-                </p>
-                <Button
-                  variant="success"
-                  onClick={() => handleConfirmDelivery(selectedOrder._id)}
-                  leftIcon={<CheckCircle size={16} />}
-                >
-                  Confirm Delivery
-                </Button>
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-3">
+                <div>
+                  <h4 className="font-bold text-emerald-900 text-sm">Delivery Status: Awaiting Customer Confirmation</h4>
+                  <p className="text-xs text-emerald-800 mt-0.5">
+                    Your order has been marked as delivered by the vendor. Confirm receipt to complete the transaction and release escrow payment.
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-1.5 text-xs font-bold text-emerald-800">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Payment Status: Held in Escrow</span>
+                  </div>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  <Button
+                    variant="success"
+                    onClick={() => {
+                      setShowOrderModal(false);
+                      openConfirmModal(selectedOrder);
+                    }}
+                    leftIcon={<CheckCircle2 size={16} />}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                  >
+                    Confirm Received
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowOrderModal(false);
+                      openDisputeModal(selectedOrder);
+                    }}
+                    leftIcon={<AlertTriangle size={15} className="text-red-500" />}
+                    className="border-red-200 text-red-600 hover:bg-red-50 font-bold"
+                  >
+                    Report a Problem
+                  </Button>
+                </div>
               </div>
             )}
           </div>
@@ -913,6 +1042,144 @@ const OrdersPage = () => {
               leftIcon={<Trash2 size={14} />}
             >
               Delete Order
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Confirm Received Modal */}
+      <Modal
+        isOpen={showConfirmModal}
+        onClose={() => {
+          setShowConfirmModal(false);
+          setOrderToConfirm(null);
+        }}
+        title="Confirm Received"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 text-emerald-800 bg-emerald-50 p-4 rounded-xl border border-emerald-200">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+            <div className="text-sm">
+              <p className="font-bold text-neutral-900">
+                Have you received your order and are you satisfied with the delivery?
+              </p>
+              <p className="text-xs text-neutral-600 mt-1">
+                Confirming receipt will release the business's eligible payout from escrow.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex gap-3 justify-end pt-3 border-t">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowConfirmModal(false);
+                setOrderToConfirm(null);
+              }}
+              disabled={confirming}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleConfirmDelivery}
+              isLoading={confirming}
+              leftIcon={<CheckCircle2 size={14} />}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+            >
+              Yes, Confirm Received
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Report a Problem Modal */}
+      <Modal
+        isOpen={showDisputeModal}
+        onClose={() => {
+          setShowDisputeModal(false);
+          setOrderToDispute(null);
+        }}
+        title="Report a Problem"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 bg-red-50 text-red-800 p-3.5 rounded-xl border border-red-200 text-xs">
+            <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-red-900">Escrow Payment Protection</p>
+              <p className="mt-0.5">
+                Reporting an issue freezes the escrow payout for this order. Our team will review the dispute with the vendor.
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+              Select Problem Category
+            </label>
+            <div className="space-y-2">
+              {[
+                'Order not received',
+                'Wrong items delivered',
+                'Missing items',
+                'Damaged items',
+                'Other issue',
+              ].map((reason) => (
+                <label
+                  key={reason}
+                  className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${
+                    disputeReason === reason
+                      ? 'border-red-500 bg-red-50/50 text-neutral-900 font-semibold'
+                      : 'border-gray-200 hover:bg-gray-50 text-neutral-700'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="orderDisputeReason"
+                    value={reason}
+                    checked={disputeReason === reason}
+                    onChange={(e) => setDisputeReason(e.target.value)}
+                    className="text-red-600 focus:ring-red-500"
+                  />
+                  <span className="text-sm">{reason}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+              Additional Details (Optional)
+            </label>
+            <textarea
+              rows={3}
+              value={disputeDetails}
+              onChange={(e) => setDisputeDetails(e.target.value)}
+              placeholder="Describe what was missing, damaged, or wrong..."
+              className="w-full p-2.5 text-sm border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+            />
+          </div>
+
+          <div className="flex gap-3 justify-end pt-3 border-t">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDisputeModal(false);
+                setOrderToDispute(null);
+              }}
+              disabled={submittingDispute}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={handleSubmitDispute}
+              isLoading={submittingDispute}
+              leftIcon={<AlertTriangle size={14} />}
+            >
+              Submit Report
             </Button>
           </div>
         </div>

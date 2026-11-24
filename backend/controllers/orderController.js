@@ -475,6 +475,9 @@ export const confirmDelivery = asyncHandler(async (req, res) => {
 
   order.status = 'completed';
   order.deliveryStage = 'completed';
+  order.paymentStatus = 'released';
+  order.fundsReleased = true;
+  order.fundsReleasedAt = new Date();
   order.completedAt = new Date();
   order.deliveryConfirmedBy = req.user._id;
   order.deliveryConfirmedAt = new Date();
@@ -949,51 +952,80 @@ export const markOrderDelivered = asyncHandler(async (req, res) => {
     throw new ResponseError('Not authorized to update this order', 403);
   }
 
-  if (order.status !== 'processing') {
-    throw new ResponseError('Only processing orders can be marked as delivered', 400);
+  const eligibleStatuses = [
+    'processing',
+    'accepted',
+    'preparing',
+    'ready_for_pickup',
+    'out_for_delivery',
+    'package_collected',
+    'in_transit',
+  ];
+
+  if (!eligibleStatuses.includes(order.status)) {
+    throw new ResponseError(
+      `Order with status "${order.status}" cannot be marked as delivered. Order must be processed/dispatched first.`,
+      400
+    );
+  }
+
+  // Ensure order was actually paid
+  if (order.paymentStatus !== 'paid' && order.status !== 'paid' && order.status !== 'paid_in_escrow') {
+    throw new ResponseError('Cannot mark an unpaid order as delivered.', 400);
   }
 
   order.status = 'delivered';
+  order.deliveryStage = 'delivered';
   order.deliveredAt = new Date();
+  // Escrow must remain held until customer confirms
+  if (order.escrowStatus === 'none') {
+    order.escrowStatus = 'held';
+  }
+  order.fundsReleased = false;
 
   console.log('[BUSINESS DELIVERED]', {
     orderId: order._id,
     status: order.status,
   });
 
-
   order.trackingHistory.push({
     status: 'delivered',
     timestamp: new Date(),
-    note: 'Order marked as delivered. Awaiting customer confirmation.',
+    note: 'Business marked order as delivered. Awaiting customer confirmation to release escrow funds.',
   });
 
   await order.save();
 
-  const io = req.app.get('io');
+  const io = req.app?.get('io') || getIO();
 
-  // Restore inventory on cancellation
-  await restoreOrderInventory(order, io);
-
-  // Emit socket event
+  // Emit socket events
   if (io && order.customer) {
+    const customerId = order.customer._id || order.customer;
     console.log('[EMITTING ORDER DELIVERED]', {
-      customerId: order.customer._id,
+      customerId,
       orderId: order._id,
-      room: `user_${order.customer._id}`,
+      room: `user_${customerId}`,
       status: order.status
     });
 
-    io.to(`user_${order.customer._id}`).emit('order_delivered', {
+    io.to(`user_${customerId}`).emit('order_delivered', {
       orderId: order._id,
-      message: 'Your order has been delivered. Please confirm receipt of goods.',
+      orderNumber: order._id.toString().slice(-6).toUpperCase(),
+      message: 'Your order has been delivered. Please inspect and confirm receipt.',
+      order,
+    });
+
+    io.to(`user_${customerId}`).emit('delivery_arrived', {
+      orderId: order._id,
+      orderNumber: order._id.toString().slice(-6).toUpperCase(),
+      message: 'Your order has been marked as delivered. Please confirm receipt to complete the order.',
       order,
     });
 
     console.log('[ORDER DELIVERED EMITTED]');
   }
 
-  await createOrderNotification(order.customer._id, order, 'order_delivered', 'customer', req);
+  await createOrderNotification(order.customer._id || order.customer, order, 'order_delivered', 'customer', req);
 
   console.log('[MARK DELIVERED]', {
     orderId: order._id,
@@ -1436,6 +1468,7 @@ export const disputeOrder = asyncHandler(async (req, res) => {
 
   order.status = 'disputed';
   order.escrowStatus = 'disputed';
+  order.paymentStatus = 'disputed';
   order.dispute = {
     isDisputed: true,
     reason: reason || 'Service issue reported',
@@ -1481,6 +1514,13 @@ export const disputeOrder = asyncHandler(async (req, res) => {
         details,
       });
     }
+    io.to('admin_channel').emit('order_disputed', {
+      orderId: order._id,
+      orderNumber: order._id.toString().slice(-6).toUpperCase(),
+      reason,
+      details,
+      customerId,
+    });
   }
 
   try {
@@ -1488,7 +1528,7 @@ export const disputeOrder = asyncHandler(async (req, res) => {
     if (businessId) {
       await createNotification(
         businessId,
-        'dispute_opened',
+        'order_disputed',
         'Order Disputed by Customer',
         `Customer reported a problem for Order #${order._id.toString().slice(-6).toUpperCase()}: ${reason}. Payout is held in escrow.`,
         { orderId: order._id, reason, details },
@@ -1500,6 +1540,22 @@ export const disputeOrder = asyncHandler(async (req, res) => {
     }
   } catch (disputeNotifErr) {
     console.error('[Dispute notification to business error]:', disputeNotifErr.message);
+  }
+
+  try {
+    await createNotification(
+      customerId,
+      'order_disputed',
+      'Problem Reported',
+      `Your report for Order #${order._id.toString().slice(-6).toUpperCase()} ("${reason}") has been received. Escrow payment is held.`,
+      { orderId: order._id, reason, details },
+      '/customer/orders',
+      '/customer/orders',
+      req,
+      'customer'
+    );
+  } catch (custNotifErr) {
+    console.error('[Dispute notification to customer error]:', custNotifErr.message);
   }
 
   res.status(200).json({

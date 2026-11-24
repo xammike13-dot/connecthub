@@ -11,6 +11,7 @@ export const orderAPI = {
   accept: (id, estimatedDeliveryTime) => api.put(`/orders/${id}/accept`, { estimatedDeliveryTime }),
   businessCancel: (id, cancellationReason) => api.put(`/orders/${id}/cancel`, { cancellationReason }),
   markDelivered: (id) => api.put(`/orders/${id}/delivered`),
+  disputeOrder: (orderId, data) => api.post(`/orders/${orderId}/dispute`, data),
   delete: (id) => api.delete(`/orders/${id}`),
   archive: (id) => api.put(`/orders/${id}/archive`),
 };

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Bike, Eye, Trash2, AlertCircle, CheckCircle, Clock, X } from 'lucide-react';
+import { Bike, Eye, Trash2, AlertCircle, CheckCircle, Clock, X, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { rideAPI } from '../services/api';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
@@ -19,6 +19,7 @@ const statusConfig = {
   completed: { color: 'bg-green-100 text-green-700', label: 'Completed' },
   declined: { color: 'bg-red-100 text-red-700', label: 'Declined' },
   cancelled: { color: 'bg-red-100 text-red-700', label: 'Cancelled' },
+  disputed: { color: 'bg-red-100 text-red-700', label: 'Disputed' },
   no_rider_available: { color: 'bg-gray-100 text-gray-700', label: 'No Rider Available' },
 };
 
@@ -44,6 +45,11 @@ const CustomerRidesPage = () => {
   const [showArrivalModal, setShowArrivalModal] = useState(false);
   const [rideToConfirm, setRideToConfirm] = useState(null);
   const [confirming, setConfirming] = useState(false);
+  const [showDisputeModal, setShowDisputeModal] = useState(false);
+  const [rideToDispute, setRideToDispute] = useState(null);
+  const [disputeReason, setDisputeReason] = useState('Rider did not arrive');
+  const [disputeDetails, setDisputeDetails] = useState('');
+  const [submittingDispute, setSubmittingDispute] = useState(false);
   const [rideToDelete, setRideToDelete] = useState(null);
   const [archiving, setArchiving] = useState(false);
   const [page, setPage] = useState(1);
@@ -148,6 +154,33 @@ const CustomerRidesPage = () => {
     }
   };
 
+  const handleOpenDispute = (ride) => {
+    setRideToDispute(ride);
+    setDisputeReason('Rider did not arrive');
+    setDisputeDetails('');
+    setShowDisputeModal(true);
+  };
+
+  const handleSubmitDispute = async () => {
+    if (!rideToDispute || !disputeReason) return;
+    try {
+      setSubmittingDispute(true);
+      await rideAPI.disputeRide(rideToDispute._id, {
+        reason: disputeReason,
+        details: disputeDetails,
+      });
+      toastSuccess('Problem reported. Escrow funds are held and administrator has been notified.');
+      fetchRides();
+      setShowDisputeModal(false);
+      setRideToDispute(null);
+    } catch (error) {
+      toastError(error.response?.data?.message || 'Failed to report problem');
+      console.error('Failed to report dispute:', error);
+    } finally {
+      setSubmittingDispute(false);
+    }
+  };
+
   const handleViewRide = (ride) => {
     setSelectedRide(ride);
     setShowModal(true);
@@ -215,15 +248,76 @@ const CustomerRidesPage = () => {
                     </p>
 
                     <p className="text-gray-500 text-sm mt-1">
-                      {ride.pickupLocation?.address || 'Pickup'} → {ride.dropoffLocation?.address || 'Dropoff'}
+                      <span className="font-medium text-gray-700">Pickup:</span> {ride.pickupLocation?.address || ride.pickupLocation?.name || 'Pickup Area'} → <span className="font-medium text-gray-700">Dropoff:</span> {ride.dropoffLocation?.address || ride.dropoffLocation?.name || 'Destination'}
                     </p>
 
-                    <p className="text-sm font-semibold text-gray-900 mt-1">
-                      {formatCurrency(ride.fare?.totalFare || ride.estimatedPrice || 0)}
-                    </p>
+                    <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                      <p className="text-sm font-black text-gray-900">
+                        {formatCurrency(ride.fare?.totalFare || ride.estimatedPrice || 0)}
+                      </p>
+
+                      {ride.status === 'awaiting_customer_confirmation' && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                          <ShieldCheck size={13} className="text-amber-600" />
+                          Payment: Held in Escrow
+                        </span>
+                      )}
+
+                      {ride.status === 'completed' && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800">
+                          <CheckCircle size={13} className="text-green-600" />
+                          Payment: Released
+                        </span>
+                      )}
+
+                      {ride.status === 'disputed' && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800 border border-red-200">
+                          <AlertTriangle size={13} className="text-red-600" />
+                          Disputed: Payment Frozen
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Rider details if assigned */}
+                    {ride.rider && (
+                      <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100">
+                        {ride.rider.avatar || ride.rider.profilePhoto ? (
+                          <img
+                            src={ride.rider.avatar || ride.rider.profilePhoto}
+                            alt={ride.rider.name || 'Rider'}
+                            className="w-6 h-6 rounded-full object-cover border"
+                          />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold">
+                            {(ride.rider.name || 'R')[0].toUpperCase()}
+                          </div>
+                        )}
+                        <span className="text-xs font-semibold text-gray-700">
+                          Rider: {ride.rider.name}
+                        </span>
+                        {ride.rider.phone && (
+                          <span className="text-xs text-gray-500">
+                            • {ride.rider.phone}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Arrival notification banner for passenger */}
+                    {ride.status === 'awaiting_customer_confirmation' && (
+                      <div className="mt-3 p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs space-y-1">
+                        <div className="flex items-center gap-2 font-bold text-emerald-900">
+                          <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span>Rider Has Arrived! Please confirm your arrival.</span>
+                        </div>
+                        <p className="text-emerald-800 text-[11px]">
+                          Your payment is securely held in escrow. Tapping Confirm Arrival releases funds to the rider.
+                        </p>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="flex gap-2 flex-wrap">
+                  <div className="flex gap-2 flex-wrap items-center">
                     <Button
                       variant="outline"
                       size="sm"
@@ -234,14 +328,26 @@ const CustomerRidesPage = () => {
                     </Button>
 
                     {canConfirmArrival(ride) && (
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() => handleConfirmArrival(ride)}
-                        leftIcon={<CheckCircle size={14} />}
-                      >
-                        Confirm Arrival
-                      </Button>
+                      <>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => handleConfirmArrival(ride)}
+                          leftIcon={<CheckCircle size={14} />}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                        >
+                          Confirm Arrival
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenDispute(ride)}
+                          leftIcon={<AlertTriangle size={14} className="text-red-500" />}
+                          className="border-red-200 text-red-600 hover:bg-red-50"
+                        >
+                          Report a Problem
+                        </Button>
+                      </>
                     )}
 
                     {canArchiveRide(ride) && (
@@ -418,12 +524,19 @@ const CustomerRidesPage = () => {
         size="sm"
       >
         <div className="space-y-4">
-          <div className="flex items-center gap-3 text-green-600 bg-green-50 p-3 rounded-lg">
-            <CheckCircle className="w-5 h-5" />
-            <p className="text-sm">Have you arrived safely at your destination?</p>
+          <div className="flex items-start gap-3 text-emerald-800 bg-emerald-50 p-4 rounded-xl border border-emerald-200">
+            <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+            <div className="text-sm">
+              <p className="font-bold text-neutral-900">
+                Have you arrived safely at your destination and received the ride service?
+              </p>
+              <p className="text-xs text-neutral-600 mt-1">
+                Confirming arrival will release the held escrow payment to your rider.
+              </p>
+            </div>
           </div>
 
-          <div className="flex gap-3 justify-end pt-4 border-t">
+          <div className="flex gap-3 justify-end pt-3 border-t">
             <Button
               variant="outline"
               onClick={() => {
@@ -432,15 +545,106 @@ const CustomerRidesPage = () => {
               }}
               disabled={confirming}
             >
-              Not Yet
+              Cancel
             </Button>
             <Button
               variant="primary"
               onClick={handleArrivalConfirm}
               isLoading={confirming}
               leftIcon={<CheckCircle size={14} />}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
             >
-              Yes, I have arrived
+              Yes, Confirm Arrival
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Report a Problem / Dispute Modal */}
+      <Modal
+        isOpen={showDisputeModal}
+        onClose={() => {
+          setShowDisputeModal(false);
+          setRideToDispute(null);
+        }}
+        title="Report a Problem"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 bg-red-50 text-red-800 p-3.5 rounded-xl border border-red-200 text-xs">
+            <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-red-900">Escrow Payment Protection</p>
+              <p className="mt-0.5">
+                Reporting a problem freezes the escrow payment to the rider. Our support team will investigate and ensure a fair resolution.
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+              Select Issue
+            </label>
+            <div className="space-y-2">
+              {[
+                'Rider did not arrive',
+                'Ride was not completed',
+                'Safety or service issue',
+                'Other issue',
+              ].map((reason) => (
+                <label
+                  key={reason}
+                  className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${
+                    disputeReason === reason
+                      ? 'border-red-500 bg-red-50/50 text-neutral-900 font-semibold'
+                      : 'border-gray-200 hover:bg-gray-50 text-neutral-700'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="disputeReason"
+                    value={reason}
+                    checked={disputeReason === reason}
+                    onChange={(e) => setDisputeReason(e.target.value)}
+                    className="text-red-600 focus:ring-red-500"
+                  />
+                  <span className="text-sm">{reason}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+              Additional Details (Optional)
+            </label>
+            <textarea
+              rows={3}
+              value={disputeDetails}
+              onChange={(e) => setDisputeDetails(e.target.value)}
+              placeholder="Provide more context so our support team can resolve this quickly..."
+              className="w-full p-2.5 text-sm border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+            />
+          </div>
+
+          <div className="flex gap-3 justify-end pt-3 border-t">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDisputeModal(false);
+                setRideToDispute(null);
+              }}
+              disabled={submittingDispute}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={handleSubmitDispute}
+              isLoading={submittingDispute}
+              leftIcon={<AlertTriangle size={14} />}
+            >
+              Submit Report
             </Button>
           </div>
         </div>

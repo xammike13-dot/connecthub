@@ -642,6 +642,119 @@ export const updateRideStatus = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Mark ride as arrived at destination (Rider only)
+ * Updates status to 'awaiting_customer_confirmation'
+ * NEVER releases escrow payment
+ */
+export const markRiderArrived = asyncHandler(async (req, res) => {
+  const { rideId } = req.params;
+  const riderId = req.user._id;
+
+  if (req.user.role !== 'rider') {
+    throw new ResponseError('Only the assigned rider can mark arrival', 403);
+  }
+
+  const ride = await RideRequest.findById(rideId)
+    .populate('customer', 'name phone avatar profilePhoto');
+
+  if (!ride) {
+    throw new ResponseError('Ride not found', 404);
+  }
+
+  if (!ride.rider || ride.rider.toString() !== riderId.toString()) {
+    throw new ResponseError('You are not the assigned rider for this trip', 403);
+  }
+
+  if (['completed', 'cancelled', 'declined', 'disputed'].includes(ride.status)) {
+    throw new ResponseError(`Cannot mark arrived for ride with status ${ride.status}`, 400);
+  }
+
+  if (ride.status === 'awaiting_customer_confirmation' || ride.status === 'arrived') {
+    return res.status(200).json({
+      success: true,
+      message: 'Arrival already marked. Waiting for customer confirmation.',
+      data: ride,
+    });
+  }
+
+  ride.status = 'awaiting_customer_confirmation';
+  // DO NOT release escrow - keep held
+  if (ride.escrowStatus === 'none' && (ride.paymentStatus === 'paid' || ride.paymentStatus === 'held_in_escrow')) {
+    ride.escrowStatus = 'held';
+  }
+
+  ride.trackingHistory.push({
+    status: 'awaiting_customer_confirmation',
+    timestamp: new Date(),
+    location: {
+      type: 'Point',
+      coordinates: ride.dropoffLocation?.coordinates?.coordinates || ride.dropoffLocation?.coordinates || [0, 0],
+    },
+    note: 'Rider marked arrived at destination. Awaiting customer confirmation.',
+  });
+
+  await ride.save();
+
+  const customerId = ride.customer?._id || ride.customer;
+  const io = req.app?.get('io') || global.io;
+  if (io && customerId) {
+    io.to(`user_${customerId}`).emit('ride_status_update', {
+      rideId: ride._id,
+      status: 'awaiting_customer_confirmation',
+      ride,
+    });
+    io.to(`user_${customerId}`).emit('ride_awaiting_confirmation', {
+      rideId: ride._id,
+      message: 'Your rider has arrived. Please confirm your arrival.',
+      ride,
+    });
+    io.to(`user_${riderId}`).emit('ride_status_update', {
+      rideId: ride._id,
+      status: 'awaiting_customer_confirmation',
+      ride,
+    });
+    io.to(`rider_${riderId}`).emit('ride_status_update', {
+      rideId: ride._id,
+      status: 'awaiting_customer_confirmation',
+      ride,
+    });
+  }
+
+  // Create notifications
+  try {
+    await createRideNotification(
+      customerId,
+      ride,
+      'ride_awaiting_customer_confirmation',
+      'customer',
+      req,
+      'Your rider has arrived at the destination. Please confirm your arrival to complete the ride.'
+    );
+  } catch (err) {
+    console.error('[Customer ride arrived notification failed]:', err.message);
+  }
+
+  try {
+    await createRideNotification(
+      riderId,
+      ride,
+      'rider_arrived',
+      'rider',
+      req,
+      'You have marked arrival. Payment is securely held in escrow until customer confirms.'
+    );
+  } catch (err) {
+    console.error('[Rider ride arrived notification failed]:', err.message);
+  }
+
+  res.status(200).json({
+    success: true,
+    message: 'Arrival marked successfully. Awaiting customer confirmation.',
+    data: ride,
+  });
+});
+
+/**
  * Confirm ride completion (customer only)
  * Customer confirms they have arrived at destination
  * This releases payment to the rider from escrow
@@ -681,6 +794,15 @@ export const confirmRideCompletion = asyncHandler(async (req, res) => {
     throw new ResponseError('Ride not found', 404);
   }
 
+  // Idempotency: if already completed and escrow released, return success
+  if (ride.status === 'completed' && (ride.escrowStatus === 'released' || ride.fundsReleased)) {
+    return res.status(200).json({
+      success: true,
+      message: 'Ride arrival already confirmed and payment released.',
+      data: ride,
+    });
+  }
+
   // Only the customer can confirm ride completion
   console.log("==== CUSTOMER OWNERSHIP CHECK ====");
   console.log({
@@ -715,7 +837,7 @@ export const confirmRideCompletion = asyncHandler(async (req, res) => {
   });
 
   // Payment must be paid before confirming arrival
-  if (ride.paymentStatus !== 'paid') {
+  if (ride.paymentStatus !== 'paid' && ride.paymentStatus !== 'held_in_escrow') {
     console.log("FAILED HERE: Payment status check failed - Line 682");
     throw new ResponseError('Payment must be completed before confirming arrival', 400);
   }
@@ -732,6 +854,7 @@ export const confirmRideCompletion = asyncHandler(async (req, res) => {
 
   // Update ride to completed status
   ride.status = 'completed';
+  ride.paymentStatus = 'released';
   ride.completedAt = new Date();
   ride.rideConfirmedByCustomer = true;
   ride.customerConfirmedAt = new Date();
@@ -746,7 +869,7 @@ export const confirmRideCompletion = asyncHandler(async (req, res) => {
   ride.trackingHistory.push({
     location: {
       type: 'Point',
-      coordinates: ride.dropoffLocation?.coordinates?.coordinates || [0, 0],
+      coordinates: ride.dropoffLocation?.coordinates?.coordinates || ride.dropoffLocation?.coordinates || [0, 0],
     },
     timestamp: new Date(),
     status: 'completed',
@@ -764,18 +887,29 @@ export const confirmRideCompletion = asyncHandler(async (req, res) => {
   // Release payment to rider from escrow - update transaction
   if (ride.transaction) {
     const transaction = ride.transaction;
-    if (transaction.status === 'paid') {
-      transaction.status = 'completed';
-      transaction.completedAt = new Date();
-      await transaction.save();
-
-      console.log('[confirmRideCompletion] Transaction completed:', transaction._id);
-
-      const riderReceives = transaction.providerReceives || ride.fare?.riderReceives || 0;
-      const riderId = ride.rider._id || ride.rider;
-      await releaseEscrow(riderId, riderReceives, 'ride_arrival_confirmed');
-      
-      console.log('[confirmRideCompletion] Escrow released to rider:', { riderId, amount: riderReceives });
+    const riderReceives = transaction.providerReceives || ride.fare?.riderReceives || 0;
+    const riderId = ride.rider._id || ride.rider;
+    try {
+      await releaseEscrowSecure({
+        transactionId: transaction._id,
+        recipientId: riderId,
+        recipientRole: 'rider',
+        amount: riderReceives,
+        idempotencyKey: `release_ride_${ride._id}_${riderId}`,
+        reason: 'ride_arrival_confirmed',
+        req,
+      });
+      console.log('[confirmRideCompletion] releaseEscrowSecure succeeded for rider:', riderId);
+    } catch (escrowErr) {
+      console.error('[confirmRideCompletion] releaseEscrowSecure fallback:', escrowErr.message);
+      if (transaction.status === 'paid' || transaction.status === 'paid_in_escrow') {
+        transaction.status = 'completed';
+        transaction.paymentStatus = 'released';
+        transaction.escrowStatus = 'released';
+        transaction.completedAt = new Date();
+        await transaction.save();
+        await releaseEscrow(riderId, riderReceives, 'ride_arrival_confirmed');
+      }
     }
   }
 
@@ -783,18 +917,29 @@ export const confirmRideCompletion = asyncHandler(async (req, res) => {
   const io = req.app?.get('io') || global.io;
   if (io && ride.rider) {
     const riderId = ride.rider._id || ride.rider;
-    io.to(`rider_${riderId}`).emit('ride_completed_confirmed', {
+    const releasePayload = {
       rideId: ride._id,
       customer: ride.customer,
       confirmedAt: ride.customerConfirmedAt,
+      amount: ride.fare?.riderReceives || 0,
+      releasedAt: ride.fundsReleasedAt,
       message: 'Customer has confirmed arrival. Payment has been released to your wallet.',
-    });
-
-    // Emit payment released event
+    };
+    io.to(`rider_${riderId}`).emit('ride_completed_confirmed', releasePayload);
+    io.to(`user_${riderId}`).emit('ride_completed_confirmed', releasePayload);
     io.to(`rider_${riderId}`).emit('payment_released', {
       rideId: ride._id,
       amount: ride.fare?.riderReceives || 0,
       releasedAt: ride.fundsReleasedAt,
+    });
+    io.to(`user_${riderId}`).emit('payment_released', {
+      rideId: ride._id,
+      amount: ride.fare?.riderReceives || 0,
+      releasedAt: ride.fundsReleasedAt,
+    });
+    io.to(`user_${ride.customer._id}`).emit('ride_completed', {
+      rideId: ride._id,
+      message: 'Ride complete. Thank you for riding with OLAFasta!',
     });
   }
 
@@ -880,29 +1025,49 @@ export const disputeRide = asyncHandler(async (req, res) => {
   }
 
   ride.status = 'disputed';
-  ride.dispute = { isDisputed: true, reason, details, reportedBy: customerId, reportedAt: new Date() };
+  ride.escrowStatus = 'disputed';
+  ride.paymentStatus = 'disputed';
+  ride.dispute = { isDisputed: true, reason, details: details || '', reportedBy: customerId, reportedAt: new Date() };
   await ride.save();
 
   const io = req.app.get('io');
   if (io) {
-    if (ride.rider) io.to(`user_${ride.rider}`).emit('ride_disputed', { rideId: ride._id, reason });
-    io.to('admin_channel').emit('ride_disputed', { rideId: ride._id, reason, customerId });
+    if (ride.rider) io.to(`user_${ride.rider}`).emit('ride_disputed', { rideId: ride._id, reason, details });
+    io.to('admin_channel').emit('ride_disputed', { rideId: ride._id, reason, details, customerId });
   }
 
   const { createNotification } = await import('./notificationController.js');
-  try {
-    await createNotification({
-      recipient: ride.rider || customerId,
-      type: 'ride_disputed',
-      title: 'Ride Disputed',
-      message: `A dispute has been opened: ${reason}`,
-      relatedEntity: rideId,
-      relatedEntityType: 'RideRequest',
-      req,
-    });
-  } catch(e) { console.error(e); }
+  if (ride.rider) {
+    try {
+      await createNotification(
+        ride.rider,
+        'ride_disputed',
+        'Ride Disputed by Passenger',
+        `A problem was reported for your ride: ${reason}. Escrow funds are held.`,
+        { rideId: ride._id, reason, details },
+        '/rider/dashboard',
+        '/rider/dashboard',
+        req,
+        'rider'
+      );
+    } catch(e) { console.error('[Rider dispute notification failed]:', e.message); }
+  }
 
-  res.status(200).json({ success: true, message: 'Dispute opened. Escrow funds frozen pending admin review.' });
+  try {
+    await createNotification(
+      customerId,
+      'ride_disputed',
+      'Dispute Recorded',
+      `Your report ("${reason}") has been logged. Escrow funds are held while support reviews it.`,
+      { rideId: ride._id, reason, details },
+      '/customer/rides',
+      '/customer/rides',
+      req,
+      'customer'
+    );
+  } catch(e) { console.error('[Customer dispute notification failed]:', e.message); }
+
+  res.status(200).json({ success: true, message: 'Dispute opened. Escrow funds frozen pending admin review.', data: ride });
 });
 
 /**
