@@ -95,6 +95,14 @@ const productSchema = new mongoose.Schema(
       required: [true, 'Please provide a product name'],
       trim: true,
     },
+    slug: {
+      type: String,
+      unique: true,
+      sparse: true,
+      lowercase: true,
+      trim: true,
+      index: true,
+    },
     description: {
       type: String,
       required: [true, 'Please provide a description'],
@@ -232,6 +240,16 @@ const productSchema = new mongoose.Schema(
 // Create index for text search and geospatial queries
 // Auto-derive categorySlug and ensure stock & stockCount stay synchronized
 productSchema.pre('save', function (next) {
+  // Auto-generate unique slug from product name if not provided or when name is modified
+  if (this.name && (!this.slug || this.isModified('name'))) {
+    const baseSlug = this.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+    const randomSuffix = Math.random().toString(36).substring(2, 6);
+    this.slug = `${baseSlug || 'product'}-${randomSuffix}`;
+  }
+
   if (this.category && !this.categorySlug) {
     this.categorySlug = this.category.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
   }

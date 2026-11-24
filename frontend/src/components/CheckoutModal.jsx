@@ -129,7 +129,7 @@ export default function CheckoutModal({ isOpen, onClose, order, onPaymentSuccess
         return;
       }
 
-      if (data?.status === 'paid') {
+      if (data?.status === 'paid' || data?.status === 'completed' || data?.status === 'SUCCESS') {
         if (timerRef.current) clearInterval(timerRef.current);
         setPaymentState('success');
         setStatusMessage('Payment confirmed! Vendor has received your order.');
@@ -139,12 +139,12 @@ export default function CheckoutModal({ isOpen, onClose, order, onPaymentSuccess
         clearCart?.();
         onPaymentSuccess?.(order);
 
-        // Auto-redirect to Live Order Tracker after 1.5s celebratory delay
+        // Auto-redirect to Live Order Tracker after 1.2s celebratory delay
         setTimeout(() => {
           onClose?.();
           navigate('/customer/dashboard');
-        }, 1600);
-      } else if (data?.status === 'cancelled') {
+        }, 1200);
+      } else if (data?.status === 'cancelled' || data?.status === 'failed') {
         if (timerRef.current) clearInterval(timerRef.current);
         setPaymentState('failed');
         setStatusMessage(data?.message || 'M-Pesa payment was cancelled or timed out.');
@@ -152,9 +152,11 @@ export default function CheckoutModal({ isOpen, onClose, order, onPaymentSuccess
     };
 
     socket.on('order:status_updated', handleOrderUpdate);
+    socket.on('payment_confirmed', handleOrderUpdate);
 
     return () => {
       socket.off('order:status_updated', handleOrderUpdate);
+      socket.off('payment_confirmed', handleOrderUpdate);
     };
   }, [socket, order, clearCart, navigate, onClose, onPaymentSuccess, toastSuccess]);
 
@@ -239,7 +241,7 @@ export default function CheckoutModal({ isOpen, onClose, order, onPaymentSuccess
               <button
                 type="submit"
                 disabled={stkPushMutation.isPending}
-                className="w-full py-3 px-4 rounded-xl font-bold text-sm text-white bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] shadow-lg shadow-emerald-600/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full py-3.5 px-4 rounded-2xl font-bold text-sm text-white bg-olaGreen-DEFAULT hover:bg-olaGreen-deep active:scale-[0.99] shadow-lg shadow-olaGreen-DEFAULT/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
               >
                 {stkPushMutation.isPending ? (
                   <>
@@ -248,7 +250,7 @@ export default function CheckoutModal({ isOpen, onClose, order, onPaymentSuccess
                   </>
                 ) : (
                   <>
-                    Send M-Pesa Prompt
+                    <span>Send M-Pesa Prompt</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}

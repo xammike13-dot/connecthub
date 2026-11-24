@@ -84,6 +84,7 @@ export default function ProductCard({
 
   const hasOptions = (product.variations?.length > 0) || (product.addOns?.length > 0);
   const productId = _id || product.id;
+  const productIdentifier = product.slug || productId;
   const isOutOfStock = displayStock !== undefined && displayStock !== null && Number(displayStock) <= 0;
 
   const handleWishlist = async (e) => {
@@ -169,7 +170,7 @@ export default function ProductCard({
   return (
     <>
       <Link
-        to={`/product/${productId}`}
+        to={`/product/${productIdentifier}`}
         className={containerClasses}
       >
       {/* ── 1. Image Area (1:1 aspect ratio, badges & wishlist button) ── */}

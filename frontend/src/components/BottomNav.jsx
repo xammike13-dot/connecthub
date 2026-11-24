@@ -9,8 +9,14 @@ export default function BottomNav() {
   const { isAuthenticated, user } = useAuth();
   const { cartItemCount } = useCart();
 
-  // Don't render on dedicated full-screen auth pages if desired, but for general app feel:
-  if (location.pathname === '/login' || location.pathname === '/register') {
+  // Don't render on dedicated full-screen auth pages or single product detail pages
+  // (allows the mobile sticky product action bar to own the bottom edge like Jumia/Glovo)
+  if (
+    location.pathname === '/login' ||
+    location.pathname === '/register' ||
+    location.pathname.startsWith('/product/') ||
+    location.pathname.startsWith('/p/')
+  ) {
     return null;
   }
 

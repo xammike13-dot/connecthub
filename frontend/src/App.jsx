@@ -1,8 +1,11 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { WishlistProvider } from './context/WishlistContext';
-import { SocketProvider } from './context/SocketContext';
+import { SocketProvider, useSocket } from './context/SocketContext';
+import api from './utils/api';
 import MainLayout from './layouts/MainLayout';
 import DashboardLayout from './layouts/DashboardLayout';
 import HomePage from './pages/HomePage';
@@ -74,20 +77,80 @@ import AssistantDashboard from './pages/AssistantDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import CustomerProfilePage from './pages/CustomerProfilePage';
 import ApplicationStatusPage from './pages/ApplicationStatusPage';
+import MaintenancePage from './pages/MaintenancePage';
 import { ProtectedRoute } from './components/RouteGuards';
 
 
-function App() {
+function AppRoutes() {
+  const location = useLocation();
+  const { user } = useAuth();
+  const { socket } = useSocket();
+  const queryClient = useQueryClient();
+
+  // 1. Fetch live system status from backend (defaults to false if unreachable)
+  const { data: statusData } = useQuery({
+    queryKey: ['system-status'],
+    queryFn: async () => {
+      try {
+        const res = await api.get('/settings/status');
+        return res.data;
+      } catch {
+        return { maintenanceMode: false };
+      }
+    },
+    staleTime: 30 * 1000,
+    refetchOnWindowFocus: true,
+  });
+
+  // 2. Real-time Socket.IO listener for live maintenance toggles
+  useEffect(() => {
+    if (!socket) return;
+    const handleMaintenanceUpdate = (data) => {
+      queryClient.setQueryData(['system-status'], (old) => ({
+        ...old,
+        maintenanceMode: Boolean(data?.maintenanceMode),
+      }));
+    };
+    socket.on('system:maintenance_updated', handleMaintenanceUpdate);
+    return () => {
+      socket.off('system:maintenance_updated', handleMaintenanceUpdate);
+    };
+  }, [socket, queryClient]);
+
+  // 3. Domain evaluation: strictly on olafasta.com and www.olafasta.com
+  const hostname = typeof window !== 'undefined' ? window.location.hostname.toLowerCase() : '';
+  const isPublicDomain = hostname === 'olafasta.com' || hostname === 'www.olafasta.com';
+
+  // Maintenance is on if forced by env var OR enabled dynamically in backend MongoDB
+  const isMaintenanceOn =
+    import.meta.env.VITE_MAINTENANCE_MODE === 'true' || Boolean(statusData?.maintenanceMode);
+
+  // Critical Anti-Lockout Bypass:
+  // - Always allow /login and /admin* routes to bypass the maintenance screen
+  // - Always allow authenticated users with role === 'admin' to browse normally
+  const isAdmin = user?.role === 'admin';
+  const isBypassRoute =
+    location.pathname === '/login' ||
+    location.pathname.startsWith('/admin');
+
+  const shouldBlockVisitor = isPublicDomain && isMaintenanceOn && !isAdmin && !isBypassRoute;
+
+  if (shouldBlockVisitor) {
+    return <MaintenancePage />;
+  }
+
   return (
-    <AuthProvider>
-      <CartProvider>
-        <WishlistProvider>
-          <SocketProvider>
-            <PwaPromptManager />
-            <Router future={{ v7_relativeSplatPath: true }}>
-              <Routes>
-                {/* Public Routes with Main Layout */}
-                <Route path="/" element={<MainLayout />}>
+    <>
+      {/* Slim notification banner for Admins viewing the site while public maintenance is active */}
+      {isPublicDomain && isMaintenanceOn && isAdmin && (
+        <div className="bg-olaOrange-DEFAULT text-white text-xs font-bold px-4 py-2 text-center flex items-center justify-center gap-2 sticky top-0 z-[100] shadow-sm select-none">
+          <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+          <span>⚡ Maintenance Mode is ACTIVE for public visitors. You are viewing with Admin Bypass.</span>
+        </div>
+      )}
+      <Routes>
+        {/* Public Routes with Main Layout */}
+        <Route path="/" element={<MainLayout />}>
                   <Route index element={<HomePage />} />
                   <Route path="marketplace" element={<ShopPage />} />
                   <Route path="marketplace/:category" element={<ShopPage />} />
@@ -269,6 +332,19 @@ function App() {
                 {/* Fallback */}
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
+    </>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <CartProvider>
+        <WishlistProvider>
+          <SocketProvider>
+            <PwaPromptManager />
+            <Router future={{ v7_relativeSplatPath: true }}>
+              <AppRoutes />
             </Router>
           </SocketProvider>
         </WishlistProvider>

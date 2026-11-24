@@ -120,7 +120,7 @@ export default function FlashSalesRow() {
                   className="min-w-[190px] w-[190px] bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-md flex flex-col snap-start flex-shrink-0 transition-all"
                   whileHover={{ y: -3 }}
                 >
-                  <Link to={`/product/${p._id}`}>
+                  <Link to={`/product/${p.slug || p._id}`}>
                     <div className="relative w-full aspect-square bg-gray-100 overflow-hidden">
                       {img ? (
                         <img

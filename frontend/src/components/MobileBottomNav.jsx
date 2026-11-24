@@ -16,8 +16,13 @@ const MobileBottomNav = () => {
   const location = useLocation();
   const { user } = useAuth();
 
-  // Don't show on auth pages
-  if (location.pathname === '/login' || location.pathname === '/register') {
+  // Don't show on auth pages or product detail pages
+  if (
+    location.pathname === '/login' ||
+    location.pathname === '/register' ||
+    location.pathname.startsWith('/product/') ||
+    location.pathname.startsWith('/p/')
+  ) {
     return null;
   }
 

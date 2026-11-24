@@ -5,6 +5,7 @@ import {
   ChevronRight, Star, Heart, Minus, Plus, ShoppingCart,
   Truck, Shield, RotateCcw, Share2, Store, Package,
   CheckCircle2, AlertTriangle, ChevronLeft, Loader2, MapPin, Zap,
+  Copy, Check, X, MessageCircle, ExternalLink
 } from 'lucide-react';
 import { productAPI } from '../services/api';
 import { useCart } from '../context/CartContext';
@@ -265,7 +266,8 @@ function RelatedProducts({ product }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function ProductDetailsPage() {
-  const { productId } = useParams();
+  const { productId, slug } = useParams();
+  const productIdentifier = slug || productId;
   const navigate = useNavigate();
 
   // ── State ──────────────────────────────────────────────────────────────────
@@ -278,6 +280,8 @@ export default function ProductDetailsPage() {
   const [quantity, setQuantity] = useState(1);
   const [addedToCart, setAddedToCart] = useState(false);
   const [isWished, setIsWished] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   // Swipe gesture handling for mobile gallery
   const touchStartX = useRef(null);
@@ -293,7 +297,7 @@ export default function ProductDetailsPage() {
 
   // ── Reset and Fetch product ────────────────────────────────────────────────
   useEffect(() => {
-    if (!productId) return;
+    if (!productIdentifier) return;
     window.scrollTo({ top: 0, behavior: 'smooth' });
     setLoading(true);
     setError(null);
@@ -303,7 +307,7 @@ export default function ProductDetailsPage() {
     setQuantity(1);
     setAddedToCart(false);
 
-    productAPI.getById(productId)
+    productAPI.getById(productIdentifier)
       .then((res) => {
         const p = res.data?.product || res.data?.data || res.data;
         setProduct(p);
@@ -318,8 +322,8 @@ export default function ProductDetailsPage() {
       .finally(() => setLoading(false));
 
     // Optional view tracking
-    productAPI.trackView?.(productId)?.catch(() => {});
-  }, [productId]);
+    productAPI.trackView?.(productIdentifier)?.catch(() => {});
+  }, [productIdentifier]);
 
   // ── Sync wishlist ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -482,11 +486,30 @@ export default function ProductDetailsPage() {
     toast?.show?.('Added to cart!', 'success');
 
     if (andCheckout) {
-      navigate('/checkout');
+      const directItem = {
+        _id: product._id,
+        product: product._id,
+        name: product.name,
+        price: unitPrice,
+        quantity,
+        images: imgs,
+        variant: matchedVariant?.name || matchedVariant?.value || Object.entries(selectedOptions).map(([k, v]) => `${k}: ${v}`).join(', '),
+        variantId: matchedVariant?._id,
+        selectedOptions,
+        selectedAddOns,
+        business: product.business,
+      };
+
+      navigate('/checkout', {
+        state: {
+          directPurchase: true,
+          directItems: [directItem],
+        },
+      });
     } else {
       setTimeout(() => setAddedToCart(false), 2000);
     }
-  }, [allVariationsSelected, requiredVariations, selectedOptions, isOutOfStock, cart, product, quantity, selectedAddOns, matchedVariant, basePrice, toast, navigate]);
+  }, [allVariationsSelected, requiredVariations, selectedOptions, isOutOfStock, cart, product, quantity, selectedAddOns, matchedVariant, basePrice, unitPrice, imgs, toast, navigate]);
 
   const handleBuyNow = useCallback(() => {
     handleAddToCart(true);
@@ -499,14 +522,33 @@ export default function ProductDetailsPage() {
     }
   }, [wishlist, product]);
 
-  const handleShare = useCallback(() => {
-    if (navigator.share) {
-      navigator.share({ title: product?.name, url: window.location.href });
-    } else {
-      navigator.clipboard?.writeText(window.location.href);
-      toast?.show?.('Link copied!', 'success');
+  const handleShare = useCallback(async () => {
+    const shareUrl = window.location.href;
+    const shareTitle = product?.name || 'Olafasta ⚡';
+
+    if (navigator.share && /mobile|android|iphone|ipad/i.test(navigator.userAgent)) {
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: 'Check this out on Olafasta ⚡',
+          url: shareUrl,
+        });
+        return;
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+      }
     }
-  }, [product, toast]);
+
+    // Fallback: open Olafasta WhatsApp / Copy link modal
+    setShareModalOpen(true);
+  }, [product]);
+
+  const handleCopyLink = () => {
+    navigator.clipboard?.writeText(window.location.href);
+    setCopiedLink(true);
+    toast?.show?.('Link copied to clipboard!', 'success');
+    setTimeout(() => setCopiedLink(false), 2500);
+  };
 
   // ── Render: Loading ────────────────────────────────────────────────────────
   if (loading) return <div className="min-h-screen bg-white"><PDPSkeleton /></div>;
@@ -572,7 +614,7 @@ export default function ProductDetailsPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-white pb-24 md:pb-12">
+    <div className="min-h-screen bg-white pb-28 md:pb-12">
       {/* ── Breadcrumbs ───────────────────────────────────────────────────── */}
       <nav className="max-w-6xl mx-auto px-4 pt-4 pb-2">
         <ol className="flex items-center flex-wrap gap-1 text-xs text-gray-400">
@@ -639,9 +681,20 @@ export default function ProductDetailsPage() {
                 </>
               )}
 
-              {/* Image counter */}
+              {/* Floating Share Button (Top Right) */}
+              <button
+                type="button"
+                onClick={handleShare}
+                aria-label="Share product"
+                className="absolute top-3 right-3 z-20 w-10 h-10 rounded-full bg-white/95 hover:bg-white text-gray-700 hover:text-olaOrange-DEFAULT shadow-md border border-gray-100 flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer backdrop-blur-xs"
+                title="Share this product"
+              >
+                <Share2 size={18} />
+              </button>
+
+              {/* Image counter (Bottom Right) */}
               {imgs.length > 1 && (
-                <div className="absolute top-3 right-3 bg-black/60 text-white text-xs font-bold px-3 py-1 rounded-full backdrop-blur-xs z-10">
+                <div className="absolute bottom-3 right-3 bg-black/60 text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full backdrop-blur-xs z-10 select-none">
                   {currentImageIdx + 1} / {imgs.length}
                 </div>
               )}
@@ -649,13 +702,13 @@ export default function ProductDetailsPage() {
               {/* Badges */}
               <div className="absolute top-3 left-3 flex flex-col gap-1.5 items-start z-10">
                 {hasDiscount && (
-                  <span className="text-xs font-black bg-[#FF5E00] text-white px-2.5 py-1 rounded-full shadow">
+                  <span className="text-xs font-black bg-olaOrange-DEFAULT text-white px-2.5 py-1 rounded-full shadow">
                     -{discountPct}%
                   </span>
                 )}
                 {isLive && (
-                  <span className="flex items-center gap-1 text-[10px] font-black bg-[#6BE319] text-[#0F172A] px-2.5 py-1 rounded-full shadow">
-                    <span className="w-1.5 h-1.5 bg-[#0F172A] rounded-full animate-pulse" />
+                  <span className="flex items-center gap-1 text-[10px] font-black bg-olaGreen-DEFAULT text-white px-2.5 py-1 rounded-full shadow">
+                    <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
                     LIVE
                   </span>
                 )}
@@ -670,9 +723,9 @@ export default function ProductDetailsPage() {
                     key={i}
                     type="button"
                     onClick={() => setCurrentImageIdx(i)}
-                    className={`flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 transition-all ${
+                    className={`flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 transition-all cursor-pointer ${
                       i === currentImageIdx
-                        ? 'border-[#FF5E00] shadow-sm ring-1 ring-orange-200'
+                        ? 'border-olaOrange-DEFAULT shadow-xs ring-2 ring-olaOrange-DEFAULT/20'
                         : 'border-gray-200 hover:border-gray-300 opacity-70 hover:opacity-100'
                     }`}
                   >
@@ -690,7 +743,7 @@ export default function ProductDetailsPage() {
                 { icon: RotateCcw, label: 'Easy Returns' },
               ].map(({ icon: Icon, label }) => (
                 <div key={label} className="flex items-center gap-2 text-xs text-gray-600 font-medium">
-                  <Icon size={15} className="text-[#027A2B] flex-shrink-0" />
+                  <Icon size={15} className="text-olaGreen-DEFAULT flex-shrink-0" />
                   {label}
                 </div>
               ))}
@@ -754,7 +807,7 @@ export default function ProductDetailsPage() {
                         <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">
                           Select {variation.name}:
                           {selectedVal && (
-                            <span className="text-[#FF5E00] font-black ml-1 normal-case">{selectedVal}</span>
+                            <span className="text-olaOrange-DEFAULT font-black ml-1 normal-case">{selectedVal}</span>
                           )}
                         </span>
                         {!selectedVal && (
@@ -772,9 +825,9 @@ export default function ProductDetailsPage() {
                               key={opt}
                               type="button"
                               onClick={() => handleOptionSelect(variation.name, opt)}
-                              className={`px-4 py-2 rounded-xl text-sm font-bold border-2 transition-all active:scale-95 flex items-center gap-1.5 ${
+                              className={`px-4 py-2 rounded-xl text-sm font-bold border-2 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer ${
                                 isSelected
-                                  ? 'border-[#FF5E00] bg-[#FF5E00] text-white shadow-sm'
+                                  ? 'border-olaOrange-DEFAULT bg-olaOrange-DEFAULT text-white shadow-sm'
                                   : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
                               }`}
                             >
@@ -813,11 +866,11 @@ export default function ProductDetailsPage() {
                     return (
                       <label
                         key={addOn.name}
-                        className={`flex items-center justify-between gap-3 p-3 rounded-xl border-2 transition-all ${
+                        className={`flex items-center justify-between gap-3 p-3 rounded-xl border-2 transition-all select-none ${
                           !isAvail
                             ? 'opacity-50 cursor-not-allowed border-gray-200 bg-gray-50'
                             : checked
-                              ? 'border-[#027A2B] bg-emerald-50/50 cursor-pointer'
+                              ? 'border-olaGreen-DEFAULT bg-olaGreen-light/30 cursor-pointer'
                               : 'border-gray-100 bg-gray-50/80 hover:border-gray-200 cursor-pointer'
                         }`}
                       >
@@ -827,10 +880,10 @@ export default function ProductDetailsPage() {
                             checked={checked}
                             disabled={!isAvail || addOn.isRequired}
                             onChange={() => handleAddOnToggle(addOn)}
-                            className="w-4 h-4 accent-[#027A2B] cursor-pointer rounded"
+                            className="w-4 h-4 accent-olaGreen-DEFAULT cursor-pointer rounded"
                           />
                           <div>
-                            <span className={`text-sm font-bold ${checked ? 'text-[#027A2B]' : 'text-gray-800'}`}>
+                            <span className={`text-sm font-bold ${checked ? 'text-olaGreen-DEFAULT' : 'text-gray-800'}`}>
                               {addOn.name}
                             </span>
                             {addOn.isRequired && (
@@ -840,8 +893,8 @@ export default function ProductDetailsPage() {
                             )}
                           </div>
                         </div>
-                        <span className={`text-sm font-bold ${checked ? 'text-[#027A2B]' : 'text-gray-600'}`}>
-                          +KSh {extraPrice.toLocaleString()}
+                        <span className={`text-sm font-bold ${checked ? 'text-olaGreen-DEFAULT' : 'text-gray-600'}`}>
+                          + KSh {extraPrice.toLocaleString()}
                         </span>
                       </label>
                     );
@@ -850,39 +903,59 @@ export default function ProductDetailsPage() {
               </div>
             )}
 
-            {/* 5. Product rating and seller information */}
-            <div className="flex items-center flex-wrap gap-3 pt-1">
-              <div className="flex items-center gap-1.5 bg-yellow-50 border border-yellow-100 px-3 py-1.5 rounded-full">
-                <Star size={14} className="fill-yellow-400 text-yellow-400" />
-                <span className="text-sm font-black text-gray-800">{rating}</span>
-                <span className="text-xs text-gray-400">({numReviews} reviews)</span>
+            {/* 5. Vendor Trust Card */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-gray-50 via-orange-50/20 to-emerald-50/20 border border-gray-100 flex items-center justify-between gap-3 shadow-2xs">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-12 h-12 rounded-xl bg-white border border-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-2xs">
+                  {businessLogo ? (
+                    <img
+                      src={businessLogo}
+                      alt={vendorName}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Store size={22} className="text-olaOrange-DEFAULT" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <Link
+                      to={businessId ? `/marketplace?business=${businessId}` : `/c/${categorySlug}`}
+                      className="text-sm font-black text-gray-900 hover:text-olaOrange-DEFAULT transition-colors truncate"
+                      title={`Visit ${vendorName}'s store`}
+                    >
+                      {vendorName}
+                    </Link>
+                    <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-olaGreen-DEFAULT bg-olaGreen-light px-2 py-0.5 rounded-full">
+                      <Shield size={10} className="stroke-[2.5]" /> Verified
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-gray-500 mt-1 flex-wrap">
+                    {businessCampus && (
+                      <span className="flex items-center gap-1 text-gray-600 font-medium">
+                        <MapPin size={12} className="text-gray-400 flex-shrink-0" />
+                        {businessCampus}
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1 font-bold text-gray-800">
+                      <Star size={12} className="fill-amber-400 text-amber-400" />
+                      {rating} <span className="text-gray-400 font-normal">({numReviews} reviews)</span>
+                    </span>
+                  </div>
+                </div>
               </div>
 
-              {/* Clickable real business profile link */}
               <Link
                 to={businessId ? `/marketplace?business=${businessId}` : `/c/${categorySlug}`}
-                className="flex items-center gap-2 text-sm text-gray-600 hover:text-[#FF5E00] transition-colors p-1 rounded-lg"
-                title={`Visit ${vendorName}'s store`}
+                className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-olaOrange-DEFAULT bg-white hover:bg-olaOrange-light border border-olaOrange-DEFAULT/30 transition-colors flex-shrink-0 shadow-2xs"
               >
-                {businessLogo ? (
-                  <img
-                    src={businessLogo}
-                    alt={vendorName}
-                    className="w-6 h-6 rounded-full object-cover border border-gray-200"
-                  />
-                ) : (
-                  <Store size={15} className="text-gray-400" />
-                )}
-                <span>
-                  Sold by <strong className="text-gray-900 hover:underline">{vendorName}</strong>
-                  {businessCampus && <span className="text-xs text-gray-400 ml-1">({businessCampus})</span>}
-                </span>
+                Store
               </Link>
             </div>
 
             {/* 6. Product price */}
             <div className="flex items-baseline gap-3 flex-wrap pt-1">
-              <span className="text-3xl md:text-4xl font-black text-[#FF5E00] leading-none">
+              <span className="text-3xl md:text-4xl font-black text-olaOrange-DEFAULT leading-none">
                 KSh {totalPrice.toLocaleString()}
               </span>
               {hasDiscount && (
@@ -946,61 +1019,51 @@ export default function ProductDetailsPage() {
             {/* 9. Delivery and buyer protection information */}
             <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-2xl border border-gray-100 text-xs text-gray-600 mt-1">
               <div className="flex items-center gap-2.5">
-                <Truck size={16} className="text-[#027A2B] flex-shrink-0" />
+                <Truck size={16} className="text-olaGreen-DEFAULT flex-shrink-0" />
                 <span><strong className="text-gray-800">Campus Delivery Available</strong> — Kesses · Chebarus · Mabs · Stage</span>
               </div>
               <div className="flex items-center gap-2.5">
-                <Shield size={16} className="text-[#027A2B] flex-shrink-0" />
+                <Shield size={16} className="text-olaGreen-DEFAULT flex-shrink-0" />
                 <span><strong className="text-gray-800">Buyer Protection</strong> — Escrow secured payment</span>
               </div>
             </div>
 
-            {/* 10. Add to Cart / Buy Now buttons */}
+            {/* 10. Dual Action Bar (Desktop) */}
             <div className="hidden md:flex flex-col gap-2 pt-2">
               <div className="flex gap-3">
                 <button
                   type="button"
                   onClick={() => handleAddToCart(false)}
                   disabled={isOutOfStock}
-                  className={`flex-1 py-4 px-6 rounded-2xl text-white font-black text-base flex items-center justify-center gap-2.5 transition-all shadow-sm active:scale-98 ${
-                    addedToCart
-                      ? 'bg-[#027A2B]'
-                      : isOutOfStock
-                        ? 'bg-gray-300 cursor-not-allowed'
-                        : !allVariationsSelected
-                          ? 'bg-orange-400 hover:bg-[#FF5E00]'
-                          : 'bg-[#FF5E00] hover:bg-orange-600 shadow-orange-100'
-                  }`}
+                  className={`flex-1 py-3.5 px-6 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-98 border-2 border-olaOrange-DEFAULT text-olaOrange-DEFAULT bg-olaOrange-light/40 hover:bg-olaOrange-light cursor-pointer ${
+                    addedToCart ? 'bg-olaGreen-light text-olaGreen-DEFAULT border-olaGreen-DEFAULT' : ''
+                  } disabled:opacity-40 disabled:cursor-not-allowed`}
                 >
                   {addedToCart ? (
-                    <><CheckCircle2 size={20} /> Added to Cart!</>
+                    <><CheckCircle2 size={18} /> Added to Cart!</>
                   ) : isOutOfStock ? (
                     'Out of Stock'
                   ) : (
-                    <><ShoppingCart size={20} /> Add to Cart</>
+                    <><ShoppingCart size={18} /> Add to Cart</>
                   )}
                 </button>
                 <button
                   type="button"
                   onClick={handleBuyNow}
                   disabled={isOutOfStock}
-                  className={`flex-1 py-4 px-6 rounded-2xl font-black text-base flex items-center justify-center gap-2.5 transition-all shadow-sm active:scale-98 ${
-                    isOutOfStock
-                      ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                      : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-100'
-                  }`}
+                  className="flex-1 py-3.5 px-6 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-98 bg-olaOrange-DEFAULT hover:bg-olaOrange-hover text-white shadow-md shadow-olaOrange-DEFAULT/25 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
-                  <Zap size={20} /> Buy Now
+                  <Zap size={18} /> Buy Now
                 </button>
               </div>
 
               {/* Incomplete variations notice */}
               {!allVariationsSelected && (
-                <p className="text-xs text-orange-600 font-semibold flex items-center gap-1.5 mt-1">
+                <p className="text-xs text-olaOrange-DEFAULT font-semibold flex items-center gap-1.5 mt-1">
                   <AlertTriangle size={13} />
                   Please select{' '}
                   {requiredVariations.filter((v) => !selectedOptions[v.name]).map((v) => v.name).join(', ')}{' '}
-                  to add to cart.
+                  to continue.
                 </p>
               )}
             </div>
@@ -1049,52 +1112,127 @@ export default function ProductDetailsPage() {
         <RelatedProducts product={product} />
       </div>
 
-      {/* ════════════════ STICKY MOBILE CTA ════════════════ */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-white/95 backdrop-blur-md border-t border-gray-200 px-4 py-3 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
-        <div className="flex gap-3 items-center max-w-lg mx-auto">
-          {/* Price display */}
-          <div className="flex flex-col min-w-0 pr-1">
-            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Total</span>
-            <span className="text-lg font-black text-[#FF5E00] leading-tight truncate">
-              KSh {totalPrice.toLocaleString()}
-            </span>
-          </div>
+      {/* ════════════════ STICKY MOBILE ACTION BAR ════════════════ */}
+      <div
+        className="md:hidden fixed bottom-0 left-0 right-0 z-[55] bg-white/95 backdrop-blur-md border-t border-gray-200 px-4 py-3 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] pb-[env(safe-area-inset-bottom,12px)]"
+        style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 12px))' }}
+      >
+        <div className="max-w-lg mx-auto grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => handleAddToCart(false)}
+            disabled={isOutOfStock}
+            className={`border-2 border-olaOrange-DEFAULT text-olaOrange-DEFAULT bg-olaOrange-light/40 hover:bg-olaOrange-light font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${
+              addedToCart ? 'bg-olaGreen-light text-olaGreen-DEFAULT border-olaGreen-DEFAULT' : ''
+            }`}
+          >
+            {addedToCart ? (
+              <>
+                <CheckCircle2 size={18} />
+                <span>Added!</span>
+              </>
+            ) : isOutOfStock ? (
+              <span>Out of Stock</span>
+            ) : (
+              <>
+                <ShoppingCart size={18} />
+                <span>Add to Cart</span>
+              </>
+            )}
+          </button>
 
-          {/* Mobile Buttons */}
-          <div className="flex flex-1 gap-2">
-            <button
-              type="button"
-              onClick={() => handleAddToCart(false)}
-              disabled={isOutOfStock}
-              className={`flex-1 py-3 px-3 rounded-xl text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 ${
-                addedToCart
-                  ? 'bg-[#027A2B]'
-                  : isOutOfStock
-                    ? 'bg-gray-300 cursor-not-allowed'
-                    : !allVariationsSelected
-                      ? 'bg-orange-400'
-                      : 'bg-[#FF5E00] hover:bg-orange-600'
-              }`}
-            >
-              {addedToCart ? <CheckCircle2 size={16} /> : <ShoppingCart size={16} />}
-              <span>Add to Cart</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleBuyNow}
-              disabled={isOutOfStock}
-              className={`flex-1 py-3 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 ${
-                isOutOfStock
-                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-              }`}
-            >
-              <Zap size={16} />
-              <span>Buy Now</span>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handleBuyNow}
+            disabled={isOutOfStock}
+            className="bg-olaOrange-DEFAULT hover:bg-olaOrange-hover text-white font-bold py-3 rounded-xl text-sm shadow-md flex items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+          >
+            <Zap size={18} />
+            <span>Buy Now</span>
+          </button>
         </div>
       </div>
+
+      {/* ════════════════ SHARE MODAL (WhatsApp & Copy Fallback) ════════════════ */}
+      {shareModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-200"
+          onClick={() => setShareModalOpen(false)}
+        >
+          <div
+            className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl border border-gray-100 transform transition-all animate-in slide-in-from-bottom duration-250"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <span className="w-8 h-8 rounded-full bg-olaOrange-light flex items-center justify-center text-olaOrange-DEFAULT">
+                  <Share2 size={16} />
+                </span>
+                <h3 className="text-base font-black text-gray-900">Share with Comrades</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShareModalOpen(false)}
+                className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-700 transition-colors"
+                aria-label="Close share dialog"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Product snippet preview */}
+            <div className="flex items-center gap-3.5 p-3.5 bg-gray-50 rounded-2xl border border-gray-100 my-4">
+              {mainImg ? (
+                <img src={mainImg} alt={name} className="w-14 h-14 rounded-xl object-cover flex-shrink-0 border border-gray-200" />
+              ) : (
+                <div className="w-14 h-14 rounded-xl bg-orange-50 flex items-center justify-center text-2xl flex-shrink-0">
+                  {product?.emoji || '🛍️'}
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <h4 className="text-sm font-bold text-gray-900 truncate">{name}</h4>
+                <p className="text-xs font-black text-olaOrange-DEFAULT mt-0.5">KSh {unitPrice.toLocaleString()}</p>
+                <p className="text-[11px] text-gray-400 truncate">Olafasta ⚡ Campus Super-App</p>
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="space-y-2.5">
+              {/* WhatsApp Share Button */}
+              <a
+                href={`https://wa.me/?text=${encodeURIComponent(`Check out ${name} on Olafasta ⚡ (KSh ${unitPrice.toLocaleString()}): ${window.location.href}`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setShareModalOpen(false)}
+                className="w-full py-3.5 px-4 rounded-2xl bg-[#25D366] hover:bg-[#1EBE5D] text-white font-bold text-sm flex items-center justify-center gap-2.5 shadow-md shadow-emerald-500/20 transition-all active:scale-98"
+              >
+                <MessageCircle size={18} className="fill-white" />
+                <span>Share on WhatsApp</span>
+              </a>
+
+              {/* Copy Link Button */}
+              <button
+                type="button"
+                onClick={handleCopyLink}
+                className="w-full py-3.5 px-4 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-sm flex items-center justify-center gap-2.5 transition-all active:scale-98 cursor-pointer"
+              >
+                {copiedLink ? (
+                  <>
+                    <Check size={18} className="text-olaGreen-DEFAULT" />
+                    <span className="text-olaGreen-DEFAULT">Copied to Clipboard!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy size={18} />
+                    <span>Copy Link</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

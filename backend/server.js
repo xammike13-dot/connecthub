@@ -160,6 +160,7 @@ import verificationRoutes from './routes/verificationRoutes.js';
 import setupRoutes from './routes/setupRoutes.js';
 import caretakerRoutes from './routes/caretakerRoutes.js';
 import assistantRoutes from './routes/assistantRoutes.js';
+import settingsRoutes from './routes/settingsRoutes.js';
 
 // Database connection is initialized in startServer()
 
@@ -185,8 +186,23 @@ const allowedOrigins = getEnvOrigins('FRONTEND_URL', 'CLIENT_URL', 'CORS_ORIGIN'
 const isAllowedOrigin = (origin) => {
   if (!origin) return true;
 
-  // Dynamically trust loopback origins for testing/development
-  if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+  // Normalize origin by stripping trailing slashes for consistent comparison
+  const normalizedOrigin = origin.replace(/\/+$/, '');
+
+  // Explicitly allowed local development origins
+  const localDevOrigins = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+  ];
+
+  if (
+    localDevOrigins.includes(normalizedOrigin) ||
+    localDevOrigins.includes(origin) ||
+    normalizedOrigin.startsWith('http://localhost:') ||
+    normalizedOrigin.startsWith('http://127.0.0.1:')
+  ) {
     return true;
   }
 
@@ -195,13 +211,20 @@ const isAllowedOrigin = (origin) => {
     'https://olafasta.com',
     'https://www.olafasta.com',
     'https://admin.olafasta.com',
+    'https://connecthub.website',
+    'https://www.connecthub.website',
+    'https://connecthubadmin.vercel.app',
   ];
 
-  if (secureProductionOrigins.includes(origin)) {
+  if (
+    secureProductionOrigins.includes(normalizedOrigin) ||
+    secureProductionOrigins.includes(origin)
+  ) {
     return true;
   }
 
-  return allowedOrigins.includes(origin);
+  const normalizedAllowed = allowedOrigins.map((o) => o.replace(/\/+$/, ''));
+  return allowedOrigins.includes(origin) || normalizedAllowed.includes(normalizedOrigin);
 };
 
 const corsOptions = {
@@ -300,6 +323,7 @@ app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/caretakers', caretakerRoutes);
 app.use('/api/assistants', assistantRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Serve frontend static assets in production
 const frontendDistPath = path.resolve(__dirname, '../frontend/dist');

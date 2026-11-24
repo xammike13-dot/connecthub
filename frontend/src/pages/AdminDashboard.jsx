@@ -23,7 +23,9 @@ import {
   Store,
   Home,
   Briefcase,
-  AlertCircle
+  AlertCircle,
+  Activity,
+  Power
 } from 'lucide-react';
 import api from '../utils/api';
 import { useToast } from '../components/Toast';
@@ -92,6 +94,49 @@ export default function AdminDashboard() {
       toastError?.(err.response?.data?.message || 'Failed to approve vendor');
     },
   });
+
+  // 5. Query: Platform System Status (Maintenance Mode)
+  const { data: systemStatus, isLoading: loadingStatus } = useQuery({
+    queryKey: ['system-status'],
+    queryFn: async () => {
+      const res = await api.get('/settings/status');
+      return res.data;
+    },
+    refetchOnWindowFocus: true,
+  });
+
+  const isMaintenanceMode = Boolean(systemStatus?.maintenanceMode);
+
+  // 6. Mutation: Toggle Maintenance Mode
+  const toggleMaintenanceMutation = useMutation({
+    mutationFn: async (targetMode) => {
+      const res = await api.patch('/settings/maintenance', { maintenanceMode: targetMode });
+      return res.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['system-status'] });
+      toastSuccess?.(
+        data.message ||
+          (data.maintenanceMode
+            ? 'Maintenance mode activated! Public traffic is restricted.'
+            : 'Platform is now LIVE for all users!')
+      );
+    },
+    onError: (err) => {
+      toastError?.(err.response?.data?.message || 'Failed to update maintenance mode');
+    },
+  });
+
+  const handleToggleMaintenance = () => {
+    const nextState = !isMaintenanceMode;
+    const promptMessage = nextState
+      ? '⚠️ WARNING: Enable Maintenance Mode?\n\nPublic visitors on olafasta.com will be redirected to the maintenance screen immediately.\n\nAdmin access (/login and /admin) will remain functional.'
+      : '🚀 READY TO GO LIVE?\n\nThis will take olafasta.com out of maintenance mode and open the platform to all public visitors.';
+
+    if (window.confirm(promptMessage)) {
+      toggleMaintenanceMutation.mutate(nextState);
+    }
+  };
 
   // Filter pending role applications
   const pendingRoleApplications = useMemo(() => {
@@ -302,6 +347,63 @@ export default function AdminDashboard() {
             <span>Financial Ledger</span>
           </button>
         </div>
+      </div>
+
+      {/* ── System Status & Maintenance Mode Control Card ─────────────────── */}
+      <div className="bg-white p-5 md:p-6 rounded-3xl border border-gray-100 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div
+            className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 transition-colors ${
+              isMaintenanceMode
+                ? 'bg-olaOrange-light text-olaOrange-DEFAULT'
+                : 'bg-olaGreen-light text-olaGreen-DEFAULT'
+            }`}
+          >
+            <Activity size={24} className={isMaintenanceMode ? 'animate-pulse' : ''} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-base font-black text-gray-900 tracking-tight">
+                System Status
+              </h2>
+              {isMaintenanceMode ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-black bg-olaOrange-light text-olaOrange-DEFAULT border border-olaOrange-DEFAULT/30 uppercase tracking-wider">
+                  <span className="w-2 h-2 rounded-full bg-olaOrange-DEFAULT animate-ping" />
+                  <span>UNDER MAINTENANCE</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-black bg-olaGreen-light text-olaGreen-DEFAULT border border-olaGreen-DEFAULT/30 uppercase tracking-wider">
+                  <span className="w-2 h-2 rounded-full bg-olaGreen-DEFAULT animate-pulse" />
+                  <span>LIVE (Online)</span>
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-gray-500 mt-1 max-w-lg">
+              {isMaintenanceMode
+                ? 'Public traffic on olafasta.com is redirected to the maintenance screen. Admins retain full bypass access.'
+                : 'Olafasta is fully operational for all campus comrades and vendors across food, gas, bodaboda, and hostels.'}
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={handleToggleMaintenance}
+          disabled={toggleMaintenanceMutation.isPending || loadingStatus}
+          className={`w-full sm:w-auto px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+            isMaintenanceMode
+              ? 'bg-olaGreen-DEFAULT hover:bg-olaGreen-deep text-white shadow-olaGreen-DEFAULT/20'
+              : 'bg-olaOrange-DEFAULT hover:bg-olaOrange-hover text-white shadow-olaOrange-DEFAULT/20'
+          }`}
+        >
+          <Power size={15} />
+          <span>
+            {toggleMaintenanceMutation.isPending
+              ? 'Updating...'
+              : isMaintenanceMode
+              ? 'Go Live Now'
+              : 'Enable Maintenance Mode'}
+          </span>
+        </button>
       </div>
 
       {/* ── Metric Snapshot Tiles ─────────────────────────────────────────── */}
