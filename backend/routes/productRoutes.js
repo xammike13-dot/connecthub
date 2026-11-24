@@ -26,9 +26,9 @@ router.patch('/:productId/stock', protect, authorize('business', 'assistant'), u
 router.put('/:productId', protect, authorize('business', 'assistant'), updateProduct);
 router.delete('/:productId', protect, authorize('business', 'assistant'), deleteProduct);
 
-// Public routes with dynamic params
-router.get('/:productId/related', validateObjectId('productId'), getRelatedProducts);
-router.get('/:productId', validateObjectId('productId'), getProduct);
+// Public routes with dynamic params (accepts both MongoDB ObjectId and SEO slugs)
+router.get('/:productId/related', getRelatedProducts);
+router.get('/:productId', getProduct);
 router.get('/business/:businessId', validateObjectId('businessId'), getBusinessProducts);
 
 // Track product view (authenticated only, counts only customers)

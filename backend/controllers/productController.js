@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Product from '../models/Product.js';
 import User from '../models/User.js';
 import Wishlist from '../models/Wishlist.js';
@@ -247,16 +248,39 @@ export const getProducts = asyncHandler(async (req, res) => {
 });
 
 /**
- * Get product by ID
+ * Get product by ID or Slug (flexible lookup)
  */
 export const getProduct = asyncHandler(async (req, res) => {
   const { productId } = req.params;
+  const param = String(productId || '').trim();
 
-  const product = await Product.findById(productId)
-    .populate('business', 'name email phone businessProfile avatar');
+  let product = null;
+
+  // 1. If valid ObjectId, lookup by _id first
+  if (mongoose.Types.ObjectId.isValid(param)) {
+    product = await Product.findById(param)
+      .populate('business', 'name email phone businessProfile avatar');
+  }
+
+  // 2. If not found or not an ObjectId, lookup by slug
+  if (!product) {
+    product = await Product.findOne({ slug: param.toLowerCase() })
+      .populate('business', 'name email phone businessProfile avatar');
+  }
 
   if (!product) {
     throw new ResponseError('Product not found', 404);
+  }
+
+  // 3. Auto-generate and persist slug if missing on an existing record
+  if (!product.slug && product.name) {
+    const baseSlug = product.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+    const randomSuffix = Math.random().toString(36).substring(2, 6);
+    product.slug = `${baseSlug || 'product'}-${randomSuffix}`;
+    await Product.findByIdAndUpdate(product._id, { slug: product.slug });
   }
 
   // Ensure stock is accurately resolved for legacy or existing records
@@ -284,6 +308,7 @@ export const getProduct = asyncHandler(async (req, res) => {
  */
 export const getRelatedProducts = asyncHandler(async (req, res) => {
   const { productId } = req.params;
+  const param = String(productId || '').trim();
   const {
     page = 1,
     limit = 12,
@@ -291,7 +316,13 @@ export const getRelatedProducts = asyncHandler(async (req, res) => {
     excludeId: customExcludeId,
   } = req.query;
 
-  const product = await Product.findById(productId).select('category categorySlug subcategory brand price specifications');
+  let product = null;
+  if (mongoose.Types.ObjectId.isValid(param)) {
+    product = await Product.findById(param).select('category categorySlug subcategory brand price specifications');
+  }
+  if (!product) {
+    product = await Product.findOne({ slug: param.toLowerCase() }).select('category categorySlug subcategory brand price specifications');
+  }
 
   if (!product) {
     throw new ResponseError('Product not found', 404);
@@ -456,6 +487,16 @@ export const updateProduct = asyncHandler(async (req, res) => {
   if (req.body.category) {
     req.body.category = validateCategory(req.body.category);
     req.body.categorySlug = categorySlug(req.body.category);
+  }
+
+  // Update slug if product name has changed without an explicit slug supplied
+  if (req.body.name && req.body.name !== product.name && !req.body.slug) {
+    const baseSlug = req.body.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+    const randomSuffix = Math.random().toString(36).substring(2, 6);
+    req.body.slug = `${baseSlug || 'product'}-${randomSuffix}`;
   }
 
   // Keep stock and stockCount in sync on update
@@ -635,10 +676,18 @@ export const getBusinessProducts = asyncHandler(async (req, res) => {
  */
 export const trackProductView = asyncHandler(async (req, res) => {
   const { productId } = req.params;
+  const param = String(productId || '').trim();
   const userId = req.user._id;
   const userRole = req.user.role;
 
-  const product = await Product.findById(productId);
+  let product = null;
+  if (mongoose.Types.ObjectId.isValid(param)) {
+    product = await Product.findById(param);
+  }
+  if (!product) {
+    product = await Product.findOne({ slug: param.toLowerCase() });
+  }
+
   if (!product) {
     throw new ResponseError('Product not found', 404);
   }

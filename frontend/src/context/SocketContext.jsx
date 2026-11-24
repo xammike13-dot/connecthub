@@ -48,8 +48,9 @@ export const SocketProvider = ({ children }) => {
 
   useEffect(() => {
     if (isAuthenticated && token && user) {
-      const apiBaseUrl = (import.meta.env.VITE_API_URL || window.location.origin).replace(/\/$/, '');
-      const socketUrl = import.meta.env.VITE_SOCKET_URL || apiBaseUrl.replace(/\/api$/, '');
+      const rawApiUrl = (import.meta.env.VITE_API_URL || '').trim();
+      const apiBaseUrl = rawApiUrl.startsWith('http') ? rawApiUrl.replace(/\/$/, '') : (typeof window !== 'undefined' ? window.location.origin : '');
+      const socketUrl = import.meta.env.VITE_SOCKET_URL || (apiBaseUrl ? apiBaseUrl.replace(/\/api$/, '') : '/');
 
       const newSocket = io(socketUrl, {
         auth: { token },

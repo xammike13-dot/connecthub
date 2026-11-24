@@ -189,8 +189,17 @@ const isAllowedOrigin = (origin) => {
   // Normalize origin by stripping trailing slashes for consistent comparison
   const normalizedOrigin = origin.replace(/\/+$/, '');
 
-  // Dynamically trust loopback origins for testing/development
+  // Explicitly allowed local development origins
+  const localDevOrigins = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+  ];
+
   if (
+    localDevOrigins.includes(normalizedOrigin) ||
+    localDevOrigins.includes(origin) ||
     normalizedOrigin.startsWith('http://localhost:') ||
     normalizedOrigin.startsWith('http://127.0.0.1:')
   ) {
